@@ -17,14 +17,14 @@ services:
 
   backend:
     build:
-      context: ./server
+      context: ./backend
     restart: unless-stopped
     depends_on:
       mysql:
         condition: service_healthy
     environment:
       NODE_ENV: production
-      PORT: 3001
+      PORT: 3002
       CORS_ORIGIN: ${CORS_ORIGIN:?Set CORS_ORIGIN}
       DB_HOST: mysql
       DB_USER: ${DB_USER:-novafxm}
@@ -32,7 +32,7 @@ services:
       DB_NAME: ${DB_NAME:-trading_platform}
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET}
     ports:
-      - "3001:3001"
+      - "3002:3002"
 
   frontend:
     build:

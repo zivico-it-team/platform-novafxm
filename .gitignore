@@ -8,5 +8,5 @@ dist/
 .env.local
 .env
 .env.*.local
-server/.env
-server/data/
+backend/.env
+backend/data/

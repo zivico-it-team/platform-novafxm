@@ -89,7 +89,7 @@
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                   │
 │  ┌──────────────────────────────────────────────────────────┐   │
-│  │              API Routes (server/routes/)                 │   │
+│  │              API Routes (backend/src/modules/)                 │   │
 │  │  • POST /api/auth/register → Create user               │   │
 │  │  • POST /api/auth/login → Return JWT token            │   │
 │  │  • GET /api/account/* → Get user data                 │   │
@@ -269,7 +269,7 @@ API Wrapper (lib/api.js)
     │     └─ Body: data
     │
     ▼
-Backend API Route (server/routes/*.js)
+Backend API Route (backend/src/modules/*.js)
     │
     ├─ JWT Middleware (auth.js)
     │  └─ Validates token
@@ -350,7 +350,7 @@ app/register/page.js
 lib/api.js
     └─ (No dependencies on context)
 
-server/routes/auth.js
+backend/src/modules/auth.js
     ├─ config/database.js
     └─ middleware/auth.js (for token validation)
 ```

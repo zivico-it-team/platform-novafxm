@@ -8,7 +8,7 @@ The trading platform implements comprehensive error handling across both backend
 
 ### Middleware Stack
 
-#### 1. Error Handler (`server/middleware/errorHandler.js`)
+#### 1. Error Handler (`backend/src/middleware/errorHandler.js`)
 - Centralized error handling for all routes
 - Logs errors with context (method, path, stack trace)
 - Handles specific error types:
@@ -17,7 +17,7 @@ The trading platform implements comprehensive error handling across both backend
   - **HTTP errors**: Returns appropriate status codes
   - **Generic errors**: Returns 500 with safe message
 
-#### 2. Validation Middleware (`server/middleware/validation.js`)
+#### 2. Validation Middleware (`backend/src/middleware/validation.js`)
 - Input validation before route handlers
 - Validates required fields, types, lengths, and ranges
 - Returns 400 with detailed validation errors

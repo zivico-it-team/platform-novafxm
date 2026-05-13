@@ -183,7 +183,7 @@ setError(null);
 ## Security Considerations
 
 1. **HTTPS Only** - Always use HTTPS in production
-2. **Secure JWT Secret** - Change JWT_SECRET in server/.env
+2. **Secure JWT Secret** - Change JWT_SECRET in backend/.env
 3. **HttpOnly Cookies** - Consider using httpOnly cookies instead of localStorage
 4. **Token Refresh** - Implement refresh token logic for long sessions
 5. **CORS** - Configure CORS properly on backend

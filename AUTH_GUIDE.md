@@ -135,7 +135,7 @@ The token is automatically available from the context and should be used in API 
 'use client';
 
 import { useAuth } from '@/context/useAuth';
-import { tradesAPI } from '@/lib/api';
+import { tradesAPI } from '@/services/api';
 import { useEffect, useState } from 'react';
 
 export default function TradesComponent() {

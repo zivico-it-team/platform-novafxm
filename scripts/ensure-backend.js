@@ -3,10 +3,11 @@ const fs = require('fs');
 const path = require('path');
 
 const rootDir = path.join(__dirname, '..');
-const serverDir = path.join(rootDir, 'server');
+const serverDir = path.join(rootDir, 'backend');
 const outLog = path.join(serverDir, 'backend.out.log');
 const errLog = path.join(serverDir, 'backend.err.log');
-const healthUrl = 'http://localhost:3001/api/health';
+const serverEntry = path.join(serverDir, 'src', 'server.js');
+const healthUrl = 'http://localhost:3002/api/health';
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -32,7 +33,7 @@ const startBackend = () => {
   const stdout = fs.openSync(outLog, 'a');
   const stderr = fs.openSync(errLog, 'a');
 
-  const child = spawn(process.execPath, ['server.js'], {
+  const child = spawn(process.execPath, [serverEntry], {
     cwd: serverDir,
     detached: true,
     stdio: ['ignore', stdout, stderr],
@@ -44,11 +45,11 @@ const startBackend = () => {
 
 const main = async () => {
   if (await isBackendReady()) {
-    console.log('Backend already running on http://localhost:3001');
+    console.log('Backend already running on http://localhost:3002');
     return;
   }
 
-  console.log('Starting backend on http://localhost:3001');
+  console.log('Starting backend on http://localhost:3002');
   startBackend();
 
   if (!(await waitForBackend())) {
@@ -57,7 +58,7 @@ const main = async () => {
     process.exit(1);
   }
 
-  console.log('Backend ready on http://localhost:3001');
+  console.log('Backend ready on http://localhost:3002');
 };
 
 main().catch((error) => {

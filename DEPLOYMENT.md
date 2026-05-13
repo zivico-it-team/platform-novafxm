@@ -3,7 +3,7 @@
 NovaFXM has two deployable apps:
 
 - Frontend: Next.js app from the project root
-- Backend: Express API and WebSocket server from `server/`
+- Backend: Express API and WebSocket server from `backend/`
 
 ## Required Environment
 
@@ -17,7 +17,7 @@ Backend:
 
 ```env
 NODE_ENV=production
-PORT=3001
+PORT=3002
 CORS_ORIGIN=https://your-domain.com
 DB_HOST=your-mysql-host
 DB_USER=your-mysql-user
@@ -30,7 +30,7 @@ Use a long random `JWT_SECRET` in production and keep `.env` files out of source
 
 ## Option 1: Docker Compose on a VPS
 
-1. Copy `.env.production.example` and `server/.env.production.example`, then set real values.
+1. Copy `.env.production.example` and `backend/.env.production.example`, then set real values.
 2. Create a root `.env` for Compose:
 
 ```env
@@ -52,7 +52,7 @@ docker compose -f docker-compose.prod.yml up -d --build
 4. Verify:
 
 ```bash
-curl http://localhost:3001/health
+curl http://localhost:3002/health
 curl http://localhost:3000
 ```
 
@@ -69,7 +69,7 @@ Frontend:
 
 Backend:
 
-- Deploy `server/` to Render, Railway, Fly.io, or a VPS.
+- Deploy `backend/` to Render, Railway, Fly.io, or a VPS.
 - Use a managed MySQL database.
 - Set the backend environment variables listed above.
 - Start command: `npm start`
@@ -79,6 +79,6 @@ Backend:
 
 - `npm run lint`
 - `npm run build`
-- `node --check server/server.js`
+- `node --check backend/src/server.js`
 - Confirm `https://api.your-domain.com/api/health` returns `{"status":"OK",...}`.
 - Confirm the frontend can register, log in, and open the WebSocket price feed.

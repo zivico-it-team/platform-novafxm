@@ -191,7 +191,7 @@ npm run dev
 - **Dashboard**: http://localhost:3000
 - **Login**: http://localhost:3000/login
 - **Register**: http://localhost:3000/register
-- **Backend API**: http://localhost:3001/api
+- **Backend API**: http://localhost:3002/api
 
 ## 📊 Data Flow
 
@@ -273,7 +273,7 @@ npm run dev
 For issues or questions:
 1. Check AUTH_GUIDE.md troubleshooting section
 2. Check browser console for errors
-3. Verify backend is running on port 3001
+3. Verify backend is running on port 3002
 4. Verify MySQL is connected
 5. Check .env files are properly configured
 

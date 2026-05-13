@@ -14,13 +14,13 @@
    npm install
    ```
 
-2. **Configure MySQL connection** in `server/.env`:
+2. **Configure MySQL connection** in `backend/.env`:
    ```env
    DB_HOST=localhost
    DB_USER=root
    DB_PASSWORD=your_password
    DB_NAME=trading_platform
-   PORT=3001
+   PORT=3002
    JWT_SECRET=your-secret-key-change-this
    ```
 
@@ -28,7 +28,7 @@
    ```bash
    npm run dev
    ```
-   Backend will run on `http://localhost:3001`
+   Backend will run on `http://localhost:3002`
 
 ## Frontend Setup (Next.js)
 
@@ -41,7 +41,7 @@
 
 2. **Frontend configuration** is already set in `.env.local`:
    ```env
-   NEXT_PUBLIC_API_URL=http://localhost:3001/api
+   NEXT_PUBLIC_API_URL=http://localhost:3002/api
    ```
 
 3. **Start the frontend:**
@@ -110,7 +110,7 @@ POST /api/prices/:symbol
 Use the API functions from `lib/api.js`:
 
 ```javascript
-import { authAPI, tradesAPI, accountAPI } from '@/lib/api';
+import { authAPI, tradesAPI, accountAPI } from '@/services/api';
 
 // Register
 await authAPI.register(email, username, password);
@@ -135,9 +135,9 @@ await accountAPI.getAccount(token);
 | Issue | Solution |
 |-------|----------|
 | MySQL connection error | Ensure MySQL is running and credentials are correct |
-| Port 3001 in use | Change PORT in server/.env or kill the process |
+| Port 3002 in use | Change PORT in backend/.env or kill the process |
 | API calls fail | Verify NEXT_PUBLIC_API_URL in .env.local |
-| JWT token errors | Ensure JWT_SECRET is set in server/.env |
+| JWT token errors | Ensure JWT_SECRET is set in backend/.env |
 
 ## Next Steps
 
@@ -151,7 +151,7 @@ await accountAPI.getAccount(token);
 See [DEPLOYMENT.md](DEPLOYMENT.md) for Docker Compose and managed hosting deployment steps.
 
 ## WebSocket Feed
-- Backend: `ws://localhost:3001/ws/prices`
+- Backend: `ws://localhost:3002/ws/prices`
 - Frontend: connects automatically from `lib/useTrading.js` using `NEXT_PUBLIC_API_URL`
 - Message type: `priceUpdate`
 - Payload: `{ type: 'priceUpdate', data: { symbol: { bid, ask, mid }, ... } }`
@@ -160,8 +160,8 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) for Docker Compose and managed hosting deploy
 ## Error Handling
 
 ### Backend
-- Centralized error middleware (`server/middleware/errorHandler.js`)
-- Input validation middleware (`server/middleware/validation.js`)
+- Centralized error middleware (`backend/src/middleware/errorHandler.js`)
+- Input validation middleware (`backend/src/middleware/validation.js`)
 - Automatic error logging and proper HTTP status codes
 - See [ERROR_HANDLING.md](ERROR_HANDLING.md) for details
 
