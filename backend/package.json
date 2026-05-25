@@ -1,26 +1,26 @@
 {
   "name": "novafxm-backend",
   "version": "1.0.0",
-  "description": "NovaFXM Trading Platform Backend",
+  "private": true,
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
-    "dev": "node src/server.js"
+    "dev": "nodemon src/server.js",
+    "seed:admin": "node src/seed/seedAdmin.js",
+    "check": "node --check src/server.js"
   },
-  "keywords": ["trading", "forex", "api"],
-  "author": "",
-  "license": "ISC",
   "dependencies": {
-    "express": "^4.18.2",
-    "mysql2": "^3.6.5",
-    "dotenv": "^16.3.1",
-    "bcryptjs": "^2.4.3",
+    "axios": "^1.16.1",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^4.21.2",
     "jsonwebtoken": "^9.0.3",
-    "cors": "^2.8.5",
-    "body-parser": "^1.20.2",
-    "ws": "^8.13.0"
+    "mysql2": "^3.22.3",
+    "sequelize": "^6.37.8",
+    "socket.io": "^4.8.3"
   },
   "devDependencies": {
-    "nodemon": "^3.0.2"
+    "nodemon": "^3.1.14"
   }
 }
