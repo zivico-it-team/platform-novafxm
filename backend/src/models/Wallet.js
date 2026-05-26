@@ -5,6 +5,9 @@ const Wallet = sequelize.define('Wallet', {
   id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
   userId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, unique: true, field: 'user_id' },
   balance: { type: DataTypes.DECIMAL(15, 2), allowNull: false, defaultValue: 5000 },
+  equity: { type: DataTypes.DECIMAL(15, 2), allowNull: false, defaultValue: 5000 },
+  margin: { type: DataTypes.DECIMAL(15, 2), allowNull: false, defaultValue: 0 },
+  freeFunds: { type: DataTypes.DECIMAL(15, 2), allowNull: false, defaultValue: 5000, field: 'free_funds' },
   bonus: { type: DataTypes.DECIMAL(15, 2), allowNull: false, defaultValue: 0 },
   currency: { type: DataTypes.STRING(3), allowNull: false, defaultValue: 'USD' },
 }, { tableName: 'wallets' });

@@ -9,6 +9,9 @@ const User = sequelize.define('User', {
   password: { type: DataTypes.STRING(255), allowNull: false },
   role: { type: DataTypes.ENUM('user', 'admin'), allowNull: false, defaultValue: 'user' },
   accountType: { type: DataTypes.ENUM('Demo', 'Live'), field: 'account_type', defaultValue: 'Demo' },
+  leverage: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, defaultValue: 100 },
+  tradingStatus: { type: DataTypes.ENUM('active', 'frozen'), field: 'trading_status', allowNull: false, defaultValue: 'active' },
+  adminNotes: { type: DataTypes.TEXT, field: 'admin_notes', allowNull: true },
 }, { tableName: 'users' });
 
 module.exports = User;

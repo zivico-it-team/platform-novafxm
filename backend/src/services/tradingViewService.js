@@ -161,14 +161,31 @@ async function getPrice(symbol) {
 
 function generateCandles(symbol, base, timeframe = '15m') {
   const seconds = { '1m': 60, '5m': 300, '15m': 900, '30m': 1800, '1H': 3600, '4H': 14400, '1D': 86400 }[timeframe] || 900;
-  let close = Number(base);
-  const time = Math.floor(Date.now() / 1000);
-  return Array.from({ length: 90 }, (_, index) => {
-    const open = close;
-    close = Math.max(0.00001, open + (Math.random() - 0.5) * open * 0.003);
-    const range = Math.random() * open * 0.001;
-    return { time: time - (89 - index) * seconds, open, high: Math.max(open, close) + range, low: Math.min(open, close) - range, close };
+  const liveClose = Number(base);
+  const time = Math.floor(Math.floor(Date.now() / 1000) / seconds) * seconds;
+  let nextClose = liveClose;
+  const candles = Array.from({ length: 89 }, (_, index) => {
+    const close = nextClose;
+    const open = Math.max(0.00001, close + (Math.random() - 0.5) * close * 0.003);
+    const range = Math.random() * close * 0.001;
+    nextClose = open;
+    return {
+      time: time - (index + 1) * seconds,
+      open,
+      high: Math.max(open, close) + range,
+      low: Math.min(open, close) - range,
+      close,
+    };
+  }).reverse();
+  const previousClose = candles[candles.length - 1].close;
+  candles.push({
+    time,
+    open: previousClose,
+    high: Math.max(previousClose, liveClose),
+    low: Math.min(previousClose, liveClose),
+    close: liveClose,
   });
+  return candles;
 }
 
 module.exports = { instruments, getPrices, getPrice, generateCandles };
