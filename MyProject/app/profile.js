@@ -26,6 +26,11 @@ export default function ProfileScreen() {
       {user ? <CustomButton title="Logout" variant="secondary" onPress={signOut} className="mt-5 max-w-[220px]" /> : (
         <Link href="/login" asChild><Pressable className="mt-5"><Text className="text-primary">Login to manage your account</Text></Pressable></Link>
       )}
+      <Text className="mt-10 text-xs text-muted">
+        <Link href="https://www.tradingview.com/">
+          TradingView Lightweight Charts(TM) Copyright (c) 2025 TradingView, Inc.
+        </Link>
+      </Text>
     </ScrollView>
   );
 }
