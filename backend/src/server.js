@@ -27,6 +27,38 @@ app.use((error, req, res, next) => {
 });
 
 const port = Number(process.env.PORT || 5000);
+const marketRefreshMs = Number(process.env.MARKET_REFRESH_MS || 15000);
+const marketLogSymbols = (process.env.MARKET_LOG_SYMBOLS || 'AUD/JPY')
+  .split(',')
+  .map((symbol) => symbol.trim())
+  .filter(Boolean);
+let lastFeedWarning = '';
+
+function logMarketPrices(prices) {
+  const displayed = marketLogSymbols.includes('*')
+    ? prices
+    : prices.filter((price) => marketLogSymbols.includes(price.symbol));
+  const marketCount = prices.filter((price) => price.source === 'market').length;
+  const problems = tradingView.getFeedStatus();
+  if (!marketCount) {
+    const signature = JSON.stringify(problems);
+    if (signature !== lastFeedWarning) {
+      console.warn(`[${new Date().toISOString()}] No upstream market prices. Display values are unavailable placeholders.`);
+      console.warn('Upstream feed errors:', problems);
+      lastFeedWarning = signature;
+    }
+    return;
+  }
+  lastFeedWarning = '';
+  console.log(`[${new Date().toISOString()}] Market quotes: ${marketCount}/${prices.length} upstream prices`);
+  console.table(displayed.map((price) => ({
+    symbol: price.symbol,
+    price: Number(price.price).toFixed(price.decimals),
+    bid: Number(price.bid).toFixed(price.decimals),
+    ask: Number(price.ask).toFixed(price.decimals),
+    source: price.source,
+  })));
+}
 
 async function start() {
   await sequelize.authenticate();
@@ -34,13 +66,34 @@ async function start() {
   await seedAdmin();
   const server = http.createServer(app);
   const io = new Server(server, { cors: { origin: process.env.CORS_ORIGIN === '*' || !process.env.CORS_ORIGIN ? true : process.env.CORS_ORIGIN } });
-  io.on('connection', async (socket) => {
-    socket.emit('market:prices', await tradingView.getPrices());
+  let latestPrices = [];
+  const publishPrices = (prices) => {
+    latestPrices = prices;
+    logMarketPrices(latestPrices);
+    if (io.engine.clientsCount) io.emit('market:prices', latestPrices);
+  };
+  const stopPriceStream = tradingView.startPriceStream(publishPrices);
+  let refreshingPrices = false;
+  const refreshPrices = async () => {
+    if (refreshingPrices) return;
+    refreshingPrices = true;
+    try {
+      publishPrices(await tradingView.getPrices());
+    } catch (error) {
+      console.error('Market quote refresh failed:', error.message);
+    } finally {
+      refreshingPrices = false;
+    }
+  };
+  io.on('connection', (socket) => {
+    if (latestPrices.length) socket.emit('market:prices', latestPrices);
   });
-  const ticker = setInterval(async () => {
-    if (io.engine.clientsCount) io.emit('market:prices', await tradingView.getPrices());
-  }, 2000);
-  server.on('close', () => clearInterval(ticker));
+  refreshPrices();
+  const ticker = setInterval(refreshPrices, marketRefreshMs);
+  server.on('close', () => {
+    clearInterval(ticker);
+    stopPriceStream();
+  });
   server.listen(port, () => console.log(`NOVA FXM API listening on port ${port}`));
 }
 

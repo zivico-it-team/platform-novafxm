@@ -25,6 +25,9 @@ exports.open = async (req, res, next) => {
       return res.status(400).json({ message: 'Valid symbol, side and lots are required.' });
     }
     const market = await tradingView.getPrice(symbol);
+    if (market.source !== 'market') {
+      return res.status(503).json({ message: 'A current market quote is unavailable for this symbol.' });
+    }
     const margin = money((Number(lots) * 10000) / Number(req.user.leverage || 100));
     let trade;
     await sequelize.transaction(async (transaction) => {
@@ -50,6 +53,9 @@ exports.close = async (req, res, next) => {
     const trade = await Trade.findOne({ where: { id: req.params.id, userId: req.user.id, status: 'open' } });
     if (!trade) return res.status(404).json({ message: 'Open trade not found.' });
     const market = await tradingView.getPrice(trade.symbol);
+    if (market.source !== 'market') {
+      return res.status(503).json({ message: 'A current market quote is unavailable for this symbol.' });
+    }
     const closePrice = trade.side === 'BUY' ? market.bid : market.ask;
     const profit = pnl(trade, closePrice);
     await sequelize.transaction(async (transaction) => {

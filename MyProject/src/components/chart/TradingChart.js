@@ -2,11 +2,14 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { useDemoTrading } from '../../hooks/useDemoTrading';
+import { marketService } from '../../services/marketService';
 import { percent, quote } from '../../utils/formatters';
 
 const TIMEFRAMES = ['1s', '1m', '5m', '15m', '30m', '1H', '4H', '1D'];
 
-function chartHtml(basePrice, timeframe) {
+function chartHtml(basePrice, timeframe, historicalCandles) {
+  const initialCandles = JSON.stringify(historicalCandles);
+  const livePrice = Number.isFinite(Number(basePrice)) && Number(basePrice) > 0 ? Number(basePrice) : 'null';
   return `<!doctype html>
 <html><head><meta name="viewport" content="width=device-width,initial-scale=1.0">
 <style>*{box-sizing:border-box}body{margin:0;background:#080f20;color:#9baac1;font-family:Arial,sans-serif}#chart{position:absolute;inset:0}</style>
@@ -17,19 +20,29 @@ const container=document.getElementById('chart');
 const chart=LightweightCharts.createChart(container,{layout:{background:{type:'solid',color:'#080f20'},textColor:'#9baac1',attributionLogo:false},grid:{vertLines:{color:'#18243b'},horzLines:{color:'#18243b'}},rightPriceScale:{borderColor:'#283652'},timeScale:{borderColor:'#283652',timeVisible:true},crosshair:{mode:0}});
 const candles=chart.addSeries(LightweightCharts.CandlestickSeries,{upColor:'#19b8ab',downColor:'#f24d58',wickUpColor:'#19b8ab',wickDownColor:'#f24d58',borderVisible:false});
 const interval=${timeframe === '1s' ? 1 : timeframe === '1m' ? 60 : timeframe === '5m' ? 300 : timeframe === '15m' ? 900 : timeframe === '30m' ? 1800 : timeframe === '1H' ? 3600 : timeframe === '4H' ? 14400 : 86400};
-const startPrice=${Number(basePrice) || 1};
+const startPrice=${livePrice};
 const currentBucket=()=>Math.floor(Math.floor(Date.now()/1000)/interval)*interval;
-let historicClose=startPrice; let reverse=[];
-for(let i=1;i<=89;i++){let close=historicClose; let open=Math.max(.00001,close+(Math.random()-.5)*close*.002); let range=Math.abs(open-close)+close*.0005*Math.random(); reverse.push({time:currentBucket()-i*interval,open,high:Math.max(open,close)+range,low:Math.max(.00001,Math.min(open,close)-range),close}); historicClose=open;}
-let points=reverse.reverse();
-let previous=points[points.length-1];
-let live={time:currentBucket(),open:previous.close,high:Math.max(previous.close,startPrice),low:Math.min(previous.close,startPrice),close:startPrice};
-points.push(live); candles.setData(points); chart.timeScale().fitContent();
+let points=${initialCandles};
+let live=null;
+if(startPrice){
+  if(!points.length){points=[{time:currentBucket(),open:startPrice,high:startPrice,low:startPrice,close:startPrice}];}
+  const previous=points[points.length-1];
+  live=previous.time===currentBucket()
+    ? {...previous,high:Math.max(previous.high,startPrice),low:Math.min(previous.low,startPrice),close:startPrice}
+    : {time:currentBucket(),open:previous.close,high:Math.max(previous.close,startPrice),low:Math.min(previous.close,startPrice),close:startPrice};
+  if(previous.time===live.time){points[points.length-1]=live;}else{points.push(live);}
+}
+candles.setData(points); if(points.length){chart.timeScale().fitContent();}
+chart.applyOptions({timeScale:{timeVisible:${timeframe === '1D' ? 'false' : 'true'},secondsVisible:${timeframe === '1s' ? 'true' : 'false'}}});
 function updateQuote(value){
   const price=Number(value);
   if(!Number.isFinite(price)||price<=0) return;
   const bucket=currentBucket();
   const last=points[points.length-1];
+  if(!last){
+    live={time:bucket,open:price,high:price,low:price,close:price};
+    points=[live]; candles.setData(points); chart.timeScale().fitContent(); return;
+  }
   if(last.time===bucket){
     live={...last,high:Math.max(last.high,price),low:Math.min(last.low,price),close:price};
     points[points.length-1]=live;
@@ -47,13 +60,36 @@ new ResizeObserver(entries=>{if(entries[0]) chart.applyOptions({width:entries[0]
 export default function TradingChart() {
   const { currentSymbol } = useDemoTrading();
   const [timeframe, setTimeframe] = useState('15m');
+  const [historicalCandles, setHistoricalCandles] = useState([]);
   const chartRef = useRef(null);
-  const html = useMemo(() => chartHtml(currentSymbol.price, timeframe), [currentSymbol.symbol, timeframe]);
+  const hasMarketQuote = ['market', 'stale'].includes(currentSymbol.source);
+  const html = useMemo(() => chartHtml(hasMarketQuote ? currentSymbol.price : null, timeframe, historicalCandles), [currentSymbol.symbol, timeframe, historicalCandles, hasMarketQuote]);
   const positive = currentSymbol.change >= 0;
+  const quoteSource = {
+    market: { label: 'Market quote', style: 'text-success' },
+    stale: { label: 'Last market quote', style: 'text-muted' },
+    unavailable: { label: 'Price unavailable', style: 'text-danger' },
+    demo: { label: 'Demo quote', style: 'text-primary' },
+  }[currentSymbol.source] || { label: 'Demo quote', style: 'text-primary' };
   const liveMessage = useMemo(
-    () => JSON.stringify({ type: 'quote', price: Number(currentSymbol.price) }),
-    [currentSymbol.price],
+    () => JSON.stringify({ type: 'quote', price: hasMarketQuote ? Number(currentSymbol.price) : null }),
+    [currentSymbol.price, hasMarketQuote],
   );
+
+  useEffect(() => {
+    let active = true;
+    setHistoricalCandles([]);
+    marketService.getCandles(currentSymbol.symbol, timeframe)
+      .then((candles) => {
+        if (active) setHistoricalCandles(candles);
+      })
+      .catch(() => {
+        if (active) setHistoricalCandles([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [currentSymbol.symbol, timeframe]);
 
   useEffect(() => {
     if (Platform.OS === 'web') {
@@ -69,6 +105,7 @@ export default function TradingChart() {
         <Text className="mr-5 text-lg font-bold text-white">{currentSymbol.symbol}</Text>
         <Text className={positive ? 'text-success' : 'text-danger'}>{quote(currentSymbol.price, currentSymbol.decimals)}  {percent(currentSymbol.change)}</Text>
         <Text className="ml-3 text-xs text-muted">Spread {quote(currentSymbol.spread, currentSymbol.decimals)}</Text>
+        <Text className={`ml-3 text-xs ${quoteSource.style}`}>{quoteSource.label}</Text>
         <View className="ml-auto flex-row">
           {TIMEFRAMES.map((entry) => (
             <Pressable key={entry} onPress={() => setTimeframe(entry)} className={`ml-1 rounded-md px-3 py-2 ${entry === timeframe ? 'bg-primary' : ''}`}>

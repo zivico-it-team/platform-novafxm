@@ -1,4 +1,13 @@
 const axios = require('axios');
+const WebSocket = require('ws');
+const lastMarketPrices = new Map();
+const scannerErrors = new Map();
+const twelveDataUrl = 'https://api.twelvedata.com';
+const marketCacheMs = Number(process.env.MARKET_CACHE_MS || Math.max(1000, Number(process.env.MARKET_REFRESH_MS || 60000) - 1000));
+const candleCacheMs = Number(process.env.CANDLE_CACHE_MS || 300000);
+const candleCache = new Map();
+let latestPrices = [];
+let lastRefreshAt = 0;
 
 const instrument = (ticker, symbol, name, group, scanner, decimals, fallback, spreadPoints, popular = false) => ({
   ticker, symbol, name, group, scanner, decimals, fallback, spreadPoints, popular,
@@ -115,43 +124,80 @@ function visibleInstrument(item, quoteValues) {
 }
 
 function fallbackPrice(instrument) {
-  const price = instrument.fallback * (1 + (Math.random() - 0.5) * 0.002);
+  const cached = lastMarketPrices.get(instrument.symbol);
+  if (cached) return { ...cached, source: 'stale' };
+  const price = instrument.fallback;
   const spread = spreadFor(instrument);
-  return visibleInstrument(instrument, { price, bid: price, ask: price + spread, spread, change: (Math.random() - 0.5) * 0.6 });
+  return visibleInstrument(instrument, { price, bid: price, ask: price + spread, spread, change: 0, source: 'unavailable' });
 }
 
-async function scan(scanner, selected) {
-  const response = await axios.post(
-    `https://scanner.tradingview.com/${scanner}/scan`,
-    {
-      columns: ['name', 'description', 'close', 'change', 'bid', 'ask'],
-      symbols: { query: { types: [] }, tickers: selected.map((instrument) => instrument.ticker) },
-      range: [0, selected.length],
-    },
-    { timeout: 6500, headers: { 'Content-Type': 'application/json' } },
-  );
-  const byTicker = new Map(response.data.data.map((row) => [row.s, row.d]));
-  return selected.map((instrument) => {
-    const values = byTicker.get(instrument.ticker);
-    if (!values || !Number(values[2])) return fallbackPrice(instrument);
-    const price = Number(values[2]);
-    const bid = Number(values[4]) || price;
-    const ask = Number(values[5]) || bid + spreadFor(instrument);
-    return visibleInstrument(instrument, { price, bid, ask, spread: ask - bid, change: Number(values[3]) || 0 });
-  });
+function configuredInstruments() {
+  const configured = process.env.TWELVE_DATA_SYMBOLS || 'AUD/JPY';
+  if (configured.trim() === '*') return instruments;
+  const selected = new Set(configured.split(',').map((symbol) => symbol.trim()).filter(Boolean));
+  return instruments.filter((item) => selected.has(item.symbol));
+}
+
+function snapshotPrices() {
+  return instruments.map((item) => lastMarketPrices.get(item.symbol) || fallbackPrice(item));
+}
+
+function updateMarketPrice(symbol, price) {
+  const item = instruments.find((entry) => entry.symbol === symbol);
+  if (!item || !Number.isFinite(price) || price <= 0) return false;
+  const previous = lastMarketPrices.get(symbol);
+  const change = previous?.price ? ((price - previous.price) / previous.price) * 100 : 0;
+  const spread = spreadFor(item);
+  const quote = visibleInstrument(item, { price, bid: price, ask: price + spread, spread, change, source: 'market' });
+  lastMarketPrices.set(symbol, quote);
+  latestPrices = snapshotPrices();
+  lastRefreshAt = Date.now();
+  return true;
 }
 
 async function getPrices() {
-  const scanners = [...new Set(instruments.map((item) => item.scanner))];
-  const batches = await Promise.all(scanners.map(async (scanner) => {
-    const selected = instruments.filter((item) => item.scanner === scanner);
-    try {
-      return await scan(scanner, selected);
-    } catch {
-      return selected.map(fallbackPrice);
-    }
-  }));
-  return batches.flat();
+  if (latestPrices.length && Date.now() - lastRefreshAt < marketCacheMs) return latestPrices;
+  const apiKey = process.env.TWELVE_DATA_API_KEY?.trim();
+  const selected = configuredInstruments();
+  const fallback = instruments.map(fallbackPrice);
+  if (!apiKey) {
+    scannerErrors.set('twelveData', 'Add TWELVE_DATA_API_KEY to backend/.env and restart the backend');
+    latestPrices = fallback;
+    lastRefreshAt = Date.now();
+    return latestPrices;
+  }
+
+  try {
+    const { data } = await axios.get(`${twelveDataUrl}/price`, {
+      params: { symbol: selected.map((item) => item.symbol).join(','), apikey: apiKey },
+      timeout: 9000,
+    });
+    if (data.status === 'error') throw new Error(data.message || 'Twelve Data request failed');
+    scannerErrors.delete('twelveData');
+
+    const bySymbol = selected.length === 1 ? { [selected[0].symbol]: data } : data;
+    const liveBySymbol = new Map();
+    selected.forEach((item) => {
+      const price = Number(bySymbol[item.symbol]?.price);
+      if (!Number.isFinite(price) || price <= 0) return;
+      updateMarketPrice(item.symbol, price);
+      liveBySymbol.set(item.symbol, lastMarketPrices.get(item.symbol));
+    });
+
+    latestPrices = instruments.map((item) => liveBySymbol.get(item.symbol) || fallbackPrice(item));
+    lastRefreshAt = Date.now();
+    return latestPrices;
+  } catch (error) {
+    const message = error.response?.data?.message || error.message;
+    scannerErrors.set('twelveData', message);
+    latestPrices = fallback;
+    lastRefreshAt = Date.now();
+    return latestPrices;
+  }
+}
+
+function getFeedStatus() {
+  return Object.fromEntries(scannerErrors);
 }
 
 async function getPrice(symbol) {
@@ -159,33 +205,74 @@ async function getPrice(symbol) {
   return prices.find((item) => item.symbol === symbol) || fallbackPrice(instruments[0]);
 }
 
-function generateCandles(symbol, base, timeframe = '15m') {
-  const seconds = { '1m': 60, '5m': 300, '15m': 900, '30m': 1800, '1H': 3600, '4H': 14400, '1D': 86400 }[timeframe] || 900;
-  const liveClose = Number(base);
-  const time = Math.floor(Math.floor(Date.now() / 1000) / seconds) * seconds;
-  let nextClose = liveClose;
-  const candles = Array.from({ length: 89 }, (_, index) => {
-    const close = nextClose;
-    const open = Math.max(0.00001, close + (Math.random() - 0.5) * close * 0.003);
-    const range = Math.random() * close * 0.001;
-    nextClose = open;
-    return {
-      time: time - (index + 1) * seconds,
-      open,
-      high: Math.max(open, close) + range,
-      low: Math.min(open, close) - range,
-      close,
-    };
-  }).reverse();
-  const previousClose = candles[candles.length - 1].close;
-  candles.push({
-    time,
-    open: previousClose,
-    high: Math.max(previousClose, liveClose),
-    low: Math.min(previousClose, liveClose),
-    close: liveClose,
+async function getCandles(symbol, timeframe = '15m') {
+  if (timeframe === '1s') return [];
+  const cacheKey = `${symbol}:${timeframe}`;
+  const cached = candleCache.get(cacheKey);
+  if (cached && Date.now() - cached.fetchedAt < candleCacheMs) return cached.candles;
+  const apiKey = process.env.TWELVE_DATA_API_KEY?.trim();
+  if (!apiKey) throw new Error('Add TWELVE_DATA_API_KEY to backend/.env and restart the backend.');
+  const interval = { '1m': '1min', '5m': '5min', '15m': '15min', '30m': '30min', '1H': '1h', '4H': '4h', '1D': '1day' }[timeframe] || '15min';
+  const outputsize = timeframe === '1D' ? 365 : 90;
+  const { data } = await axios.get(`${twelveDataUrl}/time_series`, {
+    params: { symbol, interval, outputsize, apikey: apiKey },
+    timeout: 9000,
   });
+  if (data.status === 'error') throw new Error(data.message || 'Twelve Data candle request failed');
+  const candles = (data.values || []).map((value) => ({
+    time: Math.floor(new Date(`${value.datetime.replace(' ', 'T')}Z`).getTime() / 1000),
+    open: Number(value.open),
+    high: Number(value.high),
+    low: Number(value.low),
+    close: Number(value.close),
+  })).reverse();
+  candleCache.set(cacheKey, { fetchedAt: Date.now(), candles });
   return candles;
 }
 
-module.exports = { instruments, getPrices, getPrice, generateCandles };
+function startPriceStream(onPrices) {
+  if (process.env.TWELVE_DATA_STREAM_ENABLED !== 'true') return () => {};
+  const apiKey = process.env.TWELVE_DATA_API_KEY?.trim();
+  const symbols = configuredInstruments().map((item) => item.symbol);
+  if (!apiKey || !symbols.length) return () => {};
+  let socket;
+  let reconnectTimer;
+  let heartbeatTimer;
+  let stopped = false;
+
+  const connect = () => {
+    socket = new WebSocket(`wss://ws.twelvedata.com/v1/quotes/price?apikey=${encodeURIComponent(apiKey)}`);
+    socket.on('open', () => {
+      socket.send(JSON.stringify({ action: 'subscribe', params: { symbols: symbols.join(',') } }));
+      heartbeatTimer = setInterval(() => {
+        if (socket.readyState === WebSocket.OPEN) socket.ping();
+      }, 10000);
+    });
+    socket.on('message', (message) => {
+      const event = JSON.parse(message.toString());
+      if (event.event === 'price' && updateMarketPrice(event.symbol, Number(event.price))) {
+        scannerErrors.delete('twelveDataStream');
+        onPrices(latestPrices);
+      } else if (event.event === 'subscribe-status' && event.status === 'error') {
+        const failedSymbols = (event.fails || []).map((failure) => failure.symbol).filter(Boolean).join(', ');
+        scannerErrors.set('twelveDataStream', `WebSocket subscription rejected${failedSymbols ? ` for ${failedSymbols}` : ''}`);
+      }
+    });
+    socket.on('error', (error) => {
+      scannerErrors.set('twelveDataStream', error.message);
+    });
+    socket.on('close', () => {
+      clearInterval(heartbeatTimer);
+      if (!stopped) reconnectTimer = setTimeout(connect, 5000);
+    });
+  };
+  connect();
+  return () => {
+    stopped = true;
+    clearTimeout(reconnectTimer);
+    clearInterval(heartbeatTimer);
+    socket?.close();
+  };
+}
+
+module.exports = { instruments, getPrices, getPrice, getCandles, getFeedStatus, startPriceStream };

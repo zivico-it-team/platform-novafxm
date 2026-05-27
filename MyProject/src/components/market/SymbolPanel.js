@@ -9,6 +9,8 @@ export default function SymbolPanel() {
   const { prices, selectedSymbol, setSelectedSymbol, connected } = useDemoTrading();
   const [search, setSearch] = useState('');
   const [expanded, setExpanded] = useState({ POPULAR: true });
+  const marketFeed = connected && prices.some((item) => item.source === 'market');
+  const staleFeed = connected && !marketFeed && prices.some((item) => item.source === 'stale');
   const filtered = useMemo(
     () => prices.filter((item) => item.symbol.toLowerCase().includes(search.toLowerCase())),
     [prices, search],
@@ -33,8 +35,8 @@ export default function SymbolPanel() {
       <View className="flex-row items-center justify-between px-4 py-3">
         <Text className="rounded-full bg-[#173b64] px-3 py-2 text-primary">All</Text>
         <View className="flex-row items-center">
-          <View className={`mr-2 h-2.5 w-2.5 rounded-full ${connected ? 'bg-success' : 'bg-primary'}`} />
-          <Text className="text-muted">{connected ? 'Connected' : 'Demo feed'}</Text>
+          <View className={`mr-2 h-2.5 w-2.5 rounded-full ${marketFeed ? 'bg-success' : staleFeed ? 'bg-muted' : 'bg-danger'}`} />
+          <Text className="text-muted">{marketFeed ? 'Market feed' : staleFeed ? 'Stale feed' : 'No market feed'}</Text>
         </View>
       </View>
       <View className="mx-3 mb-3 flex-row items-center rounded-xl border border-border bg-surface px-3">

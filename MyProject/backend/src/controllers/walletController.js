@@ -12,7 +12,8 @@ exports.getWallet = async (req, res, next) => {
     const prices = await tradingView.getPrices();
     const openProfit = trades.reduce((sum, trade) => {
       const market = prices.find((item) => item.symbol === trade.symbol);
-      return sum + profitFor(trade, market?.price || trade.openPrice);
+      const price = ['market', 'stale'].includes(market?.source) ? market.price : trade.openPrice;
+      return sum + profitFor(trade, price);
     }, 0);
     const margin = trades.reduce((sum, trade) => sum + Number(trade.margin), 0);
     const balance = Number(wallet.balance);

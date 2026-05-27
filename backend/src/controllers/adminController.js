@@ -30,7 +30,8 @@ async function getUser(id, transaction) {
 function buildSummary(wallet, trades, prices = new Map()) {
   const openProfit = money(trades.reduce((sum, trade) => {
     const quote = prices.get(trade.symbol);
-    return sum + profitFor(trade, quote?.price || trade.openPrice);
+    const price = ['market', 'stale'].includes(quote?.source) ? quote.price : trade.openPrice;
+    return sum + profitFor(trade, price);
   }, 0));
   const balance = money(wallet.balance);
   const margin = money(trades.reduce((sum, trade) => sum + Number(trade.margin), 0));
