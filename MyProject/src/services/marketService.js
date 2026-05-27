@@ -3,14 +3,19 @@ import { SYMBOLS } from '../constants/symbols';
 
 export const createDemoTick = (symbols) =>
   symbols.map((item) => {
-    const change = (Math.random() - 0.5) * item.price * 0.0005;
-    const price = Math.max(item.price + change, 0.00001);
+    const price = Number(item.price || 0);
+    const decimals = Number(item.decimals ?? 2);
+    const spread = Number(item.spread || 0);
     return {
       ...item,
+      decimals,
+      spread,
+      spreadPoints: Number(item.spreadPoints || 0),
       price,
       bid: price,
-      ask: price + item.spread,
-      change: ((price - item.price) / item.price) * 100,
+      ask: price + spread,
+      change: 0,
+      source: 'demo',
     };
   });
 

@@ -1,6 +1,6 @@
 const tradingView = require('../services/tradingViewService');
 
-exports.symbols = (req, res) => res.json({ symbols: tradingView.instruments.map(({ ticker, scanner, fallback, ...symbol }) => symbol) });
+exports.symbols = (req, res) => res.json({ symbols: tradingView.instruments.map(({ ticker, scanner, fallback, ...symbol }) => ({ ...symbol, tradingViewSymbol: ticker })) });
 
 exports.prices = async (req, res, next) => {
   try {

@@ -4,6 +4,17 @@ import { io } from 'socket.io-client';
 import { SYMBOLS } from '../constants/symbols';
 import { createDemoTick, marketService } from '../services/marketService';
 
+const hasTradingViewPrices = (symbols) => symbols?.some((item) => item.source === 'tradingview');
+
+const keepPreviousPrices = (previous, next) => {
+  const previousBySymbol = new Map(previous.map((item) => [item.symbol, item]));
+  return next.map((item) => {
+    const previousItem = previousBySymbol.get(item.symbol);
+    if (previousItem && item.source !== 'tradingview' && !Number(item.price)) return previousItem;
+    return item;
+  });
+};
+
 export function useMarketPrices() {
   const [prices, setPrices] = useState(() => createDemoTick(SYMBOLS));
   const [connected, setConnected] = useState(false);
@@ -16,8 +27,11 @@ export function useMarketPrices() {
     socket.on('market:prices', (next) => {
       if (active && next?.length) {
         receivingSocketPrices = true;
-        setPrices(next);
-        setConnected(true);
+        setPrices((current) => {
+          const merged = keepPreviousPrices(current, next);
+          setConnected(hasTradingViewPrices(merged));
+          return merged;
+        });
       }
     });
     socket.on('disconnect', () => {
@@ -28,8 +42,11 @@ export function useMarketPrices() {
       try {
         const next = await marketService.getPrices();
         if (active) {
-          setPrices(next);
-          setConnected(true);
+          setPrices((current) => {
+            const merged = keepPreviousPrices(current, next);
+            setConnected(hasTradingViewPrices(merged));
+            return merged;
+          });
         }
       } catch {
         if (active) {

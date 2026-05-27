@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { useDemoTrading } from '../../hooks/useDemoTrading';
@@ -12,65 +12,71 @@ const RANGES = [
   { label: 'ALL', value: 'ALL' },
 ];
 
-function chartHtml(basePrice, timeframe, range) {
+const INTERVALS = {
+  '1s': '1S',
+  '1m': '1',
+  '5m': '5',
+  '15m': '15',
+  '30m': '30',
+  '1H': '60',
+  '4H': '240',
+  '1D': 'D',
+};
+
+const RANGE_CONFIG = {
+  YTD: 'YTD',
+  '1Y': '12M',
+  '5Y': '60M',
+  ALL: 'ALL',
+  '1D': '1D',
+};
+
+const inferTradingViewSymbol = (symbol, group) => {
+  const compact = String(symbol || '').replace('/', '');
+  if (!compact) return 'FX:EURUSD';
+  if (group === 'CRYPTO CFD') return `BINANCE:${compact.replace('USD', 'USDT')}`;
+  if (group === 'FOREX') return `FX:${compact}`;
+  if (group === 'METALS' || group === 'ENERGIES' || group === 'INDICES') return `OANDA:${compact}`;
+  return compact;
+};
+
+function chartHtml(symbol, timeframe, range) {
+  const widgetOptions = {
+    autosize: true,
+    symbol,
+    interval: INTERVALS[timeframe] || '15',
+    range: RANGE_CONFIG[range] || '1D',
+    timezone: 'Etc/UTC',
+    theme: 'dark',
+    style: '1',
+    locale: 'en',
+    backgroundColor: '#080f20',
+    gridColor: 'rgba(42, 54, 82, 0.55)',
+    hide_top_toolbar: true,
+    hide_side_toolbar: true,
+    hide_legend: true,
+    allow_symbol_change: false,
+    save_image: false,
+    calendar: false,
+    support_host: 'https://www.tradingview.com',
+  };
+
   return `<!doctype html>
 <html><head><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<style>*{box-sizing:border-box}body{margin:0;background:#080f20;color:#9baac1;font-family:Arial,sans-serif}#chart{position:absolute;inset:0}</style>
-<script src="https://unpkg.com/lightweight-charts@5.0.8/dist/lightweight-charts.standalone.production.js"></script></head>
-<body><div id="chart"></div>
-<script>
-const container=document.getElementById('chart');
-const chart=LightweightCharts.createChart(container,{layout:{background:{type:'solid',color:'#080f20'},textColor:'#9baac1',attributionLogo:false},grid:{vertLines:{color:'#18243b'},horzLines:{color:'#18243b'}},rightPriceScale:{borderColor:'#283652'},timeScale:{borderColor:'#283652',timeVisible:true},crosshair:{mode:0}});
-const candles=chart.addSeries(LightweightCharts.CandlestickSeries,{upColor:'#19b8ab',downColor:'#f24d58',wickUpColor:'#19b8ab',wickDownColor:'#f24d58',borderVisible:false});
-const selectedRange='${range}';
-const timeframeInterval=${timeframe === '1s' ? 1 : timeframe === '1m' ? 60 : timeframe === '5m' ? 300 : timeframe === '15m' ? 900 : timeframe === '30m' ? 1800 : timeframe === '1H' ? 3600 : timeframe === '4H' ? 14400 : 86400};
-const now=Math.floor(Date.now()/1000);
-const yearStart=Math.floor(new Date(new Date().getFullYear(),0,1).getTime()/1000);
-const rangeConfig={
-  '1D':{interval:timeframeInterval,start:now-(timeframeInterval*89),volatility:.002},
-  YTD:{interval:86400,start:yearStart,volatility:.012},
-  '1Y':{interval:86400,start:now-(86400*365),volatility:.012},
-  '5Y':{interval:604800,start:now-(86400*365*5),volatility:.04},
-  ALL:{interval:2592000,start:now-(86400*365*10),volatility:.08}
-}[selectedRange]||{interval:timeframeInterval,start:now-(timeframeInterval*89),volatility:.002};
-const interval=rangeConfig.interval;
-const startPrice=${Number(basePrice) || 1};
-const currentBucket=()=>Math.floor(Math.floor(Date.now()/1000)/interval)*interval;
-let bucket=currentBucket();
-let times=[];
-for(let time=Math.floor(rangeConfig.start/interval)*interval;time<bucket;time+=interval){times.push(time);}
-times=times.slice(-900);
-let points=[];
-let close=Math.max(.00001,startPrice*(1+(Math.random()-.5)*rangeConfig.volatility*2));
-times.forEach((time,index)=>{
-  const remaining=Math.max(1,times.length-index);
-  const targetMove=(startPrice-close)/remaining;
-  const open=close;
-  close=Math.max(.00001,open+targetMove+(Math.random()-.5)*startPrice*rangeConfig.volatility*.18);
-  const candleRange=Math.abs(open-close)+startPrice*rangeConfig.volatility*.08*Math.random();
-  points.push({time,open,high:Math.max(open,close)+candleRange,low:Math.max(.00001,Math.min(open,close)-candleRange),close});
-});
-if(!points.length){points.push({time:bucket-interval,open:startPrice,high:startPrice,low:startPrice,close:startPrice});}
-let previous=points[points.length-1];
-let live={time:currentBucket(),open:previous.close,high:Math.max(previous.close,startPrice),low:Math.min(previous.close,startPrice),close:startPrice};
-points.push(live); candles.setData(points); chart.timeScale().fitContent();
-function updateQuote(value){
-  const price=Number(value);
-  if(!Number.isFinite(price)||price<=0) return;
-  const bucket=currentBucket();
-  const last=points[points.length-1];
-  if(last.time===bucket){
-    live={...last,high:Math.max(last.high,price),low:Math.min(last.low,price),close:price};
-    points[points.length-1]=live;
-  }else{
-    live={time:bucket,open:last.close,high:Math.max(last.close,price),low:Math.min(last.close,price),close:price};
-    points.push(live);
-  }
-  candles.update(live);
-}
-window.addEventListener('message',(event)=>{try{const message=typeof event.data==='string'?JSON.parse(event.data):event.data;if(message&&message.type==='quote') updateQuote(message.price);}catch(error){}});
-new ResizeObserver(entries=>{if(entries[0]) chart.applyOptions({width:entries[0].contentRect.width,height:entries[0].contentRect.height});}).observe(document.body);
-</script></body></html>`;
+<style>
+*{box-sizing:border-box}html,body,#chart{height:100%;width:100%;margin:0;background:#080f20;overflow:hidden}
+.tradingview-widget-container{position:relative;height:100%;width:100%}
+.tradingview-widget-container__widget{height:100%;width:100%}
+.tradingview-widget-copyright,.tradingview-widget-copyright a{background:transparent!important}
+</style></head>
+<body>
+<div id="chart" class="tradingview-widget-container">
+  <div class="tradingview-widget-container__widget"></div>
+  <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" async>
+${JSON.stringify(widgetOptions, null, 2)}
+  </script>
+</div>
+</body></html>`;
 }
 
 export default function TradingChart() {
@@ -78,21 +84,9 @@ export default function TradingChart() {
   const [timeframe, setTimeframe] = useState('15m');
   const [activePeriod, setActivePeriod] = useState('15m');
   const activeRange = RANGES.some((entry) => entry.value === activePeriod) ? activePeriod : '1D';
-  const chartRef = useRef(null);
-  const html = useMemo(() => chartHtml(currentSymbol.price, timeframe, activeRange), [currentSymbol.symbol, timeframe, activeRange]);
-  const positive = currentSymbol.change >= 0;
-  const liveMessage = useMemo(
-    () => JSON.stringify({ type: 'quote', price: Number(currentSymbol.price) }),
-    [currentSymbol.price],
-  );
-
-  useEffect(() => {
-    if (Platform.OS === 'web') {
-      chartRef.current?.contentWindow?.postMessage(liveMessage, '*');
-    } else {
-      chartRef.current?.postMessage(liveMessage);
-    }
-  }, [liveMessage]);
+  const tradingViewSymbol = currentSymbol.tradingViewSymbol || inferTradingViewSymbol(currentSymbol.symbol, currentSymbol.group);
+  const html = useMemo(() => chartHtml(tradingViewSymbol, timeframe, activeRange), [tradingViewSymbol, timeframe, activeRange]);
+  const positive = Number(currentSymbol.change) >= 0;
 
   return (
     <View className="min-h-[430px] flex-1 overflow-hidden rounded-2xl border border-border bg-[#080f20]">
@@ -129,21 +123,18 @@ export default function TradingChart() {
       <View className="flex-1">
         {Platform.OS === 'web' ? (
           <iframe
-            ref={chartRef}
             key={`${currentSymbol.symbol}-${timeframe}-${activePeriod}`}
             title="Trading chart"
             srcDoc={html}
-            onLoad={() => chartRef.current?.contentWindow?.postMessage(liveMessage, '*')}
             style={{ width: '100%', height: '100%', border: 0 }}
           />
         ) : (
           <WebView
-            ref={chartRef}
             key={`${currentSymbol.symbol}-${timeframe}-${activePeriod}`}
             originWhitelist={['*']}
+            domStorageEnabled
             javaScriptEnabled
             source={{ html }}
-            onLoadEnd={() => chartRef.current?.postMessage(liveMessage)}
             style={{ backgroundColor: '#080f20' }}
           />
         )}

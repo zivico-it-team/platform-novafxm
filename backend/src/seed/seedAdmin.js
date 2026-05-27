@@ -2,6 +2,7 @@ require('dotenv').config({ quiet: true });
 const bcrypt = require('bcryptjs');
 const sequelize = require('../config/db');
 const { User, Wallet } = require('../models');
+const ensureSchema = require('../config/ensureSchema');
 
 async function seedAdmin() {
   const password = await bcrypt.hash('Admin@123', 12);
@@ -17,6 +18,7 @@ async function seedAdmin() {
 if (require.main === module) {
   sequelize.authenticate()
     .then(() => sequelize.sync())
+    .then(ensureSchema)
     .then(seedAdmin)
     .then(() => {
       console.log('Administrator account is ready: admin@novafxm.com');

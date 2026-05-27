@@ -1,5 +1,5 @@
 import { Pressable, Text, View } from 'react-native';
-import { quote, percent } from '../../utils/formatters';
+import { percent, quote } from '../../utils/formatters';
 
 export default function SymbolCard({ item, selected, onSelect }) {
   const positive = Number(item.change) >= 0;
