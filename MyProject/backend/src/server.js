@@ -5,12 +5,13 @@ const http = require('http');
 const { Server } = require('socket.io');
 const sequelize = require('./config/db');
 require('./models');
+const ensureSchema = require('./config/ensureSchema');
 const seedAdmin = require('./seed/seedAdmin');
 const tradingView = require('./services/tradingViewService');
 
 const app = express();
 app.use(cors({ origin: process.env.CORS_ORIGIN === '*' || !process.env.CORS_ORIGIN ? true : process.env.CORS_ORIGIN }));
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '8mb' }));
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok', service: 'NOVA FXM API' }));
 app.use('/api/auth', require('./routes/authRoutes'));
@@ -31,6 +32,7 @@ const port = Number(process.env.PORT || 5000);
 async function start() {
   await sequelize.authenticate();
   await sequelize.sync();
+  await ensureSchema();
   await seedAdmin();
   const server = http.createServer(app);
   const io = new Server(server, { cors: { origin: process.env.CORS_ORIGIN === '*' || !process.env.CORS_ORIGIN ? true : process.env.CORS_ORIGIN } });

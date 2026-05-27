@@ -32,6 +32,11 @@ async function ensureSchema() {
     allowNull: true,
     after: 'trading_status',
   });
+  await addColumnIfMissing(queryInterface, 'users', 'profile_image', {
+    type: DataTypes.TEXT('long'),
+    allowNull: true,
+    after: 'phone',
+  });
 
   await addColumnIfMissing(queryInterface, 'wallets', 'equity', {
     type: DataTypes.DECIMAL(15, 2),

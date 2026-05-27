@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS users (
   name VARCHAR(120) NOT NULL,
   email VARCHAR(190) NOT NULL UNIQUE,
   phone VARCHAR(30) NULL,
+  profile_image LONGTEXT NULL,
   password VARCHAR(255) NOT NULL,
   role ENUM('user', 'admin') NOT NULL DEFAULT 'user',
   account_type ENUM('Demo', 'Live') NOT NULL DEFAULT 'Demo',

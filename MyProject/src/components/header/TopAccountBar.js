@@ -8,6 +8,7 @@ import { money } from '../../utils/formatters';
 import DemoAccountMenu from './DemoAccountMenu';
 import ProfileMenu from './ProfileMenu';
 
+
 export default function TopAccountBar() {
   const { summary, syncAccount } = useDemoTrading();
   const { user } = useAuth();

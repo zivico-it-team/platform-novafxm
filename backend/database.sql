@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS users (
   name VARCHAR(120) NOT NULL,
   email VARCHAR(190) NOT NULL UNIQUE,
   phone VARCHAR(30) NULL,
+  profile_image LONGTEXT NULL,
   password VARCHAR(255) NOT NULL,
   role ENUM('user', 'admin') NOT NULL DEFAULT 'user',
   account_type ENUM('Demo', 'Live') NOT NULL DEFAULT 'Demo',
@@ -110,6 +111,9 @@ BEGIN
   END IF;
   IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'admin_notes') THEN
     ALTER TABLE users ADD COLUMN admin_notes TEXT NULL AFTER trading_status;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'profile_image') THEN
+    ALTER TABLE users ADD COLUMN profile_image LONGTEXT NULL AFTER phone;
   END IF;
   IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'wallets' AND COLUMN_NAME = 'equity') THEN
     ALTER TABLE wallets ADD COLUMN equity DECIMAL(15,2) NOT NULL DEFAULT 5000.00 AFTER balance;
