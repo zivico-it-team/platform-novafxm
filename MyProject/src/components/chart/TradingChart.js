@@ -5,7 +5,7 @@ import { useDemoTrading } from '../../hooks/useDemoTrading';
 import { marketService } from '../../services/marketService';
 import { percent, quote } from '../../utils/formatters';
 
-const TIMEFRAMES = ['1s', '1m', '5m', '15m', '30m', '1H', '4H', '1D'];
+const TIMEFRAMES = ['1s', '1m', '5m', '15m', '30m', '1H', '4H', '1D', '1W', '1M'];
 const TIMEFRAME_SECONDS = {
   '1s': 1,
   '1m': 60,
@@ -15,6 +15,32 @@ const TIMEFRAME_SECONDS = {
   '1H': 3600,
   '4H': 14400,
   '1D': 86400,
+  '1W': 604800,
+  '1M': 2592000,
+};
+const HISTORY_LIMITS = {
+  '1s': 0,
+  '1m': 1000,
+  '5m': 1500,
+  '15m': 2000,
+  '30m': 2500,
+  '1H': 3000,
+  '4H': 5000,
+  '1D': 5000,
+  '1W': 5000,
+  '1M': 5000,
+};
+const INITIAL_VISIBLE_BARS = {
+  '1s': 120,
+  '1m': 240,
+  '5m': 300,
+  '15m': 300,
+  '30m': 400,
+  '1H': 600,
+  '4H': 1000,
+  '1D': 365,
+  '1W': 260,
+  '1M': 180,
 };
 
 const hasLivePrice = (item) => (
@@ -45,8 +71,9 @@ function withLatestPrice(history, currentSymbol, timeframe) {
   return data;
 }
 
-function chartHtml(candles, decimals) {
+function chartHtml(candles, decimals, timeframe) {
   const safeDecimals = Math.max(0, Math.min(Number(decimals) || 2, 8));
+  const visibleBars = INITIAL_VISIBLE_BARS[timeframe] || 300;
   return `<!doctype html>
 <html><head><meta name="viewport" content="width=device-width,initial-scale=1.0">
 <style>
@@ -90,7 +117,10 @@ const series = chart.addSeries(LightweightCharts.CandlestickSeries, {
 });
 if (data.length) {
   series.setData(data);
-  chart.timeScale().fitContent();
+  chart.timeScale().setVisibleLogicalRange({
+    from: Math.max(0, data.length - ${visibleBars}),
+    to: data.length + 4
+  });
 } else {
   document.getElementById('empty').style.display = 'block';
 }
@@ -106,7 +136,7 @@ export default function TradingChart() {
   useEffect(() => {
     let active = true;
     setHistory([]);
-    marketService.getCandles(currentSymbol.symbol, timeframe)
+    marketService.getCandles(currentSymbol.symbol, timeframe, HISTORY_LIMITS[timeframe])
       .then((candles) => {
         if (active) setHistory(candles);
       })
@@ -120,14 +150,20 @@ export default function TradingChart() {
 
   useEffect(() => {
     if (!hasLivePrice(currentSymbol)) return;
-    setHistory((candles) => withLatestPrice(candles, currentSymbol, timeframe).slice(-500));
+    setHistory((candles) => {
+      const updated = withLatestPrice(candles, currentSymbol, timeframe);
+      return timeframe === '1s' ? updated.slice(-500) : updated;
+    });
   }, [currentSymbol.price, currentSymbol.source, currentSymbol.symbol, timeframe]);
 
   const candles = useMemo(
     () => withLatestPrice(history, currentSymbol, timeframe),
     [history, currentSymbol, timeframe],
   );
-  const html = useMemo(() => chartHtml(candles, currentSymbol.decimals), [candles, currentSymbol.decimals]);
+  const html = useMemo(
+    () => chartHtml(candles, currentSymbol.decimals, timeframe),
+    [candles, currentSymbol.decimals, timeframe],
+  );
   const positive = Number(currentSymbol.change) >= 0;
 
   return (

@@ -28,8 +28,8 @@ export const marketService = {
       return createDemoTick(SYMBOLS);
     }
   },
-  async getCandles(symbol, timeframe) {
-    const { data } = await api.get(`/market/candles/${encodeURIComponent(symbol)}`, { params: { timeframe } });
+  async getCandles(symbol, timeframe, limit) {
+    const { data } = await api.get(`/market/candles/${encodeURIComponent(symbol)}`, { params: { timeframe, limit } });
     return data.candles;
   },
 };

@@ -307,6 +307,8 @@ const chartInterval = (timeframe) => ({
   '1H': '60',
   '4H': '240',
   '1D': '1D',
+  '1W': '1W',
+  '1M': '1M',
 }[timeframe] || '15');
 
 function requestCandles(item, timeframe = '15m', limit = 240) {
@@ -367,7 +369,7 @@ async function getHistoricalCandles(symbol, timeframe = '15m', limit = 240) {
   const item = instruments.find((instrument) => instrument.symbol === symbol);
   if (!item) return [];
   if (timeframe === '1s') return [];
-  const boundedLimit = Math.max(20, Math.min(Number(limit) || 240, 500));
+  const boundedLimit = Math.max(20, Math.min(Number(limit) || 240, 5000));
   const key = `${symbol}:${timeframe}:${boundedLimit}`;
   const cached = candleCache.get(key);
   if (cached && Date.now() - cached.at < CANDLE_CACHE_MS) return cached.data;
