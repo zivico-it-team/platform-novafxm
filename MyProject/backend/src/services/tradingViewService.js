@@ -1,4 +1,3 @@
-const axios = require('axios');
 const WebSocket = require('ws');
 
 const instrument = (ticker, symbol, name, group, scanner, popular = false) => ({
@@ -108,8 +107,17 @@ const instruments = [
   instrument('OANDA:XPTUSD', 'XPT/USD', 'Platinum / US Dollar', 'METALS', 'forex'),
 ];
 
-const CACHE_MS = 1500;
 let priceCache = { at: 0, data: null };
+const latestQuotes = new Map();
+const quoteValues = new Map();
+const streamListeners = new Set();
+const instrumentsByTicker = new Map(instruments.map((item) => [item.ticker, item]));
+const STREAM_STALE_MS = 15000;
+const STREAM_RECONNECT_MS = 5000;
+const CANDLE_CACHE_MS = 15000;
+let quoteSocket = null;
+let reconnectTimer = null;
+const candleCache = new Map();
 
 const decimalsFor = (price, group) => {
   if (group === 'FOREX') return price >= 10 ? 3 : 5;
@@ -168,6 +176,7 @@ const quoteFromTradingView = (instrument, values) => {
     spreadPoints,
     change: Number(values.chp || 0),
     source: 'tradingview',
+    updatedAt: new Date().toISOString(),
   });
 };
 
@@ -185,109 +194,103 @@ function keepPreviousPrices(nextPrices) {
   });
 }
 
-async function quoteWebSocket(selected) {
-  return new Promise((resolve, reject) => {
-    const session = `qs_${Math.random().toString(36).slice(2, 14)}`;
-    const quotes = new Map();
-    const valuesByTicker = new Map();
-    const socket = new WebSocket('wss://data.tradingview.com/socket.io/websocket', {
-      headers: {
-        Origin: 'https://www.tradingview.com',
-        Referer: 'https://www.tradingview.com/',
-        'User-Agent': 'Mozilla/5.0',
-      },
-    });
-    const finish = () => {
-      clearTimeout(timer);
-      try {
-        socket.close();
-      } catch {}
-      resolve(selected.map((instrument) => quotes.get(instrument.ticker) || fallbackPrice(instrument)));
-    };
-    const timer = setTimeout(() => {
-      if (quotes.size) {
-        finish();
-        return;
+function snapshotPrices() {
+  const previousBySymbol = new Map((priceCache.data || []).map((item) => [item.symbol, item]));
+  const now = Date.now();
+  const prices = instruments.map((item) => {
+    const quote = latestQuotes.get(item.ticker);
+    if (quote) {
+      const updatedAt = Date.parse(quote.updatedAt);
+      if (Number.isFinite(updatedAt) && now - updatedAt > STREAM_STALE_MS) {
+        return { ...quote, source: 'stale' };
       }
-      try {
-        socket.close();
-      } catch {}
-      reject(new Error('TradingView websocket quote timeout'));
-    }, 6500);
-
-    socket.on('open', () => {
-      socket.send(packMessage('quote_create_session', [session]));
-      socket.send(packMessage('quote_set_fields', [session, 'lp', 'chp', 'bid', 'ask', 'pricescale', 'minmov', 'pro_name']));
-      selected.forEach((instrument) => socket.send(packMessage('quote_add_symbols', [session, instrument.ticker])));
-    });
-    socket.on('message', (data) => {
-      unpackMessages(data).forEach((message) => {
-        if (message.m !== 'qsd') return;
-        const payload = message.p?.[1];
-        if (payload?.s !== 'ok' || !payload.n) return;
-        const instrument = selected.find((item) => item.ticker === payload.n);
-        if (!instrument) return;
-        const values = { ...(valuesByTicker.get(payload.n) || {}), ...(payload.v || {}) };
-        valuesByTicker.set(payload.n, values);
-        quotes.set(payload.n, quoteFromTradingView(instrument, values));
-      });
-      if (selected.every((instrument) => quotes.has(instrument.ticker) && valuesByTicker.get(instrument.ticker)?.lp)) finish();
-    });
-    socket.on('error', (error) => {
-      clearTimeout(timer);
-      reject(error);
-    });
+      return quote;
+    }
+    return previousBySymbol.get(item.symbol) || fallbackPrice(item);
   });
+  priceCache = { at: now, data: prices };
+  return prices;
 }
 
-async function scan(scanner, selected) {
-  const response = await axios.post(
-    `https://scanner.tradingview.com/${scanner}/scan`,
-    {
-      columns: ['close', 'change'],
-      symbols: { query: { types: [] }, tickers: selected.map((instrument) => instrument.ticker) },
-      range: [0, selected.length],
+function publishPrices() {
+  const prices = snapshotPrices();
+  streamListeners.forEach((listener) => listener(prices));
+}
+
+function scheduleReconnect() {
+  if (reconnectTimer) return;
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    connectQuoteStream();
+  }, STREAM_RECONNECT_MS);
+}
+
+function connectQuoteStream() {
+  if (quoteSocket && (
+    quoteSocket.readyState === WebSocket.OPEN ||
+    quoteSocket.readyState === WebSocket.CONNECTING
+  )) return;
+
+  const session = `qs_${Math.random().toString(36).slice(2, 14)}`;
+  quoteSocket = new WebSocket('wss://data.tradingview.com/socket.io/websocket', {
+    headers: {
+      Origin: 'https://www.tradingview.com',
+      Referer: 'https://www.tradingview.com/',
+      'User-Agent': 'Mozilla/5.0',
     },
-    {
-      timeout: 6500,
-      headers: {
-        'Content-Type': 'application/json',
-        Origin: 'https://www.tradingview.com',
-        Referer: 'https://www.tradingview.com/',
-        'User-Agent': 'Mozilla/5.0',
-      },
-    },
-  );
-  const byTicker = new Map(response.data.data.map((row) => [row.s, row.d]));
-  return selected.map((instrument) => {
-    const values = byTicker.get(instrument.ticker);
-    if (!values || !Number(values[0])) return fallbackPrice(instrument);
-    const price = Number(values[0]);
-    const decimals = decimalsFor(price, instrument.group);
-    return visibleInstrument(instrument, { price, bid: price, ask: price, decimals, spread: 0, spreadPoints: 0, change: Number(values[1]) || 0, source: 'tradingview' });
+  });
+
+  quoteSocket.on('open', () => {
+    quoteSocket.send(packMessage('quote_create_session', [session]));
+    quoteSocket.send(packMessage('quote_set_fields', [session, 'lp', 'chp', 'bid', 'ask', 'pricescale', 'minmov', 'pro_name']));
+    instruments.forEach((item) => quoteSocket.send(packMessage('quote_add_symbols', [session, item.ticker])));
+    console.log('TradingView quote stream connected');
+  });
+
+  quoteSocket.on('message', (data) => {
+    const raw = String(data);
+    const heartbeatFrames = raw.match(/~m~\d+~m~~h~\d+/g) || [];
+    heartbeatFrames.forEach((heartbeat) => {
+      if (quoteSocket.readyState === WebSocket.OPEN) quoteSocket.send(heartbeat);
+    });
+
+    let changed = false;
+    unpackMessages(raw).forEach((message) => {
+      if (message.m !== 'qsd') return;
+      const payload = message.p?.[1];
+      const item = instrumentsByTicker.get(payload?.n);
+      if (payload?.s !== 'ok' || !item) return;
+
+      const values = { ...(quoteValues.get(item.ticker) || {}), ...(payload.v || {}) };
+      quoteValues.set(item.ticker, values);
+      if (!Number(values.lp || values.bid || values.ask)) return;
+      latestQuotes.set(item.ticker, quoteFromTradingView(item, values));
+      changed = true;
+    });
+
+    if (changed) publishPrices();
+  });
+
+  quoteSocket.on('close', () => {
+    quoteSocket = null;
+    console.warn('TradingView quote stream disconnected; reconnecting');
+    scheduleReconnect();
+  });
+
+  quoteSocket.on('error', (error) => {
+    console.warn('TradingView quote stream error:', error.message);
   });
 }
 
 async function getPrices() {
-  if (priceCache.data && Date.now() - priceCache.at < CACHE_MS) return priceCache.data;
-  try {
-    const prices = keepPreviousPrices(await quoteWebSocket(instruments));
-    priceCache = { at: Date.now(), data: prices };
-    return prices;
-  } catch {}
+  connectQuoteStream();
+  return snapshotPrices();
+}
 
-  const scanners = [...new Set(instruments.map((item) => item.scanner))];
-  const batches = await Promise.all(scanners.map(async (scanner) => {
-    const selected = instruments.filter((item) => item.scanner === scanner);
-    try {
-      return await scan(scanner, selected);
-    } catch {
-      return selected.map(fallbackPrice);
-    }
-  }));
-  const prices = keepPreviousPrices(batches.flat());
-  priceCache = { at: Date.now(), data: prices };
-  return prices;
+function startPriceStream(listener) {
+  if (typeof listener === 'function') streamListeners.add(listener);
+  connectQuoteStream();
+  return () => streamListeners.delete(listener);
 }
 
 async function getPrice(symbol) {
@@ -295,14 +298,84 @@ async function getPrice(symbol) {
   return prices.find((item) => item.symbol === symbol) || fallbackPrice(instruments[0]);
 }
 
-function generateCandles(symbol, base, timeframe = '15m') {
-  const seconds = { '1m': 60, '5m': 300, '15m': 900, '30m': 1800, '1H': 3600, '4H': 14400, '1D': 86400 }[timeframe] || 900;
-  const close = Number(base);
-  const time = Math.floor(Math.floor(Date.now() / 1000) / seconds) * seconds;
-  return Array.from({ length: 90 }, (_, index) => {
-    return { time: time - (89 - index) * seconds, open: close, high: close, low: close, close };
+const chartInterval = (timeframe) => ({
+  '1s': '1S',
+  '1m': '1',
+  '5m': '5',
+  '15m': '15',
+  '30m': '30',
+  '1H': '60',
+  '4H': '240',
+  '1D': '1D',
+}[timeframe] || '15');
+
+function requestCandles(item, timeframe = '15m', limit = 240) {
+  return new Promise((resolve, reject) => {
+    const session = `cs_${Math.random().toString(36).slice(2, 14)}`;
+    const socket = new WebSocket('wss://data.tradingview.com/socket.io/websocket', {
+      headers: {
+        Origin: 'https://www.tradingview.com',
+        Referer: 'https://www.tradingview.com/',
+        'User-Agent': 'Mozilla/5.0',
+      },
+    });
+    const closeWith = (handler, value) => {
+      clearTimeout(timer);
+      try {
+        socket.close();
+      } catch {}
+      handler(value);
+    };
+    const timer = setTimeout(() => closeWith(reject, new Error('TradingView candle request timed out')), 8000);
+
+    socket.on('open', () => {
+      const symbol = `=${JSON.stringify({ symbol: item.ticker, adjustment: 'splits', session: 'regular' })}`;
+      socket.send(packMessage('chart_create_session', [session, '']));
+      socket.send(packMessage('switch_timezone', [session, 'Etc/UTC']));
+      socket.send(packMessage('resolve_symbol', [session, 'symbol_1', symbol]));
+      socket.send(packMessage('create_series', [session, 's1', 's1', 'symbol_1', chartInterval(timeframe), limit, '']));
+    });
+
+    socket.on('message', (data) => {
+      const raw = String(data);
+      const heartbeatFrames = raw.match(/~m~\d+~m~~h~\d+/g) || [];
+      heartbeatFrames.forEach((heartbeat) => {
+        if (socket.readyState === WebSocket.OPEN) socket.send(heartbeat);
+      });
+      unpackMessages(raw).forEach((message) => {
+        if (message.m === 'series_error' || message.m === 'symbol_error') {
+          closeWith(reject, new Error('TradingView has no chart data for this symbol'));
+          return;
+        }
+        const points = message.m === 'timescale_update' ? message.p?.[1]?.s1?.s : null;
+        if (!Array.isArray(points) || !points.length) return;
+        const candles = points.map(({ v }) => ({
+          time: Number(v[0]),
+          open: Number(v[1]),
+          high: Number(v[2]),
+          low: Number(v[3]),
+          close: Number(v[4]),
+        })).filter((bar) => Object.values(bar).every(Number.isFinite));
+        closeWith(resolve, candles);
+      });
+    });
+    socket.on('error', (error) => closeWith(reject, error));
   });
 }
 
-module.exports = { instruments, getPrices, getPrice, generateCandles };
+async function getHistoricalCandles(symbol, timeframe = '15m', limit = 240) {
+  const item = instruments.find((instrument) => instrument.symbol === symbol);
+  if (!item) return [];
+  if (timeframe === '1s') return [];
+  const boundedLimit = Math.max(20, Math.min(Number(limit) || 240, 500));
+  const key = `${symbol}:${timeframe}:${boundedLimit}`;
+  const cached = candleCache.get(key);
+  if (cached && Date.now() - cached.at < CANDLE_CACHE_MS) return cached.data;
+
+  const candles = await requestCandles(item, timeframe, boundedLimit);
+  candleCache.set(key, { at: Date.now(), data: candles });
+  return candles;
+}
+
+module.exports = { instruments, getPrices, getPrice, getHistoricalCandles, startPriceStream };
 

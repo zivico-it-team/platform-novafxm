@@ -39,10 +39,16 @@ async function start() {
   io.on('connection', async (socket) => {
     socket.emit('market:prices', await tradingView.getPrices());
   });
+  const stopPriceStream = tradingView.startPriceStream((prices) => {
+    if (io.engine.clientsCount) io.emit('market:prices', prices);
+  });
   const ticker = setInterval(async () => {
     if (io.engine.clientsCount) io.emit('market:prices', await tradingView.getPrices());
   }, 2000);
-  server.on('close', () => clearInterval(ticker));
+  server.on('close', () => {
+    clearInterval(ticker);
+    stopPriceStream();
+  });
   server.listen(port, () => console.log(`NOVA FXM API listening on port ${port}`));
 }
 

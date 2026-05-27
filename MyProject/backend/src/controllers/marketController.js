@@ -12,8 +12,10 @@ exports.prices = async (req, res, next) => {
 
 exports.candles = async (req, res, next) => {
   try {
-    const quote = await tradingView.getPrice(decodeURIComponent(req.params.symbol));
-    return res.json({ symbol: quote.symbol, timeframe: req.query.timeframe || '15m', candles: tradingView.generateCandles(quote.symbol, quote.price, req.query.timeframe) });
+    const symbol = decodeURIComponent(req.params.symbol);
+    const timeframe = req.query.timeframe || '15m';
+    const candles = await tradingView.getHistoricalCandles(symbol, timeframe, req.query.limit);
+    return res.json({ symbol, timeframe, candles });
   } catch (error) {
     return next(error);
   }
