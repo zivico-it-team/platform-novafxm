@@ -148,6 +148,7 @@ const TRADINGVIEW_GROUPS = {
 const currentPrices = {};
 const rateLimitedUntilByGroup = {};
 let groupCursor = 0;
+const RATE_LIMIT_BACKOFF_MS = 5 * 60 * 1000;
 
 const toNumber = (value) => {
   const number = Number(value);
@@ -262,7 +263,7 @@ const fetchTradingViewGroup = async (group, metas) => {
 
     if (!response.ok) {
       if (response.status === 429) {
-        rateLimitedUntilByGroup[group] = Date.now() + 30000;
+        rateLimitedUntilByGroup[group] = Date.now() + RATE_LIMIT_BACKOFF_MS;
       }
       throw new Error(`TradingView ${group} responded with ${response.status}`);
     }
@@ -295,32 +296,15 @@ const fetchTradingViewPrices = async () => {
   const groupEntries = Object.entries(groupSymbols());
   if (groupEntries.length === 0) return {};
 
-  const orderedGroups = [
-    ...groupEntries.slice(groupCursor % groupEntries.length),
-    ...groupEntries.slice(0, groupCursor % groupEntries.length),
-  ];
+  const [group, metas] = groupEntries[groupCursor % groupEntries.length];
   groupCursor++;
 
-  const results = await Promise.allSettled(
-    orderedGroups.map(async ([group, metas]) => {
-      const prices = await fetchTradingViewGroup(group, metas);
-      return [group, prices];
-    })
-  );
-
-  return results.reduce((prices, result) => {
-    if (result.status !== 'fulfilled') {
-      console.warn('Live price fetch failed:', result.reason?.message || result.reason);
-      return prices;
-    }
-
-    const [group, groupPrices] = result.value;
-    if (!groupPrices || Object.keys(groupPrices).length === 0) {
-      return prices;
-    }
-
-    return { ...prices, ...groupPrices };
-  }, {});
+  try {
+    return await fetchTradingViewGroup(group, metas);
+  } catch (error) {
+    console.warn(`Live price fetch failed for ${group}:`, error.message || error);
+    return {};
+  }
 };
 
 const fetchLivePrices = async () => {
