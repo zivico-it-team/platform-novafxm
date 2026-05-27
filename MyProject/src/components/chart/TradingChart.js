@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { useDemoTrading } from '../../hooks/useDemoTrading';
@@ -47,30 +47,6 @@ const hasLivePrice = (item) => (
   ['tradingview', 'stale'].includes(item?.source) && Number(item?.price) > 0
 );
 
-function withLatestPrice(history, currentSymbol, timeframe) {
-  const data = Array.isArray(history) ? [...history] : [];
-  if (!hasLivePrice(currentSymbol)) return data;
-
-  const price = Number(currentSymbol.price);
-  const seconds = TIMEFRAME_SECONDS[timeframe] || 900;
-  const time = Math.floor(Date.now() / 1000 / seconds) * seconds;
-  const last = data[data.length - 1];
-  if (last && last.time > time) return data;
-
-  if (last && last.time === time) {
-    data[data.length - 1] = {
-      ...last,
-      high: Math.max(last.high, price),
-      low: Math.min(last.low, price),
-      close: price,
-    };
-    return data;
-  }
-
-  data.push({ time, open: price, high: price, low: price, close: price });
-  return data;
-}
-
 function chartHtml(candles, decimals, timeframe) {
   const safeDecimals = Math.max(0, Math.min(Number(decimals) || 2, 8));
   const visibleBars = INITIAL_VISIBLE_BARS[timeframe] || 300;
@@ -101,7 +77,12 @@ const chart = LightweightCharts.createChart(document.getElementById('chart'), {
     horzLine: { color: '#556581' }
   },
   rightPriceScale: { borderColor: '#263450' },
-  timeScale: { borderColor: '#263450', timeVisible: true, secondsVisible: true }
+  timeScale: {
+    borderColor: '#263450',
+    timeVisible: true,
+    secondsVisible: true,
+    shiftVisibleRangeOnNewBar: false
+  }
 });
 const series = chart.addSeries(LightweightCharts.CandlestickSeries, {
   upColor: '#10c983',
@@ -115,6 +96,7 @@ const series = chart.addSeries(LightweightCharts.CandlestickSeries, {
     minMove: ${10 ** -safeDecimals}
   }
 });
+let lastBar = data.length ? data[data.length - 1] : null;
 if (data.length) {
   series.setData(data);
   chart.timeScale().setVisibleLogicalRange({
@@ -124,6 +106,29 @@ if (data.length) {
 } else {
   document.getElementById('empty').style.display = 'block';
 }
+function applyLiveCandle(candle) {
+  if (!candle || !Number.isFinite(Number(candle.time))) return;
+  const next = {
+    time: Number(candle.time),
+    open: Number(candle.open),
+    high: Number(candle.high),
+    low: Number(candle.low),
+    close: Number(candle.close)
+  };
+  if (!Object.values(next).every(Number.isFinite)) return;
+  lastBar = next;
+  document.getElementById('empty').style.display = 'none';
+  series.update(next);
+}
+function receiveLiveUpdate(event) {
+  let payload = event.data;
+  if (typeof payload === 'string') {
+    try { payload = JSON.parse(payload); } catch {}
+  }
+  if (payload && payload.type === 'live-candle') applyLiveCandle(payload.candle);
+}
+window.addEventListener('message', receiveLiveUpdate);
+document.addEventListener('message', receiveLiveUpdate);
 </script>
 </body></html>`;
 }
@@ -132,16 +137,25 @@ export default function TradingChart() {
   const { currentSymbol } = useDemoTrading();
   const [timeframe, setTimeframe] = useState('15m');
   const [history, setHistory] = useState([]);
+  const iframeRef = useRef(null);
+  const webViewRef = useRef(null);
+  const liveCandleRef = useRef(null);
 
   useEffect(() => {
     let active = true;
     setHistory([]);
     marketService.getCandles(currentSymbol.symbol, timeframe, HISTORY_LIMITS[timeframe])
       .then((candles) => {
-        if (active) setHistory(candles);
+        if (active) {
+          setHistory(candles);
+          liveCandleRef.current = candles?.[candles.length - 1] || null;
+        }
       })
       .catch(() => {
-        if (active) setHistory([]);
+        if (active) {
+          setHistory([]);
+          liveCandleRef.current = null;
+        }
       });
     return () => {
       active = false;
@@ -150,16 +164,40 @@ export default function TradingChart() {
 
   useEffect(() => {
     if (!hasLivePrice(currentSymbol)) return;
-    setHistory((candles) => {
-      const updated = withLatestPrice(candles, currentSymbol, timeframe);
-      return timeframe === '1s' ? updated.slice(-500) : updated;
-    });
+    const price = Number(currentSymbol.price);
+    const seconds = TIMEFRAME_SECONDS[timeframe] || 900;
+    const time = Math.floor(Date.now() / 1000 / seconds) * seconds;
+    const previous = liveCandleRef.current;
+    const candle = previous && Number(previous.time) === time
+      ? {
+          ...previous,
+          high: Math.max(Number(previous.high), price),
+          low: Math.min(Number(previous.low), price),
+          close: price,
+        }
+      : {
+          time,
+          open: previous ? Number(previous.close) : price,
+          high: Math.max(previous ? Number(previous.close) : price, price),
+          low: Math.min(previous ? Number(previous.close) : price, price),
+          close: price,
+        };
+
+    liveCandleRef.current = candle;
+    const message = JSON.stringify({ type: 'live-candle', candle });
+
+    if (Platform.OS === 'web') {
+      iframeRef.current?.contentWindow?.postMessage(message, '*');
+      return;
+    }
+
+    webViewRef.current?.injectJavaScript(`
+      window.dispatchEvent(new MessageEvent('message', { data: ${JSON.stringify(message)} }));
+      true;
+    `);
   }, [currentSymbol.price, currentSymbol.source, currentSymbol.symbol, timeframe]);
 
-  const candles = useMemo(
-    () => withLatestPrice(history, currentSymbol, timeframe),
-    [history, currentSymbol, timeframe],
-  );
+  const candles = useMemo(() => history, [history]);
   const html = useMemo(
     () => chartHtml(candles, currentSymbol.decimals, timeframe),
     [candles, currentSymbol.decimals, timeframe],
@@ -194,12 +232,14 @@ export default function TradingChart() {
       <View className="flex-1">
         {Platform.OS === 'web' ? (
           <iframe
+            ref={iframeRef}
             title="Market chart"
             srcDoc={html}
             style={{ width: '100%', height: '100%', border: 0 }}
           />
         ) : (
           <WebView
+            ref={webViewRef}
             originWhitelist={['*']}
             domStorageEnabled
             javaScriptEnabled
