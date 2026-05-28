@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS deposits (
   amount DECIMAL(15,2) NOT NULL,
   payment_method VARCHAR(80) NOT NULL,
   reference_number VARCHAR(120) NOT NULL,
+  receipt_image MEDIUMTEXT NULL,
   note TEXT NULL,
   status ENUM('pending', 'approved', 'rejected') NOT NULL DEFAULT 'pending',
   reviewed_at DATETIME NULL,
@@ -119,6 +120,9 @@ BEGIN
   END IF;
   IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'wallets' AND COLUMN_NAME = 'free_funds') THEN
     ALTER TABLE wallets ADD COLUMN free_funds DECIMAL(15,2) NOT NULL DEFAULT 5000.00 AFTER margin;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'deposits' AND COLUMN_NAME = 'receipt_image') THEN
+    ALTER TABLE deposits ADD COLUMN receipt_image MEDIUMTEXT NULL AFTER reference_number;
   END IF;
   IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'transactions' AND COLUMN_NAME = 'balance_before') THEN
     ALTER TABLE transactions ADD COLUMN balance_before DECIMAL(15,2) NULL AFTER amount;

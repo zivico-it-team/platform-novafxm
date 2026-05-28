@@ -52,6 +52,12 @@ async function ensureSchema() {
     after: 'margin',
   });
 
+  await addColumnIfMissing(queryInterface, 'deposits', 'receipt_image', {
+    type: DataTypes.TEXT('medium'),
+    allowNull: true,
+    after: 'reference_number',
+  });
+
   await addColumnIfMissing(queryInterface, 'transactions', 'balance_before', {
     type: DataTypes.DECIMAL(15, 2),
     allowNull: true,

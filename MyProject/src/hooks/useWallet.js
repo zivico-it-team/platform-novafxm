@@ -6,19 +6,20 @@ import { useAuth } from './useAuth';
 export function useWallet() {
   const demo = useDemoTrading();
   const { user } = useAuth();
+  const isLiveAccount = Boolean(user && demo.activeAccount === 'Live');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (user) demo.syncAccount().catch(() => {});
-  }, [user, demo.syncAccount]);
+    if (isLiveAccount) demo.syncAccount().catch(() => {});
+  }, [isLiveAccount, demo.syncAccount]);
 
   const deposit = useCallback(
     async (values, authenticated) => {
       setLoading(true);
       setError('');
       try {
-        if (!authenticated) return demo.submitDeposit(values);
+        if (!authenticated || !isLiveAccount) return demo.submitDeposit(values);
         const result = await walletService.deposit(values);
         await demo.syncAccount();
         return result;
@@ -30,7 +31,7 @@ export function useWallet() {
         setLoading(false);
       }
     },
-    [demo],
+    [demo, isLiveAccount],
   );
 
   const withdraw = useCallback(
@@ -38,7 +39,7 @@ export function useWallet() {
       setLoading(true);
       setError('');
       try {
-        if (!authenticated) return demo.submitWithdrawal(values);
+        if (!authenticated || !isLiveAccount) return demo.submitWithdrawal(values);
         const result = await walletService.withdraw(values);
         await demo.syncAccount();
         return result;
@@ -50,7 +51,7 @@ export function useWallet() {
         setLoading(false);
       }
     },
-    [demo],
+    [demo, isLiveAccount],
   );
 
   return { summary: demo.summary, transactions: demo.transactions, deposit, withdraw, loading, error };

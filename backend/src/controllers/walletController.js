@@ -49,14 +49,20 @@ exports.transactions = async (req, res, next) => {
 
 exports.deposit = async (req, res, next) => {
   try {
-    const { amount, paymentMethod, referenceNumber, note } = req.body;
+    const { amount, paymentMethod, referenceNumber, note, receiptImage } = req.body;
     if (!(Number(amount) > 0) || !paymentMethod || !referenceNumber) {
       return res.status(400).json({ message: 'Valid amount, payment method and reference number are required.' });
+    }
+    if (!receiptImage || typeof receiptImage !== 'string' || !/^data:image\/(png|jpe?g|webp);base64,/i.test(receiptImage)) {
+      return res.status(400).json({ message: 'A valid receipt image is required for deposit approval.' });
+    }
+    if (receiptImage.length > 5_500_000) {
+      return res.status(400).json({ message: 'Receipt image is too large. Please upload an image below 3 MB.' });
     }
     let deposit;
     await sequelize.transaction(async (transaction) => {
       const wallet = await Wallet.findOne({ where: { userId: req.user.id }, transaction });
-      deposit = await Deposit.create({ userId: req.user.id, amount, paymentMethod, referenceNumber, note }, { transaction });
+      deposit = await Deposit.create({ userId: req.user.id, amount, paymentMethod, referenceNumber, receiptImage, note }, { transaction });
       await Transaction.create({
         userId: req.user.id,
         type: 'deposit',

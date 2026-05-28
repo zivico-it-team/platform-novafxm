@@ -25,7 +25,33 @@ function Header({ width, children }) {
   return <Text style={{ width }} className="px-3 py-3 text-xs font-bold uppercase text-muted">{children}</Text>;
 }
 
-export default function AdminUsersTable({ users, busyId, onBalance, onStatus, onReset, onWallet, onTransactions, onSettings }) {
+function AccountBadge({ accountType }) {
+  const live = accountType === 'Live';
+  return (
+    <Text className={`mt-2 self-start rounded-full border px-3 py-1 text-xs font-bold ${live ? 'border-success/50 bg-success/10 text-success' : 'border-primary/50 bg-primary/10 text-primary'}`}>
+      {live ? 'Live Account' : 'Demo Account'}
+    </Text>
+  );
+}
+
+function AccountSummary({ title, users }) {
+  const balance = users.reduce((sum, user) => sum + Number(user.wallet?.balance || 0), 0);
+  const openMargin = users.reduce((sum, user) => sum + Number(user.wallet?.margin || 0), 0);
+  return (
+    <View className="mb-3 flex-row flex-wrap items-center justify-between rounded-xl border border-border bg-surface px-4 py-3">
+      <View>
+        <Text className="text-lg font-bold text-white">{title}</Text>
+        <Text className="mt-1 text-xs text-muted">{users.length} client accounts</Text>
+      </View>
+      <View className="mt-2 flex-row flex-wrap">
+        <Text className="mr-4 text-sm text-muted">Balance <Text className="font-bold text-white">${money(balance)}</Text></Text>
+        <Text className="text-sm text-muted">Margin <Text className="font-bold text-white">${money(openMargin)}</Text></Text>
+      </View>
+    </View>
+  );
+}
+
+function UsersGrid({ users, busyId, onBalance, onStatus, onReset, onWallet, onTransactions, onSettings }) {
   return (
     <View className="overflow-hidden rounded-2xl border border-border bg-panel">
       <ScrollView horizontal>
@@ -48,7 +74,7 @@ export default function AdminUsersTable({ users, busyId, onBalance, onStatus, on
                 <View style={{ width: 220 }} className="px-3 py-4">
                   <Text className="font-semibold text-white">{user.name}</Text>
                   <Text className="mt-1 text-xs text-muted">{user.email}</Text>
-                  <Text className="mt-1 text-xs text-primary">{user.accountType} Account</Text>
+                  <AccountBadge accountType={user.accountType} />
                 </View>
                 <TextCell width={130}>${money(user.wallet?.balance)}</TextCell>
                 <TextCell width={120}>${money(user.wallet?.equity)}</TextCell>
@@ -69,9 +95,29 @@ export default function AdminUsersTable({ users, busyId, onBalance, onStatus, on
               </View>
             );
           })}
-          {!users.length ? <Text className="p-8 text-center text-muted">No user accounts found.</Text> : null}
+          {!users.length ? <Text className="p-8 text-center text-muted">No accounts in this group.</Text> : null}
         </View>
       </ScrollView>
+    </View>
+  );
+}
+
+export default function AdminUsersTable({ users, busyId, onBalance, onStatus, onReset, onWallet, onTransactions, onSettings }) {
+  const demoUsers = users.filter((user) => user.accountType !== 'Live');
+  const liveUsers = users.filter((user) => user.accountType === 'Live');
+  const groups = [
+    { title: 'Demo Accounts', users: demoUsers },
+    { title: 'Live Accounts', users: liveUsers },
+  ];
+
+  return (
+    <View>
+      {groups.map((group) => (
+        <View key={group.title} className="mb-7">
+          <AccountSummary title={group.title} users={group.users} />
+          <UsersGrid users={group.users} busyId={busyId} onBalance={onBalance} onStatus={onStatus} onReset={onReset} onWallet={onWallet} onTransactions={onTransactions} onSettings={onSettings} />
+        </View>
+      ))}
     </View>
   );
 }

@@ -2,15 +2,13 @@ import { useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { Link } from 'expo-router';
 import { CircleUserRound, Plus, RefreshCw, Settings2 } from 'lucide-react-native';
-import { useAuth } from '../../hooks/useAuth';
 import { useDemoTrading } from '../../hooks/useDemoTrading';
 import { money } from '../../utils/formatters';
 import DemoAccountMenu from './DemoAccountMenu';
 import ProfileMenu from './ProfileMenu';
 
 export default function TopAccountBar() {
-  const { summary, syncAccount } = useDemoTrading();
-  const { user } = useAuth();
+  const { summary, syncAccount, activeAccount } = useDemoTrading();
   const [menu, setMenu] = useState(null);
   const metrics = [
     ['Balance', `${money(summary.balance)} USD`],
@@ -47,8 +45,8 @@ export default function TopAccountBar() {
       <Pressable onPress={() => setMenu(menu === 'account' ? null : 'account')} className="mt-3 flex-row items-center rounded-xl border border-border bg-panel px-4 py-3 lg:mt-0 lg:w-[250px]">
         <CircleUserRound color="#8fa0bb" size={23} />
         <View>
-          <Text className="ml-4 font-bold text-white">{user?.accountType || 'Demo'}</Text>
-          <Text className="ml-4 text-xs text-muted">{user?.accountType === 'Live' ? 'Live account 1' : 'Demo account 1'}</Text>
+          <Text className="ml-4 font-bold text-white">{activeAccount || 'Demo'}</Text>
+          <Text className="ml-4 text-xs text-muted">{activeAccount === 'Live' ? 'Live account 1' : 'Demo account 1'}</Text>
         </View>
         <View className="ml-auto h-2.5 w-2.5 rounded-full bg-success" />
       </Pressable>

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useRouter } from 'expo-router';
-import { Alert, Platform, Pressable, ScrollView, Text, View } from 'react-native';
-import { RefreshCw } from 'lucide-react-native';
+import { Alert, Image, Modal, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { Eye, RefreshCw } from 'lucide-react-native';
 import api from '../src/services/api';
 import CustomButton from '../src/components/common/CustomButton';
 import AdminSidebar from '../src/components/admin/AdminSidebar';
@@ -14,6 +14,21 @@ import { useAuth } from '../src/hooks/useAuth';
 import { dateTime, money } from '../src/utils/formatters';
 
 const empty = { users: [], deposits: [], withdrawals: [], trades: [], stats: {} };
+
+const receiptFor = (item) => item?.receiptImage || item?.receipt_image || '';
+
+function openImageWindow(uri) {
+  if (Platform.OS !== 'web' || typeof window === 'undefined' || !uri) return;
+  let imageUrl = uri;
+  if (uri.startsWith('data:image/')) {
+    const [header, data] = uri.split(',');
+    const mime = header.match(/data:(.*);base64/)?.[1] || 'image/png';
+    const bytes = Uint8Array.from(window.atob(data), (char) => char.charCodeAt(0));
+    imageUrl = window.URL.createObjectURL(new Blob([bytes], { type: mime }));
+    window.setTimeout(() => window.URL.revokeObjectURL(imageUrl), 60000);
+  }
+  window.open(imageUrl, '_blank', 'noopener,noreferrer');
+}
 
 function ask(message, onConfirm) {
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
@@ -36,6 +51,59 @@ function EmptyRow({ children }) {
   return <Text className="rounded-xl bg-surface p-5 text-muted">{children}</Text>;
 }
 
+function tradeAccountType(trade) {
+  return trade.User?.accountType === 'Live' ? 'Live' : 'Demo';
+}
+
+function TradeTable({ title, trades }) {
+  const openTrades = trades.filter((trade) => trade.status === 'open').length;
+  const profit = trades.reduce((sum, trade) => sum + Number(trade.profit || 0), 0);
+  return (
+    <View className="mb-7">
+      <View className="mb-3 flex-row flex-wrap items-center justify-between rounded-xl border border-border bg-surface px-4 py-3">
+        <View>
+          <Text className="text-lg font-bold text-white">{title}</Text>
+          <Text className="mt-1 text-xs text-muted">{trades.length} total trades | {openTrades} open positions</Text>
+        </View>
+        <Text className={`mt-2 text-sm font-bold ${profit < 0 ? 'text-danger' : 'text-success'}`}>Net P/L ${money(profit)}</Text>
+      </View>
+      <View className="overflow-hidden rounded-2xl border border-border bg-panel">
+        <ScrollView horizontal>
+          <View style={{ minWidth: 930 }}>
+            <View className="flex-row border-b border-border bg-surface p-4">
+              {[
+                ['Client', 150],
+                ['Account', 105],
+                ['Symbol', 115],
+                ['Side', 90],
+                ['Lots', 90],
+                ['Status', 105],
+                ['Profit / Loss', 130],
+                ['Created', 160],
+              ].map(([heading, width]) => (
+                <Text key={heading} style={{ width }} className="text-xs font-bold uppercase text-muted">{heading}</Text>
+              ))}
+            </View>
+            {trades.map((trade) => (
+              <View key={trade.id} className="flex-row border-b border-border/60 p-4">
+                <Text style={{ width: 150 }} className="text-sm text-white">{trade.User?.name || '-'}</Text>
+                <Text style={{ width: 105 }} className={tradeAccountType(trade) === 'Live' ? 'text-sm font-bold text-success' : 'text-sm font-bold text-primary'}>{tradeAccountType(trade)}</Text>
+                <Text style={{ width: 115 }} className="text-sm text-white">{trade.symbol}</Text>
+                <Text style={{ width: 90 }} className={`text-sm font-bold ${trade.side === 'BUY' ? 'text-success' : 'text-danger'}`}>{trade.side}</Text>
+                <Text style={{ width: 90 }} className="text-sm text-white">{trade.lots}</Text>
+                <Text style={{ width: 105 }} className="text-sm text-white">{trade.status}</Text>
+                <Text style={{ width: 130 }} className={`text-sm ${Number(trade.profit) < 0 ? 'text-danger' : 'text-success'}`}>${money(trade.profit)}</Text>
+                <Text style={{ width: 160 }} className="text-sm text-muted">{dateTime(trade.createdAt)}</Text>
+              </View>
+            ))}
+            {!trades.length ? <Text className="p-8 text-muted">No trades found in this account type.</Text> : null}
+          </View>
+        </ScrollView>
+      </View>
+    </View>
+  );
+}
+
 export default function AdminScreen() {
   const { isAdmin, logout } = useAuth();
   const router = useRouter();
@@ -49,6 +117,7 @@ export default function AdminScreen() {
   const [settingsUser, setSettingsUser] = useState(null);
   const [walletModal, setWalletModal] = useState(null);
   const [transactionsModal, setTransactionsModal] = useState(null);
+  const [receiptPreview, setReceiptPreview] = useState(null);
 
   const load = useCallback(async () => {
     if (!isAdmin) return;
@@ -156,6 +225,13 @@ export default function AdminScreen() {
     () => action(item.id, () => api.put(`/admin/${type}/${item.id}/${decision}`), `${type === 'deposits' ? 'Deposit' : 'Withdrawal'} ${decision}d.`),
   );
 
+  const openReceipt = (item) => {
+    const receipt = receiptFor(item);
+    if (!receipt) return;
+    setReceiptPreview(item);
+    openImageWindow(receipt);
+  };
+
   if (!isAdmin) {
     return (
       <View className="flex-1 items-center justify-center bg-[#080f20] px-6">
@@ -183,16 +259,38 @@ export default function AdminScreen() {
           <View className="rounded-2xl border border-border bg-panel p-4">
             {data[type].map((item) => (
               <View key={item.id} className="mb-3 flex-row flex-wrap items-center justify-between rounded-xl border border-border bg-surface p-4">
-                <View className="mb-2 mr-4">
+                {type === 'deposits' && receiptFor(item) ? (
+                  <Pressable onPress={() => setReceiptPreview(item)} className="mb-3 mr-4 overflow-hidden rounded-xl border border-primary/40 bg-panel">
+                    <Image source={{ uri: receiptFor(item) }} resizeMode="cover" className="h-24 w-36" />
+                    <View className="absolute bottom-0 left-0 right-0 flex-row items-center justify-center bg-black/70 py-1">
+                      <Eye size={13} color="#f8fbff" />
+                      <Text className="ml-1 text-xs font-semibold text-white">View Receipt</Text>
+                    </View>
+                  </Pressable>
+                ) : null}
+                <View className="mb-2 mr-4 flex-1">
                   <Text className="font-semibold text-white">{item.User?.name || item.User?.email || 'User'}</Text>
                   <Text className="mt-1 text-sm text-muted">${money(item.amount)} | {item.status} | {dateTime(item.createdAt)}</Text>
+                  {type === 'deposits' ? (
+                    <Text className={`mt-1 text-xs font-semibold ${receiptFor(item) ? 'text-success' : 'text-danger'}`}>
+                      {receiptFor(item) ? 'Receipt attached for review' : 'Receipt not submitted'}
+                    </Text>
+                  ) : null}
                 </View>
-                {item.status === 'pending' ? (
-                  <View className="flex-row">
+                <View className="flex-row flex-wrap items-center justify-end">
+                  {type === 'deposits' && receiptFor(item) ? (
+                    <Pressable onPress={() => openReceipt(item)} className="mb-2 mr-2 flex-row items-center rounded-xl border border-primary/50 bg-primary/10 px-4 py-3">
+                      <Eye size={16} color="#27a8e9" />
+                      <Text className="ml-2 font-semibold text-primary">Open Image</Text>
+                    </Pressable>
+                  ) : null}
+                  {item.status === 'pending' ? (
+                    <>
                     <CustomButton title="Approve" variant="success" className="mr-2" disabled={busyId === item.id} onPress={() => reviewFunding(type, item, 'approve')} />
                     <CustomButton title="Reject" variant="danger" disabled={busyId === item.id} onPress={() => reviewFunding(type, item, 'reject')} />
-                  </View>
-                ) : null}
+                    </>
+                  ) : null}
+                </View>
               </View>
             ))}
             {!data[type].length ? <EmptyRow>No {type} requests found.</EmptyRow> : null}
@@ -203,28 +301,9 @@ export default function AdminScreen() {
   );
 
   const renderTrades = () => (
-    <View className="overflow-hidden rounded-2xl border border-border bg-panel">
-      <ScrollView horizontal>
-        <View style={{ minWidth: 800 }}>
-          <View className="flex-row border-b border-border bg-surface p-4">
-            {['Client', 'Symbol', 'Side', 'Lots', 'Status', 'Profit / Loss', 'Created'].map((heading) => (
-              <Text key={heading} className="w-[115px] text-xs font-bold uppercase text-muted">{heading}</Text>
-            ))}
-          </View>
-          {data.trades.map((trade) => (
-            <View key={trade.id} className="flex-row border-b border-border/60 p-4">
-              <Text className="w-[115px] text-sm text-white">{trade.User?.name || '-'}</Text>
-              <Text className="w-[115px] text-sm text-white">{trade.symbol}</Text>
-              <Text className={`w-[115px] text-sm font-bold ${trade.side === 'BUY' ? 'text-success' : 'text-danger'}`}>{trade.side}</Text>
-              <Text className="w-[115px] text-sm text-white">{trade.lots}</Text>
-              <Text className="w-[115px] text-sm text-white">{trade.status}</Text>
-              <Text className={`w-[115px] text-sm ${Number(trade.profit) < 0 ? 'text-danger' : 'text-success'}`}>${money(trade.profit)}</Text>
-              <Text className="w-[150px] text-sm text-muted">{dateTime(trade.createdAt)}</Text>
-            </View>
-          ))}
-          {!data.trades.length ? <Text className="p-8 text-muted">No trades found.</Text> : null}
-        </View>
-      </ScrollView>
+    <View>
+      <TradeTable title="Demo Account Trades" trades={data.trades.filter((trade) => tradeAccountType(trade) === 'Demo')} />
+      <TradeTable title="Live Account Trades" trades={data.trades.filter((trade) => tradeAccountType(trade) === 'Live')} />
     </View>
   );
 
@@ -289,6 +368,26 @@ export default function AdminScreen() {
       <UserSettingsModal user={settingsUser} loading={busyId === settingsUser?.id} onClose={() => setSettingsUser(null)} onSave={saveSettings} onStatus={() => setTrading(settingsUser)} onReset={() => resetDemo(settingsUser)} />
       <UserWalletDetails user={walletModal?.user} wallet={walletModal?.wallet} loading={walletModal?.loading} onClose={() => setWalletModal(null)} />
       <UserTransactionsModal user={transactionsModal?.user} transactions={transactionsModal?.transactions || []} loading={transactionsModal?.loading} onClose={() => setTransactionsModal(null)} />
+      <Modal transparent visible={Boolean(receiptPreview)} animationType="fade" onRequestClose={() => setReceiptPreview(null)}>
+        <View className="flex-1 bg-black/80 p-5">
+          <View className="mx-auto w-full max-w-4xl flex-1 justify-center">
+            <View className="rounded-2xl border border-border bg-panel p-4">
+              <View className="mb-4 flex-row items-center justify-between">
+                <View>
+                  <Text className="text-xl font-bold text-white">Deposit Receipt</Text>
+                  <Text className="mt-1 text-sm text-muted">{receiptPreview?.User?.name || receiptPreview?.User?.email || 'User'} | ${money(receiptPreview?.amount)}</Text>
+                </View>
+                <Pressable onPress={() => setReceiptPreview(null)} className="rounded-xl border border-border bg-surface px-4 py-3">
+                  <Text className="font-semibold text-white">Close Preview</Text>
+                </Pressable>
+              </View>
+              {receiptFor(receiptPreview) ? (
+                <Image source={{ uri: receiptFor(receiptPreview) }} resizeMode="contain" className="h-[70vh] w-full rounded-xl bg-black" />
+              ) : null}
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }

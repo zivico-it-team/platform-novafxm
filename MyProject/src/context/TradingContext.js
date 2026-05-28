@@ -18,10 +18,50 @@ export function TradingProvider({ children }) {
   const [closedPositions, setClosedPositions] = useState([]);
   const [wallet, setWallet] = useState({ balance: INITIAL_BALANCE });
   const [transactions, setTransactions] = useState([]);
+  const [activeAccount, setActiveAccountState] = useState('Demo');
   const [ready, setReady] = useState(false);
+  const isLiveAccount = Boolean(user && activeAccount === 'Live');
 
   useEffect(() => {
     async function restore() {
+      const stored = await Promise.all([
+        storage.get('positions', []),
+        storage.get('closed', []),
+        storage.get('wallet', { balance: INITIAL_BALANCE }),
+        storage.get('transactions', []),
+        storage.get('activeAccount', 'Demo'),
+      ]);
+      setPositions(stored[0]);
+      setClosedPositions(stored[1]);
+      setWallet(stored[2]);
+      setTransactions(stored[3]);
+      setActiveAccountState(stored[4] === 'Live' ? 'Live' : 'Demo');
+      setReady(true);
+    }
+    restore();
+  }, []);
+
+  const syncAccount = useCallback(async () => {
+    if (!isLiveAccount) return;
+    const [open, closed, account, history] = await Promise.all([
+      tradeService.openTrades(), tradeService.closedTrades(), walletService.getWallet(), walletService.getTransactions(),
+    ]);
+    setPositions(open.trades);
+    setClosedPositions(closed.trades);
+    setWallet({ balance: Number(account.summary.balance) });
+    setTransactions(history.transactions);
+  }, [isLiveAccount]);
+
+  useEffect(() => {
+    syncAccount().catch(() => {});
+  }, [syncAccount]);
+
+  const setActiveAccount = useCallback(async (account) => {
+    const next = account === 'Live' ? 'Live' : 'Demo';
+    setActiveAccountState(next);
+    await storage.set('activeAccount', next);
+
+    if (next === 'Demo') {
       const stored = await Promise.all([
         storage.get('positions', []),
         storage.get('closed', []),
@@ -32,25 +72,8 @@ export function TradingProvider({ children }) {
       setClosedPositions(stored[1]);
       setWallet(stored[2]);
       setTransactions(stored[3]);
-      setReady(true);
     }
-    restore();
   }, []);
-
-  const syncAccount = useCallback(async () => {
-    if (!user) return;
-    const [open, closed, account, history] = await Promise.all([
-      tradeService.openTrades(), tradeService.closedTrades(), walletService.getWallet(), walletService.getTransactions(),
-    ]);
-    setPositions(open.trades);
-    setClosedPositions(closed.trades);
-    setWallet({ balance: Number(account.summary.balance) });
-    setTransactions(history.transactions);
-  }, [user]);
-
-  useEffect(() => {
-    syncAccount().catch(() => {});
-  }, [syncAccount]);
 
   const livePositions = useMemo(
     () =>
@@ -66,17 +89,17 @@ export function TradingProvider({ children }) {
   const currentSymbol = prices.find((item) => item.symbol === selectedSymbol) || prices[0] || SYMBOLS[0];
 
   useEffect(() => {
-    if (ready) storage.set('positions', positions);
-  }, [positions, ready]);
+    if (ready && activeAccount === 'Demo') storage.set('positions', positions);
+  }, [positions, ready, activeAccount]);
   useEffect(() => {
-    if (ready) storage.set('closed', closedPositions);
-  }, [closedPositions, ready]);
+    if (ready && activeAccount === 'Demo') storage.set('closed', closedPositions);
+  }, [closedPositions, ready, activeAccount]);
   useEffect(() => {
-    if (ready) storage.set('wallet', wallet);
-  }, [wallet, ready]);
+    if (ready && activeAccount === 'Demo') storage.set('wallet', wallet);
+  }, [wallet, ready, activeAccount]);
   useEffect(() => {
-    if (ready) storage.set('transactions', transactions);
-  }, [transactions, ready]);
+    if (ready && activeAccount === 'Demo') storage.set('transactions', transactions);
+  }, [transactions, ready, activeAccount]);
 
   const openPosition = useCallback(
     async (side, lots) => {
@@ -93,27 +116,27 @@ export function TradingProvider({ children }) {
         openPrice: price,
         openedAt: new Date().toISOString(),
       };
-      if (user) {
+      if (isLiveAccount) {
         const result = await tradeService.open({ symbol: selectedSymbol, side, lots: quantity });
         position = result.trade;
       }
       setPositions((existing) => [position, ...existing]);
     },
-    [currentSymbol, selectedSymbol, summary.freeFunds, user],
+    [currentSymbol, selectedSymbol, summary.freeFunds, isLiveAccount],
   );
 
   const closePosition = useCallback(
     async (id) => {
       const position = livePositions.find((item) => String(item.id) === String(id));
       if (!position) return;
-      const response = user ? await tradeService.close(id, position.currentPrice) : null;
+      const response = isLiveAccount ? await tradeService.close(id, position.currentPrice) : null;
       const closed = response?.trade || { ...position, status: 'closed', closedAt: new Date().toISOString(), closePrice: position.currentPrice };
       closed.profit = Number(closed.profit ?? position.profit);
       setPositions((existing) => existing.filter((item) => String(item.id) !== String(id)));
       setClosedPositions((existing) => [closed, ...existing]);
       setWallet((existing) => ({ ...existing, balance: existing.balance + closed.profit }));
     },
-    [livePositions, user],
+    [livePositions, isLiveAccount],
   );
 
   const submitDeposit = useCallback((values) => {
@@ -138,6 +161,8 @@ export function TradingProvider({ children }) {
       connected,
       selectedSymbol,
       setSelectedSymbol,
+      activeAccount,
+      setActiveAccount,
       currentSymbol,
       positions: livePositions,
       closedPositions,
@@ -150,7 +175,7 @@ export function TradingProvider({ children }) {
       syncAccount,
       ready,
     }),
-    [prices, connected, selectedSymbol, currentSymbol, livePositions, closedPositions, summary, transactions, openPosition, closePosition, submitDeposit, submitWithdrawal, syncAccount, ready],
+    [prices, connected, selectedSymbol, activeAccount, setActiveAccount, currentSymbol, livePositions, closedPositions, summary, transactions, openPosition, closePosition, submitDeposit, submitWithdrawal, syncAccount, ready],
   );
 
   return <TradingContext.Provider value={value}>{children}</TradingContext.Provider>;

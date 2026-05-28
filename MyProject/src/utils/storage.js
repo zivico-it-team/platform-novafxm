@@ -7,6 +7,7 @@ const keys = {
   closed: 'novafxm_closed_positions',
   wallet: 'novafxm_wallet',
   transactions: 'novafxm_transactions',
+  activeAccount: 'novafxm_active_account',
 };
 
 export const storage = {

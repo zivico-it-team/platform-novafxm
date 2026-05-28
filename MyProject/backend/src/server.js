@@ -10,7 +10,7 @@ const tradingView = require('./services/tradingViewService');
 
 const app = express();
 app.use(cors({ origin: process.env.CORS_ORIGIN === '*' || !process.env.CORS_ORIGIN ? true : process.env.CORS_ORIGIN }));
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '6mb' }));
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok', service: 'NOVA FXM API' }));
 app.use('/api/auth', require('./routes/authRoutes'));

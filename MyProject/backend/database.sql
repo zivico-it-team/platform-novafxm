@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS deposits (
   amount DECIMAL(15,2) NOT NULL,
   payment_method VARCHAR(80) NOT NULL,
   reference_number VARCHAR(120) NOT NULL,
+  receipt_image MEDIUMTEXT NULL,
   note TEXT NULL,
   status ENUM('pending', 'approved', 'rejected') NOT NULL DEFAULT 'pending',
   reviewed_at DATETIME NULL,

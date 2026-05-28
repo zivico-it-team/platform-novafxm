@@ -34,9 +34,15 @@ exports.transactions = async (req, res, next) => {
 
 exports.deposit = async (req, res, next) => {
   try {
-    const { amount, paymentMethod, referenceNumber, note } = req.body;
+    const { amount, paymentMethod, referenceNumber, note, receiptImage } = req.body;
     if (!(Number(amount) > 0) || !paymentMethod || !referenceNumber) return res.status(400).json({ message: 'Valid amount, payment method and reference number are required.' });
-    const deposit = await Deposit.create({ userId: req.user.id, amount, paymentMethod, referenceNumber, note });
+    if (!receiptImage || typeof receiptImage !== 'string' || !/^data:image\/(png|jpe?g|webp);base64,/i.test(receiptImage)) {
+      return res.status(400).json({ message: 'A valid receipt image is required for deposit approval.' });
+    }
+    if (receiptImage.length > 5_500_000) {
+      return res.status(400).json({ message: 'Receipt image is too large. Please upload an image below 3 MB.' });
+    }
+    const deposit = await Deposit.create({ userId: req.user.id, amount, paymentMethod, referenceNumber, receiptImage, note });
     await Transaction.create({ userId: req.user.id, type: 'deposit', amount, status: 'pending', referenceType: 'deposit', referenceId: deposit.id, description: `Deposit via ${paymentMethod}` });
     return res.status(201).json({ deposit });
   } catch (error) {

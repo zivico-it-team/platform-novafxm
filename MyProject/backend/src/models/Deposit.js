@@ -7,6 +7,7 @@ const Deposit = sequelize.define('Deposit', {
   amount: { type: DataTypes.DECIMAL(15, 2), allowNull: false },
   paymentMethod: { type: DataTypes.STRING(80), allowNull: false, field: 'payment_method' },
   referenceNumber: { type: DataTypes.STRING(120), allowNull: false, field: 'reference_number' },
+  receiptImage: { type: DataTypes.TEXT('medium'), allowNull: true, field: 'receipt_image' },
   note: { type: DataTypes.TEXT },
   status: { type: DataTypes.ENUM('pending', 'approved', 'rejected'), allowNull: false, defaultValue: 'pending' },
   reviewedAt: { type: DataTypes.DATE, field: 'reviewed_at' },
