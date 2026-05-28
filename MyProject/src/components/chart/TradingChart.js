@@ -4,6 +4,7 @@ import { WebView } from 'react-native-webview';
 import { useDemoTrading } from '../../hooks/useDemoTrading';
 import { marketService } from '../../services/marketService';
 import { percent, quote } from '../../utils/formatters';
+import { useAppTheme } from '../../context/ThemeContext';
 
 const TIMEFRAMES = ['1s', '1m', '5m', '15m', '30m', '1H', '4H', '1D', '1W', '1M'];
 const TIMEFRAME_SECONDS = {
@@ -47,14 +48,22 @@ const hasLivePrice = (item) => (
   ['tradingview', 'stale'].includes(item?.source) && Number(item?.price) > 0
 );
 
-function chartHtml(candles, decimals, timeframe) {
+function chartHtml(candles, decimals, timeframe, colors) {
   const safeDecimals = Math.max(0, Math.min(Number(decimals) || 2, 8));
   const visibleBars = INITIAL_VISIBLE_BARS[timeframe] || 300;
+  const chartColors = {
+    background: colors.chartBackground,
+    text: colors.chartText,
+    grid: colors.chartGrid,
+    border: colors.border,
+    up: colors.success,
+    down: colors.danger,
+  };
   return `<!doctype html>
 <html><head><meta name="viewport" content="width=device-width,initial-scale=1.0">
 <style>
-*{box-sizing:border-box}html,body,#chart{height:100%;width:100%;margin:0;background:#080f20;overflow:hidden}
-#empty{display:none;position:absolute;left:0;right:0;top:48%;text-align:center;color:#8190ad;font:14px Arial,sans-serif}
+*{box-sizing:border-box}html,body,#chart{height:100%;width:100%;margin:0;background:${chartColors.background};overflow:hidden}
+#empty{display:none;position:absolute;left:0;right:0;top:48%;text-align:center;color:${chartColors.text};font:14px Arial,sans-serif}
 </style></head>
 <body>
 <div id="chart"></div><div id="empty">Waiting for chart data</div>
@@ -64,31 +73,31 @@ const data = ${JSON.stringify(candles)};
 const chart = LightweightCharts.createChart(document.getElementById('chart'), {
   autoSize: true,
   layout: {
-    background: { type: 'solid', color: '#080f20' },
-    textColor: '#8fa0bf',
+    background: { type: 'solid', color: ${JSON.stringify(chartColors.background)} },
+    textColor: ${JSON.stringify(chartColors.text)},
     attributionLogo: false
   },
   grid: {
-    vertLines: { color: 'rgba(42,54,82,.45)' },
-    horzLines: { color: 'rgba(42,54,82,.45)' }
+    vertLines: { color: ${JSON.stringify(chartColors.grid)} },
+    horzLines: { color: ${JSON.stringify(chartColors.grid)} }
   },
   crosshair: {
-    vertLine: { color: '#556581' },
-    horzLine: { color: '#556581' }
+    vertLine: { color: ${JSON.stringify(colors.primary)} },
+    horzLine: { color: ${JSON.stringify(colors.primary)} }
   },
-  rightPriceScale: { borderColor: '#263450' },
+  rightPriceScale: { borderColor: ${JSON.stringify(chartColors.border)} },
   timeScale: {
-    borderColor: '#263450',
+    borderColor: ${JSON.stringify(chartColors.border)},
     timeVisible: true,
     secondsVisible: true,
     shiftVisibleRangeOnNewBar: false
   }
 });
 const series = chart.addSeries(LightweightCharts.CandlestickSeries, {
-  upColor: '#10c983',
-  downColor: '#ef4858',
-  wickUpColor: '#10c983',
-  wickDownColor: '#ef4858',
+  upColor: ${JSON.stringify(chartColors.up)},
+  downColor: ${JSON.stringify(chartColors.down)},
+  wickUpColor: ${JSON.stringify(chartColors.up)},
+  wickDownColor: ${JSON.stringify(chartColors.down)},
   borderVisible: false,
   priceFormat: {
     type: 'price',
@@ -135,6 +144,7 @@ document.addEventListener('message', receiveLiveUpdate);
 
 export default function TradingChart() {
   const { currentSymbol } = useDemoTrading();
+  const { colors } = useAppTheme();
   const [timeframe, setTimeframe] = useState('15m');
   const [history, setHistory] = useState([]);
   const iframeRef = useRef(null);
@@ -199,19 +209,19 @@ export default function TradingChart() {
 
   const candles = useMemo(() => history, [history]);
   const html = useMemo(
-    () => chartHtml(candles, currentSymbol.decimals, timeframe),
-    [candles, currentSymbol.decimals, timeframe],
+    () => chartHtml(candles, currentSymbol.decimals, timeframe, colors),
+    [candles, currentSymbol.decimals, timeframe, colors],
   );
   const positive = Number(currentSymbol.change) >= 0;
 
   return (
-    <View className="min-h-[430px] flex-1 overflow-hidden rounded-2xl border border-border bg-[#080f20]">
-      <View className="flex-row items-center border-b border-border px-4 py-3">
-        <Text className="mr-5 text-lg font-bold text-white">{currentSymbol.symbol}</Text>
+    <View className="min-h-[430px] flex-1 overflow-hidden rounded-2xl border" style={{ backgroundColor: colors.chartBackground, borderColor: colors.border }}>
+      <View className="flex-row items-center border-b px-4 py-3" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+        <Text className="mr-5 text-lg font-bold" style={{ color: colors.text }}>{currentSymbol.symbol}</Text>
         <Text className={positive ? 'text-success' : 'text-danger'}>
           {quote(currentSymbol.price, currentSymbol.decimals)}  {percent(currentSymbol.change)}
         </Text>
-        <Text className="ml-3 text-xs text-muted">Spread {quote(currentSymbol.spread, currentSymbol.decimals)}</Text>
+        <Text className="ml-3 text-xs" style={{ color: colors.muted }}>Spread {quote(currentSymbol.spread, currentSymbol.decimals)}</Text>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -222,9 +232,10 @@ export default function TradingChart() {
             <Pressable
               key={entry}
               onPress={() => setTimeframe(entry)}
-              className={`ml-1 rounded-md px-3 py-2 ${entry === timeframe ? 'bg-primary' : ''}`}
+              className="ml-1 rounded-md px-3 py-2"
+              style={{ backgroundColor: entry === timeframe ? colors.primary : 'transparent' }}
             >
-              <Text className={entry === timeframe ? 'font-bold text-white' : 'text-muted'}>{entry}</Text>
+              <Text className={entry === timeframe ? 'font-bold text-white' : ''} style={{ color: entry === timeframe ? '#ffffff' : colors.muted }}>{entry}</Text>
             </Pressable>
           ))}
         </ScrollView>
@@ -244,7 +255,7 @@ export default function TradingChart() {
             domStorageEnabled
             javaScriptEnabled
             source={{ html }}
-            style={{ backgroundColor: '#080f20' }}
+            style={{ backgroundColor: colors.chartBackground }}
           />
         )}
       </View>

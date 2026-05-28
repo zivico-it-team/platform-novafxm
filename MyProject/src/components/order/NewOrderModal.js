@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { Check, ChevronDown, Minus, Plus, X } from 'lucide-react-native';
+import { useAppTheme } from '../../context/ThemeContext';
 import { useDemoTrading } from '../../hooks/useDemoTrading';
 import { quote } from '../../utils/formatters';
 
@@ -10,23 +11,23 @@ const ORDER_TYPES = [
   { value: 'stop', label: 'Stop Order' },
 ];
 
-function Toggle({ selected, onPress, label }) {
+function Toggle({ selected, onPress, label, colors }) {
   return (
     <Pressable onPress={onPress} className="flex-row items-center">
-      <View className={`mr-2 h-5 w-5 items-center justify-center rounded border ${selected ? 'border-primary bg-primary' : 'border-muted'}`}>
+      <View className="mr-2 h-5 w-5 items-center justify-center rounded border" style={{ backgroundColor: selected ? colors.primary : 'transparent', borderColor: selected ? colors.primary : colors.muted }}>
         {selected ? <Check size={14} color="#fff" /> : null}
       </View>
-      <Text className="font-semibold text-white">{label}</Text>
+      <Text className="font-semibold" style={{ color: colors.text }}>{label}</Text>
     </Pressable>
   );
 }
 
-function ValueCard({ pips, setPips, price, profit, compact }) {
+function ValueCard({ pips, setPips, price, profit, compact, colors, controlBackground }) {
   return (
-    <View className={`${compact ? 'w-[102px]' : 'w-[165px]'} overflow-hidden rounded-xl border border-border bg-surface`}>
-      <TextInput value={pips} onChangeText={setPips} keyboardType="numbers-and-punctuation" className="h-11 border-b border-border px-3 text-base text-white" />
-      <Text className="border-b border-border px-3 py-3 text-base text-white">{price}</Text>
-      <Text className="px-3 py-3 text-base text-white">{profit}</Text>
+    <View className={`${compact ? 'w-[102px]' : 'w-[165px]'} overflow-hidden rounded-xl border`} style={{ backgroundColor: controlBackground, borderColor: colors.border }}>
+      <TextInput value={pips} onChangeText={setPips} keyboardType="numbers-and-punctuation" className="h-11 border-b px-3 text-base" style={{ borderColor: colors.border, color: colors.text }} />
+      <Text className="border-b px-3 py-3 text-base" style={{ borderColor: colors.border, color: colors.text }}>{price}</Text>
+      <Text className="px-3 py-3 text-base" style={{ color: colors.text }}>{profit}</Text>
     </View>
   );
 }
@@ -34,6 +35,7 @@ function ValueCard({ pips, setPips, price, profit, compact }) {
 export default function NewOrderModal({ visible, onClose }) {
   const { width } = useWindowDimensions();
   const compact = width < 560;
+  const { darkMode, colors } = useAppTheme();
   const { prices, currentSymbol, selectedSymbol, setSelectedSymbol, openPosition, createPendingOrder } = useDemoTrading();
   const [orderType, setOrderType] = useState('spot');
   const [side, setSide] = useState('BUY');
@@ -65,6 +67,10 @@ export default function NewOrderModal({ visible, onClose }) {
   const quantity = Number(lots || 0);
   const changeLots = (amount) => setLots(Math.max(0.01, quantity + amount).toFixed(2));
   const shownSymbols = useMemo(() => prices.filter((item) => item.popular).slice(0, 9), [prices]);
+  const modalBackground = darkMode ? colors.panel : '#e8f8ee';
+  const sectionBackground = darkMode ? colors.panel : '#f6fff9';
+  const controlBackground = darkMode ? colors.surface : '#f6fff9';
+  const activeTabBackground = darkMode ? colors.primarySoft : '#d0efdc';
 
   const placeOrder = async () => {
     setLoading(true);
@@ -93,81 +99,81 @@ export default function NewOrderModal({ visible, onClose }) {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable onPress={onClose} className="flex-1 items-center justify-center bg-black/70 p-3">
-        <Pressable onPress={(event) => event.stopPropagation()} className="max-h-[96%] w-full max-w-[690px] rounded-2xl border border-border bg-[#0c1326] p-4 lg:p-7">
+        <Pressable onPress={(event) => event.stopPropagation()} className="max-h-[96%] w-full max-w-[460px] rounded-2xl border p-4 lg:p-5" style={{ backgroundColor: modalBackground, borderColor: colors.border }}>
           <ScrollView showsVerticalScrollIndicator={false}>
-            <View className="mb-6 flex-row items-center justify-between">
-              <Text className="text-2xl font-bold text-white">Create New Market Order</Text>
-              <Pressable onPress={onClose} className="p-2"><X size={20} color="#8fa0bb" /></Pressable>
+            <View className="mb-5 flex-row items-center justify-between">
+              <Text className="text-lg font-bold" style={{ color: colors.text }}>Create New Market Order</Text>
+              <Pressable onPress={onClose} className="p-2"><X size={18} color={colors.muted} /></Pressable>
             </View>
-            <View className="mb-5 flex-row flex-wrap">
+            <View className="mb-4 flex-row flex-wrap">
               {ORDER_TYPES.map((type) => (
-                <Pressable key={type.value} onPress={() => setOrderType(type.value)} className={`mr-4 rounded-full px-4 py-2 ${orderType === type.value ? 'bg-[#173b64]' : ''}`}>
-                  <Text className={orderType === type.value ? 'font-semibold text-primary' : 'font-semibold text-white'}>{type.label}</Text>
+                <Pressable key={type.value} onPress={() => setOrderType(type.value)} className="mr-3 rounded-full px-3 py-1.5" style={{ backgroundColor: orderType === type.value ? activeTabBackground : 'transparent' }}>
+                  <Text className="text-xs font-semibold" style={{ color: orderType === type.value ? colors.primary : colors.text }}>{type.label}</Text>
                 </Pressable>
               ))}
             </View>
-            <View className="rounded-2xl border border-border p-5 lg:p-6">
-              <View className="relative mb-7">
-                <Pressable onPress={() => setSymbolMenu((open) => !open)} className="h-14 flex-row items-center justify-between rounded-xl border border-border bg-[#0d1427] px-5">
-                  <Text className="font-bold text-white">{currentSymbol.symbol}  <Text className="font-normal text-muted">({currentSymbol.name})</Text></Text>
-                  <ChevronDown size={19} color="#8fa0bb" />
+            <View className="rounded-2xl border p-4" style={{ backgroundColor: sectionBackground, borderColor: colors.border }}>
+              <View className="relative mb-5">
+                <Pressable onPress={() => setSymbolMenu((open) => !open)} className="h-12 flex-row items-center justify-between rounded-xl border px-4" style={{ backgroundColor: controlBackground, borderColor: colors.border }}>
+                  <Text className="font-bold" style={{ color: colors.text }}>{currentSymbol.symbol}  <Text className="font-normal" style={{ color: colors.muted }}>({currentSymbol.name})</Text></Text>
+                  <ChevronDown size={18} color={colors.muted} />
                 </Pressable>
                 {symbolMenu ? (
-                  <View className="absolute left-0 right-0 top-14 z-10 rounded-xl border border-border bg-panel p-2">
+                  <View className="absolute left-0 right-0 top-12 z-10 rounded-xl border p-2" style={{ backgroundColor: modalBackground, borderColor: colors.border }}>
                     {shownSymbols.map((item) => (
                       <Pressable key={item.symbol} onPress={() => { setSelectedSymbol(item.symbol); setSymbolMenu(false); }} className="rounded-lg px-4 py-3">
-                        <Text className="text-white">{item.symbol}  <Text className="text-muted">{item.name}</Text></Text>
+                        <Text style={{ color: colors.text }}>{item.symbol}  <Text style={{ color: colors.muted }}>{item.name}</Text></Text>
                       </Pressable>
                     ))}
                   </View>
                 ) : null}
               </View>
-              <View className="mb-8 flex-row gap-3 lg:gap-5">
-                <Pressable onPress={() => setSide('SELL')} className={`h-[74px] flex-1 items-center justify-center rounded-xl border ${side === 'SELL' ? 'bg-danger' : 'border-danger'}`}>
-                  <Text className={side === 'SELL' ? 'text-white' : 'text-danger'}>SELL</Text>
-                  {orderType === 'spot' ? <Text className={`mt-1 text-lg font-bold ${side === 'SELL' ? 'text-white' : 'text-danger'}`}>{quote(currentSymbol.bid, currentSymbol.decimals)}</Text> : null}
+              <View className="mb-6 flex-row gap-3">
+                <Pressable onPress={() => setSide('SELL')} className="h-[54px] flex-1 items-center justify-center rounded-xl border" style={{ backgroundColor: side === 'SELL' ? colors.danger : 'transparent', borderColor: colors.danger }}>
+                  <Text className="text-xs" style={{ color: side === 'SELL' ? '#fff' : colors.danger }}>SELL</Text>
+                  {orderType === 'spot' ? <Text className="mt-0.5 font-bold" style={{ color: side === 'SELL' ? '#fff' : colors.danger }}>{quote(currentSymbol.bid, currentSymbol.decimals)}</Text> : null}
                 </Pressable>
-                <Pressable onPress={() => setSide('BUY')} className={`h-[74px] flex-1 items-center justify-center rounded-xl border ${side === 'BUY' ? 'border-success bg-success' : 'border-success'}`}>
-                  <Text className={side === 'BUY' ? 'text-white' : 'text-success'}>BUY</Text>
-                  {orderType === 'spot' ? <Text className={`mt-1 text-lg font-bold ${side === 'BUY' ? 'text-white' : 'text-success'}`}>{quote(currentSymbol.ask, currentSymbol.decimals)}</Text> : null}
+                <Pressable onPress={() => setSide('BUY')} className="h-[54px] flex-1 items-center justify-center rounded-xl border" style={{ backgroundColor: side === 'BUY' ? colors.success : 'transparent', borderColor: colors.success }}>
+                  <Text className="text-xs" style={{ color: side === 'BUY' ? '#fff' : colors.success }}>BUY</Text>
+                  {orderType === 'spot' ? <Text className="mt-0.5 font-bold" style={{ color: side === 'BUY' ? '#fff' : colors.success }}>{quote(currentSymbol.ask, currentSymbol.decimals)}</Text> : null}
                 </Pressable>
               </View>
-              <View className={`mb-8 ${orderType === 'spot' ? 'items-center' : compact ? 'gap-4' : 'flex-row gap-4'}`}>
+              <View className={`mb-6 ${orderType === 'spot' ? 'items-center' : compact ? 'gap-4' : 'flex-row gap-4'}`}>
                 {orderType !== 'spot' ? (
                   <View className="flex-1">
-                    <Text className="mb-3 text-center text-lg font-semibold text-white">Entry Price</Text>
-                    <TextInput value={entryPrice} onChangeText={setEntryPrice} keyboardType="decimal-pad" className="h-[54px] rounded-xl border border-border bg-surface px-4 text-lg text-white" />
+                    <Text className="mb-2 text-center font-semibold" style={{ color: colors.text }}>Entry Price</Text>
+                    <TextInput value={entryPrice} onChangeText={setEntryPrice} keyboardType="decimal-pad" className="h-[46px] rounded-xl border px-4 text-base" style={{ backgroundColor: controlBackground, borderColor: colors.border, color: colors.text }} />
                   </View>
                 ) : null}
                 <View className={orderType === 'spot' ? 'w-[286px]' : 'flex-1'}>
-                  <Text className="mb-3 text-center text-lg font-semibold text-white">Quantity</Text>
-                  <View className="h-[54px] flex-row overflow-hidden rounded-xl border border-border bg-surface">
-                    <TextInput value={lots} onChangeText={setLots} keyboardType="decimal-pad" className="flex-1 px-4 text-lg text-white" />
-                    <Pressable onPress={() => changeLots(-0.01)} className="w-[52px] items-center justify-center border-l border-border"><Minus size={20} color="#8fa0bb" /></Pressable>
-                    <Pressable onPress={() => changeLots(0.01)} className="w-[52px] items-center justify-center border-l border-border"><Plus size={20} color="#8fa0bb" /></Pressable>
+                  <Text className="mb-2 text-center font-semibold" style={{ color: colors.text }}>Quantity</Text>
+                  <View className="h-[42px] flex-row overflow-hidden rounded-xl border" style={{ backgroundColor: controlBackground, borderColor: colors.border }}>
+                    <TextInput value={lots} onChangeText={setLots} keyboardType="decimal-pad" className="flex-1 px-4 text-base" style={{ color: colors.text }} />
+                    <Pressable onPress={() => changeLots(-0.01)} className="w-[48px] items-center justify-center border-l" style={{ borderColor: colors.border }}><Minus size={18} color={colors.muted} /></Pressable>
+                    <Pressable onPress={() => changeLots(0.01)} className="w-[48px] items-center justify-center border-l" style={{ borderColor: colors.border }}><Plus size={18} color={colors.muted} /></Pressable>
                   </View>
                 </View>
               </View>
               <View className="mb-5 flex-row items-center justify-between">
                 <View>
-                  <Toggle selected={stopLossOn} onPress={() => setStopLossOn((value) => !value)} label="Stop Loss" />
-                  <View className="mt-3"><ValueCard pips={stopPips} setPips={setStopPips} price={stopPrice} profit="0" compact={compact} /></View>
+                  <Toggle selected={stopLossOn} onPress={() => setStopLossOn((value) => !value)} label="Stop Loss" colors={colors} />
+                  <View className="mt-3"><ValueCard pips={stopPips} setPips={setStopPips} price={stopPrice} profit="0" compact={compact} colors={colors} controlBackground={controlBackground} /></View>
                 </View>
                 <View className="mt-12 items-center gap-5 px-1">
-                  <Text className="text-base text-white">Pips</Text>
-                  <Text className="text-base text-white">Price</Text>
-                  <Text className="text-base text-white">Profit</Text>
+                  <Text className="text-sm" style={{ color: colors.text }}>Pips</Text>
+                  <Text className="text-sm" style={{ color: colors.text }}>Price</Text>
+                  <Text className="text-sm" style={{ color: colors.text }}>Profit</Text>
                 </View>
                 <View>
-                  <Toggle selected={takeProfitOn} onPress={() => setTakeProfitOn((value) => !value)} label="Take Profit" />
-                  <View className="mt-3"><ValueCard pips={profitPips} setPips={setProfitPips} price={profitPrice} profit="0" compact={compact} /></View>
+                  <Toggle selected={takeProfitOn} onPress={() => setTakeProfitOn((value) => !value)} label="Take Profit" colors={colors} />
+                  <View className="mt-3"><ValueCard pips={profitPips} setPips={setProfitPips} price={profitPrice} profit="0" compact={compact} colors={colors} controlBackground={controlBackground} /></View>
                 </View>
               </View>
-              {message ? <Text className="mb-4 text-danger">{message}</Text> : null}
-              <Pressable disabled={loading} onPress={placeOrder} className={`h-[60px] items-center justify-center rounded-xl ${side === 'SELL' ? 'bg-danger' : 'bg-success'} ${loading ? 'opacity-60' : ''}`}>
-                <Text className="font-bold text-white">{loading ? 'PLACING ORDER...' : 'PLACE ORDER'}</Text>
+              {message ? <Text className="mb-4" style={{ color: colors.danger }}>{message}</Text> : null}
+              <Pressable disabled={loading} onPress={placeOrder} className={`h-[48px] items-center justify-center rounded-xl ${loading ? 'opacity-60' : ''}`} style={{ backgroundColor: side === 'SELL' ? colors.danger : colors.success }}>
+                <Text className="text-xs font-bold text-white">{loading ? 'PLACING ORDER...' : 'PLACE ORDER'}</Text>
               </Pressable>
-              <Text className="mt-5 text-center text-white">Spread: {Number(currentSymbol.spreadPoints || 0).toFixed(1)}   High: {quote(Math.max(currentSymbol.bid, currentSymbol.ask), currentSymbol.decimals)}   Low: {quote(Math.min(currentSymbol.bid, currentSymbol.ask), currentSymbol.decimals)}</Text>
+              <Text className="mt-4 text-center text-xs" style={{ color: colors.text }}>Spread: {Number(currentSymbol.spreadPoints || 0).toFixed(1)}   High: {quote(Math.max(currentSymbol.bid, currentSymbol.ask), currentSymbol.decimals)}   Low: {quote(Math.min(currentSymbol.bid, currentSymbol.ask), currentSymbol.decimals)}</Text>
             </View>
           </ScrollView>
         </Pressable>
