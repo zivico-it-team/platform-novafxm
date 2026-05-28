@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, Text, TextInput, useWindowDimensions, View } from 'react-native';
-import { Check, ChevronDown, Minus, Plus, X } from 'lucide-react-native';
+import { Check, ChevronDown, ChevronRight, Minus, Plus, Search, X } from 'lucide-react-native';
 import { useAppTheme } from '../../context/ThemeContext';
+import { MARKET_GROUPS } from '../../constants/symbols';
 import { useDemoTrading } from '../../hooks/useDemoTrading';
 import { quote } from '../../utils/formatters';
 
@@ -41,6 +42,8 @@ export default function NewOrderModal({ visible, onClose }) {
   const [side, setSide] = useState('BUY');
   const [lots, setLots] = useState('0.01');
   const [symbolMenu, setSymbolMenu] = useState(false);
+  const [symbolSearch, setSymbolSearch] = useState('');
+  const [expandedGroups, setExpandedGroups] = useState({});
   const [entryPrice, setEntryPrice] = useState('');
   const [stopLossOn, setStopLossOn] = useState(false);
   const [takeProfitOn, setTakeProfitOn] = useState(false);
@@ -56,6 +59,8 @@ export default function NewOrderModal({ visible, onClose }) {
   useEffect(() => {
     if (!visible) {
       setSymbolMenu(false);
+      setSymbolSearch('');
+      setExpandedGroups({});
       setMessage('');
     }
   }, [visible]);
@@ -66,7 +71,18 @@ export default function NewOrderModal({ visible, onClose }) {
   const profitPrice = quote(basePrice + Math.abs(Number(profitPips) || 0) * pipSize, currentSymbol.decimals);
   const quantity = Number(lots || 0);
   const changeLots = (amount) => setLots(Math.max(0.01, quantity + amount).toFixed(2));
-  const shownSymbols = useMemo(() => prices.filter((item) => item.popular).slice(0, 9), [prices]);
+  const filteredSymbols = useMemo(
+    () => prices.filter((item) => item.symbol.toLowerCase().includes(symbolSearch.toLowerCase())),
+    [prices, symbolSearch],
+  );
+  const groupItems = (group) =>
+    filteredSymbols.filter((item) => (group === 'POPULAR' ? item.popular : item.group === group));
+  const selectSymbol = (symbol) => {
+    setSelectedSymbol(symbol);
+    setSymbolMenu(false);
+    setSymbolSearch('');
+    setExpandedGroups({});
+  };
   const modalBackground = darkMode ? colors.panel : '#e8f8ee';
   const sectionBackground = darkMode ? colors.panel : '#f6fff9';
   const controlBackground = darkMode ? colors.surface : '#f6fff9';
@@ -113,18 +129,56 @@ export default function NewOrderModal({ visible, onClose }) {
               ))}
             </View>
             <View className="rounded-2xl border p-4" style={{ backgroundColor: sectionBackground, borderColor: colors.border }}>
-              <View className="relative mb-5">
+              <View className="relative z-50 mb-5" style={{ zIndex: 50 }}>
                 <Pressable onPress={() => setSymbolMenu((open) => !open)} className="h-12 flex-row items-center justify-between rounded-xl border px-4" style={{ backgroundColor: controlBackground, borderColor: colors.border }}>
                   <Text className="font-bold" style={{ color: colors.text }}>{currentSymbol.symbol}  <Text className="font-normal" style={{ color: colors.muted }}>({currentSymbol.name})</Text></Text>
                   <ChevronDown size={18} color={colors.muted} />
                 </Pressable>
                 {symbolMenu ? (
-                  <View className="absolute left-0 right-0 top-12 z-10 rounded-xl border p-2" style={{ backgroundColor: modalBackground, borderColor: colors.border }}>
-                    {shownSymbols.map((item) => (
-                      <Pressable key={item.symbol} onPress={() => { setSelectedSymbol(item.symbol); setSymbolMenu(false); }} className="rounded-lg px-4 py-3">
-                        <Text style={{ color: colors.text }}>{item.symbol}  <Text style={{ color: colors.muted }}>{item.name}</Text></Text>
-                      </Pressable>
-                    ))}
+                  <View
+                    className="absolute left-0 right-0 top-14 z-50 max-h-[260px] overflow-hidden rounded-xl border shadow-2xl"
+                    style={{ backgroundColor: modalBackground, borderColor: colors.border, elevation: 16, zIndex: 50 }}
+                  >
+                    <View className="h-11 flex-row items-center border-b px-3" style={{ borderColor: colors.border }}>
+                      <TextInput
+                        value={symbolSearch}
+                        onChangeText={setSymbolSearch}
+                        placeholder="Search symbol"
+                        placeholderTextColor={colors.muted}
+                        className="flex-1 text-sm"
+                        style={{ color: colors.text }}
+                      />
+                      <Search size={17} color={colors.muted} />
+                    </View>
+                    <ScrollView nestedScrollEnabled showsVerticalScrollIndicator indicatorStyle={darkMode ? 'white' : 'black'}>
+                      {MARKET_GROUPS.map((group) => {
+                        const items = groupItems(group);
+                        if (!items.length) return null;
+                        const expanded = Boolean(symbolSearch) || Boolean(expandedGroups[group]);
+                        return (
+                          <View key={group}>
+                            <Pressable
+                              onPress={() => setExpandedGroups((current) => ({ ...current, [group]: !current[group] }))}
+                              className="h-10 flex-row items-center border-b px-4"
+                              style={{ borderColor: colors.border }}
+                            >
+                              {expanded ? <ChevronDown size={16} color={colors.primary} /> : <ChevronRight size={16} color={colors.muted} />}
+                              <Text className="ml-3 text-xs font-bold" style={{ color: colors.text }}>{group}</Text>
+                            </Pressable>
+                            {expanded ? items.map((item) => (
+                              <Pressable
+                                key={item.symbol}
+                                onPress={() => selectSymbol(item.symbol)}
+                                className="border-b px-10 py-2.5"
+                                style={{ backgroundColor: item.symbol === selectedSymbol ? controlBackground : 'transparent', borderColor: colors.border }}
+                              >
+                                <Text className="text-xs font-semibold" style={{ color: colors.text }}>{item.symbol}  <Text style={{ color: colors.muted }}>{item.name}</Text></Text>
+                              </Pressable>
+                            )) : null}
+                          </View>
+                        );
+                      })}
+                    </ScrollView>
                   </View>
                 ) : null}
               </View>
