@@ -54,7 +54,16 @@ async function start() {
 
 if (require.main === module) {
   start().catch((error) => {
-    console.error('Unable to start server:', error.message);
+    const connectionRefused = error?.name === 'SequelizeConnectionRefusedError' || error?.parent?.code === 'ECONNREFUSED';
+    if (connectionRefused) {
+      console.error(
+        `Unable to start server: MySQL connection refused at ${process.env.DB_HOST || 'localhost'}:${process.env.DB_PORT || 3306}. `
+        + `Start MySQL and make sure database "${process.env.DB_NAME || 'novafxm_db'}" exists, or update backend/.env DB_HOST/DB_PORT/DB_USER/DB_PASSWORD.`,
+      );
+    } else {
+      console.error('Unable to start server:', error?.message || error?.name || error);
+      if (error?.stack) console.error(error.stack);
+    }
     process.exitCode = 1;
   });
 }

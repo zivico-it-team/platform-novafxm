@@ -92,7 +92,7 @@ export default function SymbolPanel() {
           )}
         </View>
       ) : (
-        <>
+        <View className="min-h-0 flex-1">
           <View className="mb-3 flex-row items-center justify-between px-1">
             <Text className="overflow-hidden rounded-full px-4 py-2 font-bold" style={{ backgroundColor: pillBackground, color: pillText }}>All</Text>
             <View className="flex-row items-center rounded-full border px-3 py-2" style={{ backgroundColor: controlBackground, borderColor: colors.border }}>
@@ -110,7 +110,12 @@ export default function SymbolPanel() {
             <Text className="w-[54px] text-right text-[11px] font-bold uppercase" style={{ color: colors.muted }}>Spread</Text>
             <Text className="w-[78px] text-right text-[11px] font-bold uppercase" style={{ color: colors.muted }}>Ask</Text>
           </View>
-          <ScrollView className="max-h-[440px] overflow-hidden rounded-b-xl border-x border-b lg:flex-1" style={{ borderColor: colors.border }}>
+          <ScrollView
+            className="min-h-0 max-h-[330px] rounded-b-xl border-x border-b lg:flex-1"
+            style={{ borderColor: colors.border }}
+            showsVerticalScrollIndicator={false}
+            nestedScrollEnabled
+          >
             {MARKET_GROUPS.map((group) => {
               const items = itemsForGroup(group);
               if (!items.length) return null;
@@ -126,7 +131,7 @@ export default function SymbolPanel() {
               );
             })}
           </ScrollView>
-        </>
+        </View>
       )}
     </View>
   );
