@@ -111,9 +111,11 @@ export default function SymbolPanel() {
             <Text className="w-[78px] text-right text-[11px] font-bold uppercase" style={{ color: colors.muted }}>Ask</Text>
           </View>
           <ScrollView
-            className="min-h-0 max-h-[330px] rounded-b-xl border-x border-b lg:flex-1"
+            className="deep-green-scrollbar min-h-0 max-h-[330px] rounded-b-xl border-x border-b lg:flex-1"
             style={{ borderColor: colors.border }}
-            showsVerticalScrollIndicator={false}
+            showsVerticalScrollIndicator
+            indicatorStyle={darkMode ? 'white' : 'black'}
+            persistentScrollbar
             nestedScrollEnabled
           >
             {MARKET_GROUPS.map((group) => {

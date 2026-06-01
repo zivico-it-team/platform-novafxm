@@ -1,3 +1,27 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+.deep-green-scrollbar {
+  scrollbar-color: #007a46 #04130d;
+  scrollbar-width: thin;
+}
+
+.deep-green-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.deep-green-scrollbar::-webkit-scrollbar-track {
+  background: #04130d;
+  border-left: 1px solid #0b3a24;
+}
+
+.deep-green-scrollbar::-webkit-scrollbar-thumb {
+  background: #007a46;
+  border: 2px solid #04130d;
+  border-radius: 999px;
+}
+
+.deep-green-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #00a85a;
+}
