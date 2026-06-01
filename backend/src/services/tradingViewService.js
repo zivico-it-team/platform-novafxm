@@ -1,12 +1,23 @@
 const WebSocket = require('ws');
+const {
+  aggregateCandles,
+  candlesAlignWithTimeframe,
+  readCandles,
+  saveCandles,
+} = require('./candleStore');
 
 const instrument = (ticker, symbol, name, group, scanner, popular = false) => ({
   ticker, symbol, name, group, scanner, popular,
 });
 
 const instruments = [
+  instrument('BINANCE:AAVEUSDT', 'AAVE/USD', 'Aave / US Dollar', 'CRYPTO CFD', 'crypto'),
   instrument('BINANCE:ADAUSDT', 'ADA/USD', 'Cardano / US Dollar', 'CRYPTO CFD', 'crypto'),
   instrument('BINANCE:APEUSDT', 'APE/USD', 'ApeCoin / US Dollar', 'CRYPTO CFD', 'crypto'),
+  instrument('BINANCE:APTUSDT', 'APT/USD', 'Aptos / US Dollar', 'CRYPTO CFD', 'crypto'),
+  instrument('BINANCE:ARBUSDT', 'ARB/USD', 'Arbitrum / US Dollar', 'CRYPTO CFD', 'crypto'),
+  instrument('BINANCE:ATOMUSDT', 'ATOM/USD', 'Cosmos / US Dollar', 'CRYPTO CFD', 'crypto'),
+  instrument('BINANCE:AVAXUSDT', 'AVAX/USD', 'Avalanche / US Dollar', 'CRYPTO CFD', 'crypto'),
   instrument('BINANCE:AXSUSDT', 'AXS/USD', 'Axie Infinity / US Dollar', 'CRYPTO CFD', 'crypto'),
   instrument('BINANCE:BATUSDT', 'BAT/USD', 'Basic Attention Token / US Dollar', 'CRYPTO CFD', 'crypto'),
   instrument('COINBASE:BCHEUR', 'BCH/EUR', 'Bitcoin Cash / Euro', 'CRYPTO CFD', 'crypto'),
@@ -15,8 +26,10 @@ const instruments = [
   instrument('COINBASE:BTCEUR', 'BTC/EUR', 'Bitcoin / Euro', 'CRYPTO CFD', 'crypto'),
   instrument('COINBASE:BTCGBP', 'BTC/GBP', 'Bitcoin / Pound', 'CRYPTO CFD', 'crypto'),
   instrument('BINANCE:BTCUSDT', 'BTC/USD', 'Bitcoin / US Dollar', 'CRYPTO CFD', 'crypto', true),
+  instrument('BINANCE:BNBUSDT', 'BNB/USD', 'BNB / US Dollar', 'CRYPTO CFD', 'crypto'),
   instrument('BINANCE:CHZUSDT', 'CHZ/USD', 'Chiliz / US Dollar', 'CRYPTO CFD', 'crypto'),
   instrument('BINANCE:CRVUSDT', 'CRV/USD', 'Curve / US Dollar', 'CRYPTO CFD', 'crypto'),
+  instrument('BINANCE:DOGEUSDT', 'DOGE/USD', 'Dogecoin / US Dollar', 'CRYPTO CFD', 'crypto'),
   instrument('BINANCE:DOTUSDT', 'DOT/USD', 'Polkadot / US Dollar', 'CRYPTO CFD', 'crypto'),
   instrument('BINANCE:EOSUSDT', 'EOS/USD', 'EOS / US Dollar', 'CRYPTO CFD', 'crypto'),
   instrument('BINANCE:ETCUSDT', 'ETC/USD', 'Ethereum Classic / US Dollar', 'CRYPTO CFD', 'crypto'),
@@ -24,22 +37,36 @@ const instruments = [
   instrument('COINBASE:ETHGBP', 'ETH/GBP', 'Ethereum / Pound', 'CRYPTO CFD', 'crypto'),
   instrument('BINANCE:ETHUSDT', 'ETH/USD', 'Ethereum / US Dollar', 'CRYPTO CFD', 'crypto'),
   instrument('BINANCE:FILUSDT', 'FIL/USD', 'Filecoin / US Dollar', 'CRYPTO CFD', 'crypto'),
+  instrument('BINANCE:FETUSDT', 'FET/USD', 'Artificial Superintelligence Alliance / US Dollar', 'CRYPTO CFD', 'crypto'),
   instrument('BINANCE:GALUSDT', 'GAL/USD', 'Galxe / US Dollar', 'CRYPTO CFD', 'crypto'),
   instrument('BINANCE:GMTUSDT', 'GMT/USD', 'STEPN / US Dollar', 'CRYPTO CFD', 'crypto'),
   instrument('BINANCE:GRTUSDT', 'GRT/USD', 'The Graph / US Dollar', 'CRYPTO CFD', 'crypto'),
   instrument('BINANCE:IMXUSDT', 'IMX/USD', 'Immutable / US Dollar', 'CRYPTO CFD', 'crypto'),
+  instrument('BINANCE:INJUSDT', 'INJ/USD', 'Injective / US Dollar', 'CRYPTO CFD', 'crypto'),
   instrument('BINANCE:KNCUSDT', 'KNC/USD', 'Kyber Network / US Dollar', 'CRYPTO CFD', 'crypto'),
   instrument('BINANCE:KSMUSDT', 'KSM/USD', 'Kusama / US Dollar', 'CRYPTO CFD', 'crypto'),
+  instrument('BINANCE:LINKUSDT', 'LINK/USD', 'Chainlink / US Dollar', 'CRYPTO CFD', 'crypto'),
   instrument('BINANCE:LPTUSDT', 'LPT/USD', 'Livepeer / US Dollar', 'CRYPTO CFD', 'crypto'),
   instrument('BINANCE:LRCUSDT', 'LRC/USD', 'Loopring / US Dollar', 'CRYPTO CFD', 'crypto'),
   instrument('COINBASE:LTCEUR', 'LTC/EUR', 'Litecoin / Euro', 'CRYPTO CFD', 'crypto'),
   instrument('COINBASE:LTCGBP', 'LTC/GBP', 'Litecoin / Pound', 'CRYPTO CFD', 'crypto'),
   instrument('BINANCE:LTCUSDT', 'LTC/USD', 'Litecoin / US Dollar', 'CRYPTO CFD', 'crypto'),
   instrument('BINANCE:MKRUSDT', 'MKR/USD', 'Maker / US Dollar', 'CRYPTO CFD', 'crypto'),
+  instrument('BINANCE:NEARUSDT', 'NEAR/USD', 'NEAR Protocol / US Dollar', 'CRYPTO CFD', 'crypto'),
+  instrument('BINANCE:OPUSDT', 'OP/USD', 'Optimism / US Dollar', 'CRYPTO CFD', 'crypto'),
+  instrument('BINANCE:PEPEUSDT', 'PEPE/USD', 'Pepe / US Dollar', 'CRYPTO CFD', 'crypto'),
+  instrument('BINANCE:POLUSDT', 'POL/USD', 'Polygon Ecosystem Token / US Dollar', 'CRYPTO CFD', 'crypto'),
+  instrument('BINANCE:RENDERUSDT', 'RENDER/USD', 'Render / US Dollar', 'CRYPTO CFD', 'crypto'),
+  instrument('BINANCE:SEIUSDT', 'SEI/USD', 'Sei / US Dollar', 'CRYPTO CFD', 'crypto'),
+  instrument('BINANCE:SHIBUSDT', 'SHIB/USD', 'Shiba Inu / US Dollar', 'CRYPTO CFD', 'crypto'),
   instrument('BINANCE:SKLUSDT', 'SKL/USD', 'SKALE / US Dollar', 'CRYPTO CFD', 'crypto'),
   instrument('BINANCE:SNXUSDT', 'SNX/USD', 'Synthetix / US Dollar', 'CRYPTO CFD', 'crypto'),
   instrument('BINANCE:SOLUSDT', 'SOL/USD', 'Solana / US Dollar', 'CRYPTO CFD', 'crypto'),
+  instrument('BINANCE:SUIUSDT', 'SUI/USD', 'Sui / US Dollar', 'CRYPTO CFD', 'crypto'),
+  instrument('BINANCE:TONUSDT', 'TON/USD', 'Toncoin / US Dollar', 'CRYPTO CFD', 'crypto'),
+  instrument('BINANCE:TRXUSDT', 'TRX/USD', 'TRON / US Dollar', 'CRYPTO CFD', 'crypto'),
   instrument('BINANCE:UNIUSDT', 'UNI/USD', 'Uniswap / US Dollar', 'CRYPTO CFD', 'crypto'),
+  instrument('BINANCE:WLDUSDT', 'WLD/USD', 'Worldcoin / US Dollar', 'CRYPTO CFD', 'crypto'),
   instrument('BINANCE:XRPUSDT', 'XRP/USD', 'XRP / US Dollar', 'CRYPTO CFD', 'crypto'),
   instrument('BINANCE:XTZUSDT', 'XTZ/USD', 'Tezos / US Dollar', 'CRYPTO CFD', 'crypto'),
   instrument('BINANCE:YFIUSDT', 'YFI/USD', 'yearn.finance / US Dollar', 'CRYPTO CFD', 'crypto'),
@@ -115,6 +142,43 @@ const instrumentsByTicker = new Map(instruments.map((item) => [item.ticker, item
 const STREAM_STALE_MS = 15000;
 const STREAM_RECONNECT_MS = 5000;
 const CANDLE_CACHE_MS = 15000;
+const DERIVED_CANDLE_SOURCES = {
+  '3m': '1m',
+  '5m': '1m',
+  '15m': '1m',
+  '30m': '1m',
+  '1H': '1m',
+  '2H': '1m',
+  '3H': '1m',
+  '4H': '1m',
+  '6H': '1m',
+  '8H': '1m',
+  '12H': '1m',
+  '3D': '1D',
+  '3M': '1M',
+  '6M': '1M',
+  '12M': '1M',
+};
+const CANDLE_SECONDS = {
+  '3m': 180,
+  '5m': 300,
+  '15m': 900,
+  '30m': 1800,
+  '1H': 3600,
+  '2H': 7200,
+  '3H': 10800,
+  '4H': 14400,
+  '6H': 21600,
+  '8H': 28800,
+  '12H': 43200,
+  '1D': 86400,
+  '3D': 259200,
+  '1W': 604800,
+  '1M': 2592000,
+  '3M': 7776000,
+  '6M': 15552000,
+  '12M': 31536000,
+};
 let quoteSocket = null;
 let reconnectTimer = null;
 const candleCache = new Map();
@@ -301,14 +365,24 @@ async function getPrice(symbol) {
 const chartInterval = (timeframe) => ({
   '1s': '1S',
   '1m': '1',
+  '3m': '3',
   '5m': '5',
   '15m': '15',
   '30m': '30',
   '1H': '60',
+  '2H': '120',
+  '3H': '180',
   '4H': '240',
+  '6H': '360',
+  '8H': '480',
+  '12H': '720',
   '1D': '1D',
+  '3D': '3D',
   '1W': '1W',
   '1M': '1M',
+  '3M': '3M',
+  '6M': '6M',
+  '12M': '12M',
 }[timeframe] || '15');
 
 function requestCandles(item, timeframe = '15m', limit = 240) {
@@ -369,12 +443,53 @@ async function getHistoricalCandles(symbol, timeframe = '15m', limit = 240) {
   const item = instruments.find((instrument) => instrument.symbol === symbol);
   if (!item) return [];
   if (timeframe === '1s') return [];
-  const boundedLimit = Math.max(20, Math.min(Number(limit) || 240, 5000));
+  const boundedLimit = Math.max(20, Math.min(Number(limit) || 240, 200000));
   const key = `${symbol}:${timeframe}:${boundedLimit}`;
   const cached = candleCache.get(key);
   if (cached && Date.now() - cached.at < CANDLE_CACHE_MS) return cached.data;
 
+  const stored = await readCandles(symbol, timeframe, boundedLimit).catch((error) => {
+    console.warn('Stored candle read failed:', error.message);
+    return [];
+  });
+  if (item.group === 'CRYPTO CFD' && item.ticker.startsWith('BINANCE:')) {
+    const sourceTimeframe = DERIVED_CANDLE_SOURCES[timeframe];
+    const needsDerivedCandles = (
+      sourceTimeframe &&
+      (stored.length < Math.min(boundedLimit, 100) || !candlesAlignWithTimeframe(stored, timeframe))
+    );
+
+    if (needsDerivedCandles) {
+      const secondsPerCandle = CANDLE_SECONDS[timeframe] || 60;
+      const sourceSeconds = CANDLE_SECONDS[sourceTimeframe] || 60;
+      const sourceLimit = Math.min(200000, Math.max(1000, boundedLimit * Math.ceil(secondsPerCandle / sourceSeconds)));
+      const sourceCandles = await readCandles(symbol, sourceTimeframe, sourceLimit).catch((error) => {
+        console.warn(`Stored ${sourceTimeframe} candle read failed:`, error.message);
+        return [];
+      });
+      const derived = aggregateCandles(sourceCandles, timeframe).slice(-boundedLimit);
+      if (derived.length > 0) {
+        await saveCandles(symbol, timeframe, derived).catch((error) => {
+          console.warn('Derived candle write failed:', error.message);
+        });
+        candleCache.set(key, { at: Date.now(), data: derived });
+        return derived;
+      }
+    }
+
+    candleCache.set(key, { at: Date.now(), data: stored });
+    return stored;
+  }
+
+  if (stored.length > 0) {
+    candleCache.set(key, { at: Date.now(), data: stored });
+    return stored;
+  }
+
   const candles = await requestCandles(item, timeframe, boundedLimit);
+  await saveCandles(symbol, timeframe, candles).catch((error) => {
+    console.warn('Stored candle write failed:', error.message);
+  });
   candleCache.set(key, { at: Date.now(), data: candles });
   return candles;
 }

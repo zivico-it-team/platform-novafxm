@@ -1,0 +1,192 @@
+require('dotenv').config({ quiet: true });
+
+const AdmZip = require('adm-zip');
+const sequelize = require('../config/db');
+require('../models');
+const { aggregateCandles, readCandles, saveCandles } = require('../services/candleStore');
+const tradingView = require('../services/tradingViewService');
+
+const BINANCE_ARCHIVE = 'https://data.binance.vision/data/spot/monthly/klines';
+
+const TIMEFRAME_TO_BINANCE = {
+  '1s': '1s',
+  '1m': '1m',
+  '3m': '3m',
+  '5m': '5m',
+  '15m': '15m',
+  '30m': '30m',
+  '1H': '1h',
+  '2H': '2h',
+  '4H': '4h',
+  '6H': '6h',
+  '8H': '8h',
+  '12H': '12h',
+  '1D': '1d',
+  '3D': '3d',
+  '1W': '1w',
+  '1M': '1mo',
+};
+
+const DERIVED_TIMEFRAME_SOURCES = {
+  '3H': '1m',
+  '3M': '1M',
+  '6M': '1M',
+  '12M': '1M',
+};
+
+const csv = (value) => String(value || '')
+  .split(',')
+  .map((item) => item.trim())
+  .filter(Boolean);
+
+const appCryptoPairs = () => tradingView.instruments
+  .filter((item) => item.group === 'CRYPTO CFD' && item.ticker.startsWith('BINANCE:'))
+  .map((item) => item.ticker.replace('BINANCE:', ''));
+
+const monthId = (date) => `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
+
+const addMonth = (date) => new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1));
+
+const monthsBetween = (from, to) => {
+  const months = [];
+  let cursor = new Date(`${from}-01T00:00:00.000Z`);
+  const end = new Date(`${to}-01T00:00:00.000Z`);
+
+  while (cursor <= end) {
+    months.push(monthId(cursor));
+    cursor = addMonth(cursor);
+  }
+
+  return months;
+};
+
+const normalizeTimestamp = (value) => {
+  const timestamp = Number(value);
+  if (!Number.isFinite(timestamp)) return null;
+  if (timestamp > 1e15) return Math.floor(timestamp / 1000000);
+  if (timestamp > 1e12) return Math.floor(timestamp / 1000);
+  return timestamp;
+};
+
+const parseKlineCsv = (csvText) => (
+  csvText
+    .trim()
+    .split(/\r?\n/)
+    .map((line) => line.split(','))
+    .filter((cols) => cols.length >= 6 && Number.isFinite(Number(cols[0])))
+    .map((cols) => ({
+      time: normalizeTimestamp(cols[0]),
+      open: Number(cols[1]),
+      high: Number(cols[2]),
+      low: Number(cols[3]),
+      close: Number(cols[4]),
+      volume: Number(cols[5]),
+    }))
+    .filter((bar) => Object.values(bar).every(Number.isFinite))
+);
+
+const downloadMonthlyKlines = async (pair, interval, month) => {
+  const url = `${BINANCE_ARCHIVE}/${pair}/${interval}/${pair}-${interval}-${month}.zip`;
+  const response = await fetch(url);
+
+  if (response.status === 404) return { url, candles: [], missing: true };
+  if (!response.ok) throw new Error(`${response.status} ${response.statusText} ${url}`);
+
+  const buffer = Buffer.from(await response.arrayBuffer());
+  const zip = new AdmZip(buffer);
+  const entry = zip.getEntries().find((item) => item.entryName.endsWith('.csv'));
+  if (!entry) return { url, candles: [] };
+
+  return { url, candles: parseKlineCsv(entry.getData().toString('utf8')) };
+};
+
+const monthBounds = (month) => {
+  const start = new Date(`${month}-01T00:00:00.000Z`);
+  const end = addMonth(start);
+  return {
+    from: Math.floor(start.getTime() / 1000),
+    to: Math.floor(end.getTime() / 1000),
+  };
+};
+
+const hasStoredMonth = async (symbol, timeframe, month) => {
+  const { from, to } = monthBounds(month);
+  const rows = await readCandles(symbol, timeframe, 1, { from, to });
+  return rows.length > 0;
+};
+
+const importDerivedTimeframe = async (symbol, timeframe) => {
+  const sourceTimeframe = DERIVED_TIMEFRAME_SOURCES[timeframe];
+  if (!sourceTimeframe) return null;
+
+  const sourceCandles = await readCandles(symbol, sourceTimeframe, 200000);
+  const derived = aggregateCandles(sourceCandles, timeframe);
+  const saved = await saveCandles(symbol, timeframe, derived);
+  return { sourceTimeframe, rows: derived.length, saved };
+};
+
+const symbolFromPair = (pair) => {
+  if (pair.endsWith('USDT')) return `${pair.slice(0, -4)}/USD`;
+  if (pair.endsWith('BUSD')) return `${pair.slice(0, -4)}/USD`;
+  return pair;
+};
+
+const run = async () => {
+  const requestedPairs = process.env.BINANCE_IMPORT_PAIRS || process.argv[2] || 'BTCUSDT';
+  const pairs = requestedPairs === 'app-crypto' ? appCryptoPairs() : csv(requestedPairs);
+  const timeframes = csv(process.env.BINANCE_IMPORT_TIMEFRAMES || process.argv[3] || '1m');
+  const from = process.env.BINANCE_IMPORT_FROM || process.argv[4] || '2017-08';
+  const to = process.env.BINANCE_IMPORT_TO || process.argv[5] || monthId(new Date());
+  const skipExisting = process.env.BINANCE_IMPORT_SKIP_EXISTING !== 'false';
+
+  await sequelize.authenticate();
+  await sequelize.sync();
+
+  console.log(`Importing Binance candles: pairs=${pairs.join(',')} timeframes=${timeframes.join(',')} months=${from}..${to}`);
+
+  for (const pair of pairs) {
+    const symbol = symbolFromPair(pair);
+
+    for (const timeframe of timeframes) {
+      const interval = TIMEFRAME_TO_BINANCE[timeframe] || timeframe;
+      let total = 0;
+      const derivedResult = await importDerivedTimeframe(symbol, timeframe);
+      if (derivedResult) {
+        console.log(`${symbol} ${timeframe}: derived ${derivedResult.rows} rows from ${derivedResult.sourceTimeframe}, saved=${derivedResult.saved}`);
+        continue;
+      }
+
+      for (const month of monthsBetween(from, to)) {
+        try {
+          if (skipExisting && await hasStoredMonth(symbol, timeframe, month)) {
+            console.log(`${pair} ${timeframe} ${month}: already stored`);
+            continue;
+          }
+
+          const { candles, missing } = await downloadMonthlyKlines(pair, interval, month);
+          if (missing) {
+            console.log(`${pair} ${timeframe} ${month}: missing`);
+            continue;
+          }
+
+          const saved = await saveCandles(symbol, timeframe, candles);
+          total += saved;
+          console.log(`${pair} ${timeframe} ${month}: rows=${candles.length} saved=${saved}`);
+        } catch (error) {
+          console.warn(`${pair} ${timeframe} ${month}: ${error.message}`);
+        }
+      }
+
+      console.log(`${symbol} ${timeframe}: imported ${total} rows`);
+    }
+  }
+};
+
+run()
+  .catch((error) => {
+    console.error('Binance candle import failed:', error.message);
+    process.exitCode = 1;
+  })
+  .finally(async () => {
+    await sequelize.close().catch(() => {});
+  });

@@ -6,13 +6,16 @@ import { marketService } from '../../services/marketService';
 import { percent, quote } from '../../utils/formatters';
 import { useAppTheme } from '../../context/ThemeContext';
 
-const TIMEFRAMES = ['1s', '1m', '5m', '15m', '30m', '1H', '4H', '1D', '1W', '1M'];
+const TIMEFRAMES = [
+  '1m', '3m', '5m', '15m',
+  '1H', '4H',
+  '1D', '1W', '1M',
+];
 const TIMEFRAME_SECONDS = {
-  '1s': 1,
   '1m': 60,
+  '3m': 180,
   '5m': 300,
   '15m': 900,
-  '30m': 1800,
   '1H': 3600,
   '4H': 14400,
   '1D': 86400,
@@ -20,37 +23,48 @@ const TIMEFRAME_SECONDS = {
   '1M': 2592000,
 };
 const HISTORY_LIMITS = {
-  '1s': 0,
-  '1m': 1000,
-  '5m': 1500,
-  '15m': 2000,
-  '30m': 2500,
-  '1H': 3000,
-  '4H': 5000,
-  '1D': 5000,
-  '1W': 5000,
-  '1M': 5000,
+  '1m': 50000,
+  '3m': 50000,
+  '5m': 50000,
+  '15m': 50000,
+  '1H': 50000,
+  '4H': 50000,
+  '1D': 50000,
+  '1W': 50000,
+  '1M': 50000,
+};
+const FULL_HISTORY_LIMITS = {
+  '1m': 200000,
+  '3m': 200000,
+  '5m': 200000,
+  '15m': 200000,
+  '1H': 200000,
+  '4H': 200000,
+  '1D': 200000,
+  '1W': 200000,
+  '1M': 200000,
 };
 const INITIAL_VISIBLE_BARS = {
-  '1s': 120,
   '1m': 240,
+  '3m': 300,
   '5m': 300,
   '15m': 300,
-  '30m': 400,
   '1H': 600,
   '4H': 1000,
   '1D': 365,
   '1W': 260,
   '1M': 180,
 };
+const VIEW_RANGES = ['Recent', 'Full'];
 
 const hasLivePrice = (item) => (
   ['tradingview', 'stale'].includes(item?.source) && Number(item?.price) > 0
 );
 
-function chartHtml(candles, decimals, timeframe, colors) {
+function chartHtml(candles, decimals, timeframe, colors, viewRange) {
   const safeDecimals = Math.max(0, Math.min(Number(decimals) || 2, 8));
   const visibleBars = INITIAL_VISIBLE_BARS[timeframe] || 300;
+  const showFullRange = viewRange === 'Full';
   const chartColors = {
     background: colors.chartBackground,
     text: colors.chartText,
@@ -108,10 +122,14 @@ const series = chart.addSeries(LightweightCharts.CandlestickSeries, {
 let lastBar = data.length ? data[data.length - 1] : null;
 if (data.length) {
   series.setData(data);
-  chart.timeScale().setVisibleLogicalRange({
-    from: Math.max(0, data.length - ${visibleBars}),
-    to: data.length + 4
-  });
+  if (${showFullRange}) {
+    chart.timeScale().fitContent();
+  } else {
+    chart.timeScale().setVisibleLogicalRange({
+      from: Math.max(0, data.length - ${visibleBars}),
+      to: data.length + 4
+    });
+  }
 } else {
   document.getElementById('empty').style.display = 'block';
 }
@@ -146,6 +164,7 @@ export default function TradingChart() {
   const { currentSymbol } = useDemoTrading();
   const { colors } = useAppTheme();
   const [timeframe, setTimeframe] = useState('15m');
+  const [viewRange, setViewRange] = useState('Recent');
   const [history, setHistory] = useState([]);
   const iframeRef = useRef(null);
   const webViewRef = useRef(null);
@@ -154,7 +173,10 @@ export default function TradingChart() {
   useEffect(() => {
     let active = true;
     setHistory([]);
-    marketService.getCandles(currentSymbol.symbol, timeframe, HISTORY_LIMITS[timeframe])
+    const limit = viewRange === 'Full'
+      ? FULL_HISTORY_LIMITS[timeframe]
+      : HISTORY_LIMITS[timeframe];
+    marketService.getCandles(currentSymbol.symbol, timeframe, limit)
       .then((candles) => {
         if (active) {
           setHistory(candles);
@@ -170,7 +192,7 @@ export default function TradingChart() {
     return () => {
       active = false;
     };
-  }, [currentSymbol.symbol, timeframe]);
+  }, [currentSymbol.symbol, timeframe, viewRange]);
 
   useEffect(() => {
     if (!hasLivePrice(currentSymbol)) return;
@@ -209,8 +231,8 @@ export default function TradingChart() {
 
   const candles = useMemo(() => history, [history]);
   const html = useMemo(
-    () => chartHtml(candles, currentSymbol.decimals, timeframe, colors),
-    [candles, currentSymbol.decimals, timeframe, colors],
+    () => chartHtml(candles, currentSymbol.decimals, timeframe, colors, viewRange),
+    [candles, currentSymbol.decimals, timeframe, colors, viewRange],
   );
   const positive = Number(currentSymbol.change) >= 0;
 
@@ -236,6 +258,17 @@ export default function TradingChart() {
               style={{ backgroundColor: entry === timeframe ? colors.primary : 'transparent' }}
             >
               <Text className={entry === timeframe ? 'font-bold text-white' : ''} style={{ color: entry === timeframe ? '#ffffff' : colors.muted }}>{entry}</Text>
+            </Pressable>
+          ))}
+          <View className="mx-2 h-5 w-px" style={{ backgroundColor: colors.border }} />
+          {VIEW_RANGES.map((entry) => (
+            <Pressable
+              key={entry}
+              onPress={() => setViewRange(entry)}
+              className="ml-1 rounded-md px-3 py-2"
+              style={{ backgroundColor: entry === viewRange ? colors.primary : 'transparent' }}
+            >
+              <Text className={entry === viewRange ? 'font-bold text-white' : ''} style={{ color: entry === viewRange ? '#ffffff' : colors.muted }}>{entry}</Text>
             </Pressable>
           ))}
         </ScrollView>
