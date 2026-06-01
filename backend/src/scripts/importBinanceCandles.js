@@ -7,6 +7,7 @@ const { aggregateCandles, readCandles, saveCandles } = require('../services/cand
 const tradingView = require('../services/tradingViewService');
 
 const BINANCE_ARCHIVE = 'https://data.binance.vision/data/spot/monthly/klines';
+const BINANCE_API = 'https://api.binance.com/api/v3/klines';
 
 const TIMEFRAME_TO_BINANCE = {
   '1s': '1s',
@@ -68,6 +69,15 @@ const normalizeTimestamp = (value) => {
   return timestamp;
 };
 
+const parseApiKlines = (rows) => rows.map((cols) => ({
+  time: normalizeTimestamp(cols[0]),
+  open: Number(cols[1]),
+  high: Number(cols[2]),
+  low: Number(cols[3]),
+  close: Number(cols[4]),
+  volume: Number(cols[5]),
+})).filter((bar) => Object.values(bar).every(Number.isFinite));
+
 const parseKlineCsv = (csvText) => (
   csvText
     .trim()
@@ -98,6 +108,32 @@ const downloadMonthlyKlines = async (pair, interval, month) => {
   if (!entry) return { url, candles: [] };
 
   return { url, candles: parseKlineCsv(entry.getData().toString('utf8')) };
+};
+
+const importRecentKlines = async (pair, symbol, timeframe, interval, from, to) => {
+  let startTime = new Date(`${from}T00:00:00.000Z`).getTime();
+  const endTime = new Date(`${to}T23:59:59.999Z`).getTime();
+  let total = 0;
+
+  while (startTime < endTime) {
+    const url = `${BINANCE_API}?symbol=${encodeURIComponent(pair)}&interval=${encodeURIComponent(interval)}&startTime=${startTime}&endTime=${endTime}&limit=1000`;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`${response.status} ${response.statusText} ${url}`);
+
+    const rows = await response.json();
+    if (!Array.isArray(rows) || rows.length === 0) break;
+
+    const candles = parseApiKlines(rows);
+    const saved = await saveCandles(symbol, timeframe, candles);
+    total += saved;
+    console.log(`${pair} ${timeframe}: api rows=${candles.length} saved=${saved}`);
+
+    const lastOpenTime = Number(rows[rows.length - 1]?.[0]);
+    if (!Number.isFinite(lastOpenTime) || lastOpenTime <= startTime) break;
+    startTime = lastOpenTime + 1;
+  }
+
+  return total;
 };
 
 const monthBounds = (month) => {
@@ -138,6 +174,8 @@ const run = async () => {
   const from = process.env.BINANCE_IMPORT_FROM || process.argv[4] || '2017-08';
   const to = process.env.BINANCE_IMPORT_TO || process.argv[5] || monthId(new Date());
   const skipExisting = process.env.BINANCE_IMPORT_SKIP_EXISTING !== 'false';
+  const apiFrom = process.env.BINANCE_IMPORT_API_FROM || null;
+  const apiTo = process.env.BINANCE_IMPORT_API_TO || null;
 
   await sequelize.authenticate();
   await sequelize.sync();
@@ -153,6 +191,12 @@ const run = async () => {
       const derivedResult = await importDerivedTimeframe(symbol, timeframe);
       if (derivedResult) {
         console.log(`${symbol} ${timeframe}: derived ${derivedResult.rows} rows from ${derivedResult.sourceTimeframe}, saved=${derivedResult.saved}`);
+        continue;
+      }
+
+      if (apiFrom && apiTo) {
+        total = await importRecentKlines(pair, symbol, timeframe, interval, apiFrom, apiTo);
+        console.log(`${symbol} ${timeframe}: imported ${total} recent api rows`);
         continue;
       }
 

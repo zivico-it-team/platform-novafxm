@@ -1,6 +1,7 @@
 const WebSocket = require('ws');
 const {
   aggregateCandles,
+  bucketTime,
   candlesAlignWithTimeframe,
   readCandles,
   saveCandles,
@@ -179,9 +180,12 @@ const CANDLE_SECONDS = {
   '6M': 15552000,
   '12M': 31536000,
 };
+const LIVE_CANDLE_TIMEFRAMES = ['1m', '3m', '5m', '15m', '1H', '4H', '1D', '1W', '1M'];
 let quoteSocket = null;
 let reconnectTimer = null;
 const candleCache = new Map();
+const liveCandleBuffer = new Map();
+let liveCandleFlushTimer = null;
 
 const decimalsFor = (price, group) => {
   if (group === 'FOREX') return price >= 10 ? 3 : 5;
@@ -243,6 +247,61 @@ const quoteFromTradingView = (instrument, values) => {
     updatedAt: new Date().toISOString(),
   });
 };
+
+function bufferLiveCandle(quote) {
+  const price = Number(quote?.price);
+  if (!quote?.symbol || !Number.isFinite(price) || price <= 0) return;
+  if (!['tradingview', 'stale'].includes(quote.source)) return;
+
+  LIVE_CANDLE_TIMEFRAMES.forEach((timeframe) => {
+    const time = bucketTime(Math.floor(Date.now() / 1000), timeframe);
+    const key = `${quote.symbol}:${timeframe}:${time}`;
+    const existing = liveCandleBuffer.get(key);
+
+    if (!existing) {
+      liveCandleBuffer.set(key, {
+        symbol: quote.symbol,
+        timeframe,
+        candle: { time, open: price, high: price, low: price, close: price, volume: 0 },
+      });
+      return;
+    }
+
+    existing.candle.high = Math.max(existing.candle.high, price);
+    existing.candle.low = Math.min(existing.candle.low, price);
+    existing.candle.close = price;
+  });
+
+  scheduleLiveCandleFlush();
+}
+
+function scheduleLiveCandleFlush() {
+  if (liveCandleFlushTimer) return;
+  liveCandleFlushTimer = setTimeout(async () => {
+    liveCandleFlushTimer = null;
+    await flushLiveCandles();
+  }, 5000);
+}
+
+async function flushLiveCandles() {
+  if (!liveCandleBuffer.size) return;
+
+  const pending = [...liveCandleBuffer.values()];
+  liveCandleBuffer.clear();
+  const groups = pending.reduce((map, item) => {
+    const key = `${item.symbol}:${item.timeframe}`;
+    const group = map.get(key) || { symbol: item.symbol, timeframe: item.timeframe, candles: [] };
+    group.candles.push(item.candle);
+    map.set(key, group);
+    return map;
+  }, new Map());
+
+  await Promise.all([...groups.values()].map((group) => (
+    saveCandles(group.symbol, group.timeframe, group.candles).catch((error) => {
+      console.warn(`Live candle save failed for ${group.symbol} ${group.timeframe}:`, error.message);
+    })
+  )));
+}
 
 function fallbackPrice(instrument) {
   return visibleInstrument(instrument, { price: 0, bid: 0, ask: 0, decimals: 2, spread: 0, spreadPoints: 0, change: 0, source: 'fallback' });
@@ -328,7 +387,9 @@ function connectQuoteStream() {
       const values = { ...(quoteValues.get(item.ticker) || {}), ...(payload.v || {}) };
       quoteValues.set(item.ticker, values);
       if (!Number(values.lp || values.bid || values.ask)) return;
-      latestQuotes.set(item.ticker, quoteFromTradingView(item, values));
+      const quote = quoteFromTradingView(item, values);
+      latestQuotes.set(item.ticker, quote);
+      bufferLiveCandle(quote);
       changed = true;
     });
 

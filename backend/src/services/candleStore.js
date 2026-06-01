@@ -134,6 +134,7 @@ const candlesAlignWithTimeframe = (candles, timeframe) => {
 
 module.exports = {
   aggregateCandles,
+  bucketTime,
   candlesAlignWithTimeframe,
   readCandles,
   saveCandles,

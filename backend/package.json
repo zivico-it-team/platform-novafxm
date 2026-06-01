@@ -10,6 +10,7 @@
     "import:binance": "node src/scripts/importBinanceCandles.js",
     "import:dukascopy": "node src/scripts/importDukascopyCandles.js",
     "import:yahoo": "node src/scripts/importYahooCandles.js",
+    "catchup:candles": "node src/scripts/catchupCandles.js",
     "check": "node --check src/server.js"
   },
   "dependencies": {

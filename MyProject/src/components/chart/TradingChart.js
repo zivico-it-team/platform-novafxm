@@ -200,6 +200,8 @@ export default function TradingChart() {
     const seconds = TIMEFRAME_SECONDS[timeframe] || 900;
     const time = Math.floor(Date.now() / 1000 / seconds) * seconds;
     const previous = liveCandleRef.current;
+    const previousIsPreviousBucket = previous && Number(previous.time) >= time - seconds;
+    const open = previousIsPreviousBucket ? Number(previous.close) : price;
     const candle = previous && Number(previous.time) === time
       ? {
           ...previous,
@@ -209,9 +211,9 @@ export default function TradingChart() {
         }
       : {
           time,
-          open: previous ? Number(previous.close) : price,
-          high: Math.max(previous ? Number(previous.close) : price, price),
-          low: Math.min(previous ? Number(previous.close) : price, price),
+          open,
+          high: Math.max(open, price),
+          low: Math.min(open, price),
           close: price,
         };
 
