@@ -11,12 +11,12 @@ export default function WalletScreen() {
   const { user } = useAuth();
   const { summary, transactions, deposit, withdraw, loading } = useWallet();
   return (
-    <ScrollView className="flex-1 bg-[#080f20]" contentContainerClassName="p-4 lg:p-8">
+    <ScrollView className="flex-1 bg-[#0B0B0B]" contentContainerClassName="p-4 lg:p-8">
       <View className="mb-6 flex-row items-center justify-between">
         <Text className="text-2xl font-bold text-white">Wallet</Text>
         <Link href="/trading" asChild><Pressable><Text className="text-primary">Back to Trading</Text></Pressable></Link>
       </View>
-      <WalletCard summary={summary} />
+      <WalletCard summary={summary} transactions={transactions} user={user} />
       <View className="gap-4 lg:flex-row">
         <DepositForm onSubmit={(values) => deposit(values, Boolean(user))} loading={loading} />
         <WithdrawForm onSubmit={(values) => withdraw(values, Boolean(user))} loading={loading} />

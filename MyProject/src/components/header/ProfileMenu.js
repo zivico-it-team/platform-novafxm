@@ -42,13 +42,23 @@ export default function ProfileMenu({ onClose }) {
     router.replace('/login');
   };
 
+  const switchMode = () => {
+    toggleTheme();
+    onClose();
+  };
+
+  const toggleSounds = () => {
+    setSounds((value) => !value);
+    onClose();
+  };
+
   return (
     <View className="absolute right-3 top-[74px] z-50 w-[360px] max-w-[92vw] overflow-hidden rounded-xl border shadow-2xl" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
       <View className="py-3">
         <Action icon={ReceiptText} title="Withdraw" onPress={() => navigate('/withdraw')} colors={colors} />
         <Action icon={TrendingUp} title="Deposit" onPress={() => navigate('/deposit')} colors={colors} />
         <Action icon={Award} title="My Rewards" onPress={() => navigate('/profile')} colors={colors} />
-        <Pressable onPress={toggleTheme} className="flex-row items-center justify-between px-5 py-4">
+        <Pressable onPress={switchMode} className="flex-row items-center justify-between px-5 py-4">
           <View className="flex-row items-center">
             <Moon size={21} color={colors.text} />
             <Text className="ml-4 text-base font-semibold" style={{ color: colors.text }}>Mode</Text>
@@ -58,7 +68,7 @@ export default function ProfileMenu({ onClose }) {
             {darkMode ? <Moon size={18} color="#f4ca38" /> : <Sun size={18} color="#f4ca38" />}
           </View>
         </Pressable>
-        <Pressable onPress={() => setSounds((value) => !value)} className="flex-row items-center justify-between px-5 py-4">
+        <Pressable onPress={toggleSounds} className="flex-row items-center justify-between px-5 py-4">
           <View className="flex-row items-center">
             {sounds ? <Volume2 size={21} color={colors.text} /> : <VolumeX size={21} color={colors.muted} />}
             <Text className="ml-4 text-base font-semibold" style={{ color: colors.text }}>Sounds</Text>

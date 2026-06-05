@@ -158,10 +158,10 @@ export default function AdminScreen() {
 
   if (!isAdmin) {
     return (
-      <View className="flex-1 items-center justify-center bg-[#080f20] px-6">
+      <View className="flex-1 items-center justify-center bg-[#0B0B0B] px-6">
         <Text className="mb-3 text-2xl font-bold text-white">Administrator Access</Text>
         <Text className="mb-6 text-center text-muted">Please login with an administrator account.</Text>
-        <Link href="/login" asChild><Pressable className="rounded-xl bg-primary px-8 py-4"><Text className="font-bold text-white">Login</Text></Pressable></Link>
+        <Link href="/login" asChild><Pressable className="rounded-xl bg-primary px-8 py-4"><Text className="font-bold text-black">Login</Text></Pressable></Link>
       </View>
     );
   }
@@ -229,7 +229,7 @@ export default function AdminScreen() {
   );
 
   return (
-    <View className="flex-1 bg-[#080f20] md:flex-row">
+    <View className="flex-1 bg-[#0B0B0B] md:flex-row">
       <AdminSidebar section={section} onChange={setSection} stats={data.stats} pendingCount={pendingCount} onSignOut={signOut} />
       <ScrollView className="flex-1" contentContainerClassName="p-5 md:p-8">
         <View className="mb-7 flex-row items-center justify-between">

@@ -18,13 +18,15 @@ const tokenFor = (user) => jwt.sign({ id: user.id, role: user.role }, secret(), 
 
 exports.register = async (req, res, next) => {
   try {
-    const { name, email, phone, password } = req.body;
+    const { name, email, phone, password, accountType } = req.body;
     if (!name || !email || !password || password.length < 8) return res.status(400).json({ message: 'Name, email and password of at least 8 characters are required.' });
+    const selectedAccountType = accountType === 'Live' ? 'Live' : 'Demo';
+    const startingBalance = selectedAccountType === 'Demo' ? 5000 : 0;
     const normalizedEmail = email.trim().toLowerCase();
     if (await User.findOne({ where: { email: normalizedEmail } })) return res.status(409).json({ message: 'Email already registered.' });
     const user = await sequelize.transaction(async (transaction) => {
-      const created = await User.create({ name: name.trim(), email: normalizedEmail, phone, password: await bcrypt.hash(password, 12) }, { transaction });
-      await Wallet.create({ userId: created.id, balance: 5000 }, { transaction });
+      const created = await User.create({ name: name.trim(), email: normalizedEmail, phone, password: await bcrypt.hash(password, 12), accountType: selectedAccountType }, { transaction });
+      await Wallet.create({ userId: created.id, balance: startingBalance, equity: startingBalance, freeFunds: startingBalance }, { transaction });
       return created;
     });
     return res.status(201).json({ token: tokenFor(user), user: publicUser(user) });
