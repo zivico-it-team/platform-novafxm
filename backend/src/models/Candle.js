@@ -10,7 +10,7 @@ const Candle = sequelize.define('Candle', {
   high: { type: DataTypes.DECIMAL(20, 8), allowNull: false },
   low: { type: DataTypes.DECIMAL(20, 8), allowNull: false },
   close: { type: DataTypes.DECIMAL(20, 8), allowNull: false },
-  volume: { type: DataTypes.DECIMAL(20, 8), allowNull: false, defaultValue: 0 },
+  volume: { type: DataTypes.DECIMAL(30, 8), allowNull: false, defaultValue: 0 },
 }, {
   tableName: 'candles',
   indexes: [

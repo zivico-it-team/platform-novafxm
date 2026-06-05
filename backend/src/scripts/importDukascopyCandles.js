@@ -11,6 +11,20 @@ const DUKASCOPY_FEED = 'https://datafeed.dukascopy.com/datafeed';
 const DEFAULT_TIMEFRAMES = '1m,3m,5m,15m,1H,4H,1D,1W,1M';
 const DAY_TIMEFRAMES = new Set(['3m', '5m', '15m', '30m', '1H', '2H', '3H', '4H', '6H', '8H', '12H', '1D']);
 const RANGE_TIMEFRAMES = new Set(['1W', '1M']);
+const REQUEST_TIMEOUT_MS = Number(process.env.DUKASCOPY_REQUEST_TIMEOUT_MS || 30000);
+const REQUEST_RETRIES = Number(process.env.DUKASCOPY_REQUEST_RETRIES || 3);
+
+const DUKASCOPY_TICKER_OVERRIDES = {
+  'ASX/AUD': 'AUSIDXAUD',
+  'DAX/EUR': 'DEUIDXEUR',
+  'DJI/USD': 'USA30IDXUSD',
+  'NDX/USD': 'USATECHIDXUSD',
+  'NIK/JPY': 'JPNIDXJPY',
+  'SPX/USD': 'USA500IDXUSD',
+  'BRN/USD': 'BRENTCMDUSD',
+  'NGC/USD': 'GASCMDUSD',
+  'WTI/USD': 'LIGHTCMDUSD',
+};
 
 const csv = (value) => String(value || '')
   .split(',')
@@ -49,11 +63,18 @@ const dayBounds = (date) => {
 
 const compactSymbol = (symbol) => symbol.replace('/', '');
 
+const dukascopyTickerFor = (symbol) => DUKASCOPY_TICKER_OVERRIDES[symbol] || compactSymbol(symbol);
+
 const appFxMetalSymbols = () => tradingView.instruments
   .filter((item) => ['FOREX', 'METALS'].includes(item.group))
   .map((item) => item.symbol);
 
+const appCfdSymbols = () => tradingView.instruments
+  .filter((item) => ['INDICES', 'ENERGIES'].includes(item.group) && DUKASCOPY_TICKER_OVERRIDES[item.symbol])
+  .map((item) => item.symbol);
+
 const priceScaleFor = (symbol) => {
+  if (DUKASCOPY_TICKER_OVERRIDES[symbol]) return 1000;
   const compact = compactSymbol(symbol);
   if (compact.includes('JPY')) return 1000;
   if (compact.startsWith('XAU') || compact.startsWith('XAG') || compact.startsWith('XPD') || compact.startsWith('XPT')) return 1000;
@@ -61,7 +82,7 @@ const priceScaleFor = (symbol) => {
 };
 
 const dukascopyUrl = (symbol, date, hour) => {
-  const ticker = compactSymbol(symbol);
+  const ticker = dukascopyTickerFor(symbol);
   const year = date.getUTCFullYear();
   const zeroBasedMonth = pad2(date.getUTCMonth());
   const day = pad2(date.getUTCDate());
@@ -97,11 +118,23 @@ const parseTickBuffer = (buffer, date, hour, symbol) => {
 
 const downloadHourCandles = async (symbol, date, hour) => {
   const url = dukascopyUrl(symbol, date, hour);
-  const response = await axios.get(url, {
-    responseType: 'arraybuffer',
-    timeout: 15000,
-    validateStatus: (status) => status === 200 || status === 404,
-  });
+  let response = null;
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= REQUEST_RETRIES; attempt++) {
+    try {
+      response = await axios.get(url, {
+        responseType: 'arraybuffer',
+        timeout: REQUEST_TIMEOUT_MS,
+        validateStatus: (status) => status === 200 || status === 404,
+      });
+      break;
+    } catch (error) {
+      lastError = error;
+      if (attempt === REQUEST_RETRIES) throw lastError;
+      await new Promise((resolve) => setTimeout(resolve, attempt * 500));
+    }
+  }
 
   if (response.status === 404 || !response.data?.byteLength) return [];
 
@@ -156,7 +189,14 @@ const deriveAndSaveRangeFrames = async (symbol, timeframes, from, to) => {
 
 const run = async () => {
   const requestedSymbols = process.env.DUKASCOPY_IMPORT_SYMBOLS || process.argv[2] || 'EUR/USD,XAU/USD';
-  const symbols = requestedSymbols === 'app-fx-metals' ? appFxMetalSymbols() : csv(requestedSymbols);
+  const symbols = requestedSymbols === 'app-fx-metals'
+    ? appFxMetalSymbols()
+    : ['app-cfd', 'app-indices-energies'].includes(requestedSymbols)
+      ? appCfdSymbols()
+      : csv(requestedSymbols);
+  if (requestedSymbols.startsWith('app-') && symbols.length === 1 && symbols[0] === requestedSymbols) {
+    throw new Error(`Unknown Dukascopy symbol shortcut "${requestedSymbols}". Use app-fx-metals or app-indices-energies.`);
+  }
   const timeframes = csv(process.env.DUKASCOPY_IMPORT_TIMEFRAMES || process.argv[3] || DEFAULT_TIMEFRAMES);
   const from = process.env.DUKASCOPY_IMPORT_FROM || process.argv[4] || dayId(addDay(new Date(Date.now() - 7 * 86400000)));
   const to = process.env.DUKASCOPY_IMPORT_TO || process.argv[5] || dayId(new Date());

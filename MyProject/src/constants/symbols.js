@@ -42,7 +42,7 @@ const make = (symbol, group, popular = false) => ({
   popular,
 });
 
-export const SYMBOLS = [
+const ALL_SYMBOLS = [
   make('AAVE/USD', 'CRYPTO CFD'),
   make('ADA/USD', 'CRYPTO CFD'),
   make('APE/USD', 'CRYPTO CFD'),
@@ -165,4 +165,6 @@ export const SYMBOLS = [
   make('XPD/USD', 'METALS'),
   make('XPT/USD', 'METALS'),
 ];
+
+export const SYMBOLS = ALL_SYMBOLS;
 

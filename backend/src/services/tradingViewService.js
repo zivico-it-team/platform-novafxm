@@ -11,7 +11,7 @@ const instrument = (ticker, symbol, name, group, scanner, popular = false) => ({
   ticker, symbol, name, group, scanner, popular,
 });
 
-const instruments = [
+const allInstruments = [
   instrument('BINANCE:AAVEUSDT', 'AAVE/USD', 'Aave / US Dollar', 'CRYPTO CFD', 'crypto'),
   instrument('BINANCE:ADAUSDT', 'ADA/USD', 'Cardano / US Dollar', 'CRYPTO CFD', 'crypto'),
   instrument('BINANCE:APEUSDT', 'APE/USD', 'ApeCoin / US Dollar', 'CRYPTO CFD', 'crypto'),
@@ -135,6 +135,8 @@ const instruments = [
   instrument('OANDA:XPTUSD', 'XPT/USD', 'Platinum / US Dollar', 'METALS', 'forex'),
 ];
 
+const instruments = allInstruments;
+
 let priceCache = { at: 0, data: null };
 const latestQuotes = new Map();
 const quoteValues = new Map();
@@ -181,11 +183,13 @@ const CANDLE_SECONDS = {
   '12M': 31536000,
 };
 const LIVE_CANDLE_TIMEFRAMES = ['1m', '3m', '5m', '15m', '1H', '4H', '1D', '1W', '1M'];
+const LIVE_CANDLE_FLUSH_MS = 15000;
 let quoteSocket = null;
 let reconnectTimer = null;
 const candleCache = new Map();
 const liveCandleBuffer = new Map();
 let liveCandleFlushTimer = null;
+let isFlushingLiveCandles = false;
 
 const decimalsFor = (price, group) => {
   if (group === 'FOREX') return price >= 10 ? 3 : 5;
@@ -280,12 +284,17 @@ function scheduleLiveCandleFlush() {
   liveCandleFlushTimer = setTimeout(async () => {
     liveCandleFlushTimer = null;
     await flushLiveCandles();
-  }, 5000);
+  }, LIVE_CANDLE_FLUSH_MS);
 }
 
 async function flushLiveCandles() {
+  if (isFlushingLiveCandles) {
+    scheduleLiveCandleFlush();
+    return;
+  }
   if (!liveCandleBuffer.size) return;
 
+  isFlushingLiveCandles = true;
   const pending = [...liveCandleBuffer.values()];
   liveCandleBuffer.clear();
   const groups = pending.reduce((map, item) => {
@@ -296,11 +305,39 @@ async function flushLiveCandles() {
     return map;
   }, new Map());
 
-  await Promise.all([...groups.values()].map((group) => (
-    saveCandles(group.symbol, group.timeframe, group.candles).catch((error) => {
-      console.warn(`Live candle save failed for ${group.symbol} ${group.timeframe}:`, error.message);
-    })
-  )));
+  try {
+    for (const group of groups.values()) {
+      await saveLiveCandleGroup(group);
+    }
+  } finally {
+    isFlushingLiveCandles = false;
+    if (liveCandleBuffer.size) scheduleLiveCandleFlush();
+  }
+}
+
+const isDeadlockError = (error) => (
+  error?.parent?.code === 'ER_LOCK_DEADLOCK' ||
+  error?.original?.code === 'ER_LOCK_DEADLOCK' ||
+  String(error?.message || '').includes('Deadlock found')
+);
+
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function saveLiveCandleGroup(group) {
+  const maxAttempts = 4;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      await saveCandles(group.symbol, group.timeframe, group.candles);
+      return;
+    } catch (error) {
+      if (!isDeadlockError(error) || attempt === maxAttempts) {
+        console.warn(`Live candle save failed for ${group.symbol} ${group.timeframe}:`, error.message);
+        return;
+      }
+
+      await delay(75 * attempt);
+    }
+  }
 }
 
 function fallbackPrice(instrument) {
@@ -513,7 +550,7 @@ async function getHistoricalCandles(symbol, timeframe = '15m', limit = 240) {
     console.warn('Stored candle read failed:', error.message);
     return [];
   });
-  if (item.group === 'CRYPTO CFD' && item.ticker.startsWith('BINANCE:')) {
+  if (item.group === 'CRYPTO CFD' && ['BINANCE:', 'COINBASE:'].some((prefix) => item.ticker.startsWith(prefix))) {
     const sourceTimeframe = DERIVED_CANDLE_SOURCES[timeframe];
     const needsDerivedCandles = (
       sourceTimeframe &&

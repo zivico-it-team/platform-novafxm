@@ -36,12 +36,12 @@ const run = async () => {
   const timeframes = process.env.CATCHUP_TIMEFRAMES || process.argv[3] || DEFAULT_TIMEFRAMES;
   const toDate = new Date();
   const fromDate = addDays(toDate, -days);
-  const fromDay = dayId(fromDate);
-  const toDay = dayId(toDate);
-  const fromMonth = monthId(fromDate);
-  const toMonth = monthId(toDate);
+  const fromDay = process.env.CATCHUP_FROM || dayId(fromDate);
+  const toDay = process.env.CATCHUP_TO || dayId(toDate);
+  const fromMonth = monthId(new Date(`${fromDay}T00:00:00.000Z`));
+  const toMonth = monthId(new Date(`${toDay}T00:00:00.000Z`));
 
-  console.log(`Catching up candles for last ${days} days (${fromDay}..${toDay})`);
+  console.log(`Catching up candles: ${fromDay}..${toDay}`);
 
   await runScript('src/scripts/importBinanceCandles.js', {
     BINANCE_IMPORT_PAIRS: process.env.CATCHUP_CRYPTO_PAIRS || 'app-crypto',
@@ -53,6 +53,13 @@ const run = async () => {
     BINANCE_IMPORT_SKIP_EXISTING: 'false',
   });
 
+  await runScript('src/scripts/importCoinbaseCandles.js', {
+    COINBASE_IMPORT_PRODUCTS: process.env.CATCHUP_COINBASE_PRODUCTS || 'app-coinbase-crypto',
+    COINBASE_IMPORT_TIMEFRAMES: timeframes,
+    COINBASE_IMPORT_FROM: fromDay,
+    COINBASE_IMPORT_TO: toDay,
+  });
+
   await runScript('src/scripts/importDukascopyCandles.js', {
     DUKASCOPY_IMPORT_SYMBOLS: process.env.CATCHUP_FX_METAL_SYMBOLS || 'app-fx-metals',
     DUKASCOPY_IMPORT_TIMEFRAMES: timeframes,
@@ -61,11 +68,12 @@ const run = async () => {
     DUKASCOPY_IMPORT_SKIP_EXISTING: 'false',
   });
 
-  await runScript('src/scripts/importYahooCandles.js', {
-    YAHOO_IMPORT_SYMBOLS: process.env.CATCHUP_OTHER_SYMBOLS || 'app-indices-energies',
-    YAHOO_IMPORT_TIMEFRAMES: timeframes,
-    YAHOO_IMPORT_FROM: fromDay,
-    YAHOO_IMPORT_TO: toDay,
+  await runScript('src/scripts/importDukascopyCandles.js', {
+    DUKASCOPY_IMPORT_SYMBOLS: process.env.CATCHUP_OTHER_SYMBOLS || 'app-indices-energies',
+    DUKASCOPY_IMPORT_TIMEFRAMES: timeframes,
+    DUKASCOPY_IMPORT_FROM: fromDay,
+    DUKASCOPY_IMPORT_TO: toDay,
+    DUKASCOPY_IMPORT_SKIP_EXISTING: 'false',
   });
 };
 

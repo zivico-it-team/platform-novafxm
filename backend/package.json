@@ -8,9 +8,13 @@
     "dev": "nodemon src/server.js",
     "seed:admin": "node src/seed/seedAdmin.js",
     "import:binance": "node src/scripts/importBinanceCandles.js",
+    "import:coinbase": "node src/scripts/importCoinbaseCandles.js",
     "import:dukascopy": "node src/scripts/importDukascopyCandles.js",
+    "import:dukascopy:cfd": "node src/scripts/importDukascopyCandles.js app-cfd",
     "import:yahoo": "node src/scripts/importYahooCandles.js",
+    "import:stooq": "node src/scripts/importStooqCandles.js",
     "catchup:candles": "node src/scripts/catchupCandles.js",
+    "migrate:candles": "node src/scripts/alterCandleVolume.js",
     "check": "node --check src/server.js"
   },
   "dependencies": {

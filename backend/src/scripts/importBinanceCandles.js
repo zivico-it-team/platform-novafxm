@@ -28,6 +28,11 @@ const TIMEFRAME_TO_BINANCE = {
   '1M': '1mo',
 };
 
+const TIMEFRAME_TO_BINANCE_API = {
+  ...TIMEFRAME_TO_BINANCE,
+  '1M': '1M',
+};
+
 const DERIVED_TIMEFRAME_SOURCES = {
   '3H': '1m',
   '3M': '1M',
@@ -145,6 +150,22 @@ const monthBounds = (month) => {
   };
 };
 
+const monthDateRange = (month) => {
+  const start = new Date(`${month}-01T00:00:00.000Z`);
+  const end = addMonth(start);
+  const today = new Date();
+  const cappedEnd = end > today ? today : new Date(end.getTime() - 1);
+  return {
+    from: start.toISOString().slice(0, 10),
+    to: cappedEnd.toISOString().slice(0, 10),
+  };
+};
+
+const shouldFallbackToApi = (month) => {
+  const currentMonth = monthId(new Date());
+  return month >= currentMonth;
+};
+
 const hasStoredMonth = async (symbol, timeframe, month) => {
   const { from, to } = monthBounds(month);
   const rows = await readCandles(symbol, timeframe, 1, { from, to });
@@ -187,6 +208,7 @@ const run = async () => {
 
     for (const timeframe of timeframes) {
       const interval = TIMEFRAME_TO_BINANCE[timeframe] || timeframe;
+      const apiInterval = TIMEFRAME_TO_BINANCE_API[timeframe] || timeframe;
       let total = 0;
       const derivedResult = await importDerivedTimeframe(symbol, timeframe);
       if (derivedResult) {
@@ -195,7 +217,7 @@ const run = async () => {
       }
 
       if (apiFrom && apiTo) {
-        total = await importRecentKlines(pair, symbol, timeframe, interval, apiFrom, apiTo);
+        total = await importRecentKlines(pair, symbol, timeframe, apiInterval, apiFrom, apiTo);
         console.log(`${symbol} ${timeframe}: imported ${total} recent api rows`);
         continue;
       }
@@ -209,6 +231,14 @@ const run = async () => {
 
           const { candles, missing } = await downloadMonthlyKlines(pair, interval, month);
           if (missing) {
+            if (shouldFallbackToApi(month)) {
+              const { from: apiMonthFrom, to: apiMonthTo } = monthDateRange(month);
+              const saved = await importRecentKlines(pair, symbol, timeframe, apiInterval, apiMonthFrom, apiMonthTo);
+              total += saved;
+              console.log(`${pair} ${timeframe} ${month}: archive missing, api saved=${saved}`);
+              continue;
+            }
+
             console.log(`${pair} ${timeframe} ${month}: missing`);
             continue;
           }
