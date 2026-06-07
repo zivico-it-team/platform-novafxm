@@ -6,6 +6,7 @@ const {
   readCandles,
   saveCandles,
 } = require('./candleStore');
+const { fetchRecentCandles, timeframeSeconds } = require('./recentCandleFetcher');
 
 const instrument = (ticker, symbol, name, group, scanner, popular = false) => ({
   ticker, symbol, name, group, scanner, popular,
@@ -190,6 +191,14 @@ const candleCache = new Map();
 const liveCandleBuffer = new Map();
 let liveCandleFlushTimer = null;
 let isFlushingLiveCandles = false;
+const autoCatchupLocks = new Map();
+const autoCatchupLastRun = new Map();
+const AUTO_CATCHUP_ENABLED = process.env.AUTO_CATCHUP_ENABLED !== 'false';
+const AUTO_CATCHUP_DAYS = Math.max(1, Math.min(Number(process.env.AUTO_CATCHUP_DAYS) || 2, 14));
+const AUTO_CATCHUP_THROTTLE_MS = Math.max(60000, Number(process.env.AUTO_CATCHUP_THROTTLE_MS) || 5 * 60000);
+const AUTO_CATCHUP_ALWAYS_RECENT = process.env.AUTO_CATCHUP_ALWAYS_RECENT !== 'false';
+const AUTO_CATCHUP_LOGS_ENABLED = process.env.AUTO_CATCHUP_LOGS_ENABLED === 'true';
+const LIVE_CANDLE_SAVE_ENABLED = process.env.LIVE_CANDLE_SAVE_ENABLED === 'true';
 
 const decimalsFor = (price, group) => {
   if (group === 'FOREX') return price >= 10 ? 3 : 5;
@@ -253,6 +262,8 @@ const quoteFromTradingView = (instrument, values) => {
 };
 
 function bufferLiveCandle(quote) {
+  if (!LIVE_CANDLE_SAVE_ENABLED) return;
+
   const price = Number(quote?.price);
   if (!quote?.symbol || !Number.isFinite(price) || price <= 0) return;
   if (!['tradingview', 'stale'].includes(quote.source)) return;
@@ -537,6 +548,98 @@ function requestCandles(item, timeframe = '15m', limit = 240) {
   });
 }
 
+const latestCandleTime = (candles) => {
+  if (!Array.isArray(candles) || candles.length === 0) return null;
+  const latest = Number(candles[candles.length - 1]?.time);
+  return Number.isFinite(latest) ? latest : null;
+};
+
+const recentGapStart = (candles, seconds, now) => {
+  if (!Array.isArray(candles) || candles.length < 2) return null;
+  if (!Number.isFinite(seconds) || seconds <= 0) return null;
+
+  const cutoff = now - AUTO_CATCHUP_DAYS * 86400;
+  const expectedGap = Math.max(seconds * 1.5, seconds + 30);
+
+  for (let index = candles.length - 1; index > 0; index--) {
+    const current = Number(candles[index]?.time);
+    const previous = Number(candles[index - 1]?.time);
+    if (!Number.isFinite(current) || !Number.isFinite(previous)) continue;
+    if (current < cutoff) break;
+    if (current - previous > expectedGap) return previous;
+  }
+
+  return null;
+};
+
+const mergeCandles = (stored, recent, limit) => {
+  const byTime = new Map();
+  [...(stored || []), ...(recent || [])].forEach((bar) => {
+    const candle = {
+      time: Number(bar.time),
+      open: Number(bar.open),
+      high: Number(bar.high),
+      low: Number(bar.low),
+      close: Number(bar.close),
+    };
+    if (Object.values(candle).every(Number.isFinite)) {
+      byTime.set(candle.time, candle);
+    }
+  });
+
+  return [...byTime.values()]
+    .sort((a, b) => a.time - b.time)
+    .slice(-limit);
+};
+
+async function fetchRecentProviderCandles(item, timeframe, stored, limit) {
+  if (!AUTO_CATCHUP_ENABLED || timeframe === '1s') return [];
+
+  const seconds = timeframeSeconds(timeframe);
+  if (!seconds) return [];
+
+  const now = Math.floor(Date.now() / 1000);
+  const latest = latestCandleTime(stored);
+  const gapFrom = recentGapStart(stored, seconds, now);
+  const isStale = !latest || now - latest > Math.max(seconds * 2, 300);
+  const shouldRefreshRecent = AUTO_CATCHUP_ALWAYS_RECENT || isStale || gapFrom;
+  if (!shouldRefreshRecent) return [];
+
+  const key = `${item.symbol}:${timeframe}`;
+  const lastRun = autoCatchupLastRun.get(key) || 0;
+  if (Date.now() - lastRun < AUTO_CATCHUP_THROTTLE_MS) return [];
+
+  if (autoCatchupLocks.has(key)) {
+    return autoCatchupLocks.get(key);
+  }
+
+  const from = Math.max(
+    gapFrom ? gapFrom - seconds : latest ? latest - seconds : 0,
+    now - AUTO_CATCHUP_DAYS * 86400
+  );
+  const to = now + seconds;
+
+  const task = fetchRecentCandles(item, timeframe, from, to, { save: false })
+    .then((candles) => {
+      if (AUTO_CATCHUP_LOGS_ENABLED && candles.length > 0) {
+        console.log(`Fetched ${candles.length} recent provider candles for ${item.symbol} ${timeframe}`);
+      }
+      autoCatchupLastRun.set(key, Date.now());
+      return candles.slice(-limit);
+    })
+    .catch((error) => {
+      autoCatchupLastRun.set(key, Date.now());
+      console.warn(`Recent provider candle fetch failed for ${item.symbol} ${timeframe}:`, error.message);
+      return [];
+    })
+    .finally(() => {
+      autoCatchupLocks.delete(key);
+    });
+
+  autoCatchupLocks.set(key, task);
+  return task;
+}
+
 async function getHistoricalCandles(symbol, timeframe = '15m', limit = 240) {
   const item = instruments.find((instrument) => instrument.symbol === symbol);
   if (!item) return [];
@@ -550,11 +653,14 @@ async function getHistoricalCandles(symbol, timeframe = '15m', limit = 240) {
     console.warn('Stored candle read failed:', error.message);
     return [];
   });
+  const recentProviderCandles = await fetchRecentProviderCandles(item, timeframe, stored, boundedLimit);
+  const currentStored = mergeCandles(stored, recentProviderCandles, boundedLimit);
+
   if (item.group === 'CRYPTO CFD' && ['BINANCE:', 'COINBASE:'].some((prefix) => item.ticker.startsWith(prefix))) {
     const sourceTimeframe = DERIVED_CANDLE_SOURCES[timeframe];
     const needsDerivedCandles = (
       sourceTimeframe &&
-      (stored.length < Math.min(boundedLimit, 100) || !candlesAlignWithTimeframe(stored, timeframe))
+      (currentStored.length < Math.min(boundedLimit, 100) || !candlesAlignWithTimeframe(currentStored, timeframe))
     );
 
     if (needsDerivedCandles) {
@@ -567,27 +673,21 @@ async function getHistoricalCandles(symbol, timeframe = '15m', limit = 240) {
       });
       const derived = aggregateCandles(sourceCandles, timeframe).slice(-boundedLimit);
       if (derived.length > 0) {
-        await saveCandles(symbol, timeframe, derived).catch((error) => {
-          console.warn('Derived candle write failed:', error.message);
-        });
         candleCache.set(key, { at: Date.now(), data: derived });
         return derived;
       }
     }
 
-    candleCache.set(key, { at: Date.now(), data: stored });
-    return stored;
+    candleCache.set(key, { at: Date.now(), data: currentStored });
+    return currentStored;
   }
 
-  if (stored.length > 0) {
-    candleCache.set(key, { at: Date.now(), data: stored });
-    return stored;
+  if (currentStored.length > 0) {
+    candleCache.set(key, { at: Date.now(), data: currentStored });
+    return currentStored;
   }
 
   const candles = await requestCandles(item, timeframe, boundedLimit);
-  await saveCandles(symbol, timeframe, candles).catch((error) => {
-    console.warn('Stored candle write failed:', error.message);
-  });
   candleCache.set(key, { at: Date.now(), data: candles });
   return candles;
 }

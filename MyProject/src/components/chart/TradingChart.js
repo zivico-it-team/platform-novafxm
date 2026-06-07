@@ -61,6 +61,45 @@ const hasLivePrice = (item) => (
   ['tradingview', 'stale'].includes(item?.source) && Number(item?.price) > 0
 );
 
+const latestContinuousCandles = (candles, timeframe) => {
+  if (!Array.isArray(candles) || candles.length < 2) return candles || [];
+
+  const seconds = TIMEFRAME_SECONDS[timeframe];
+  if (!seconds) return candles;
+
+  const maxGap = Math.max(seconds * 1.5, seconds + 30);
+  let startIndex = 0;
+
+  for (let index = candles.length - 1; index > 0; index -= 1) {
+    if (Number(candles[index].time) - Number(candles[index - 1].time) > maxGap) {
+      startIndex = index;
+      break;
+    }
+  }
+
+  const recentCandles = candles.slice(startIndex);
+  return recentCandles.length >= Math.min(80, candles.length) ? recentCandles : candles;
+};
+
+const normalizeCandles = (candles, timeframe, viewRange) => {
+  const byTime = new Map();
+  (candles || []).forEach((bar) => {
+    const candle = {
+      time: Number(bar.time),
+      open: Number(bar.open),
+      high: Number(bar.high),
+      low: Number(bar.low),
+      close: Number(bar.close),
+    };
+    if (Object.values(candle).every(Number.isFinite)) {
+      byTime.set(candle.time, candle);
+    }
+  });
+
+  const sorted = [...byTime.values()].sort((a, b) => a.time - b.time);
+  return viewRange === 'Recent' ? latestContinuousCandles(sorted, timeframe) : sorted;
+};
+
 function chartHtml(candles, decimals, timeframe, colors, viewRange) {
   const safeDecimals = Math.max(0, Math.min(Number(decimals) || 2, 8));
   const visibleBars = INITIAL_VISIBLE_BARS[timeframe] || 300;
@@ -166,21 +205,25 @@ export default function TradingChart() {
   const [timeframe, setTimeframe] = useState('15m');
   const [viewRange, setViewRange] = useState('Recent');
   const [history, setHistory] = useState([]);
+  const [reloadKey, setReloadKey] = useState(0);
   const iframeRef = useRef(null);
   const webViewRef = useRef(null);
   const liveCandleRef = useRef(null);
+  const lastGapReloadAtRef = useRef(0);
 
   useEffect(() => {
     let active = true;
     setHistory([]);
+    liveCandleRef.current = null;
     const limit = viewRange === 'Full'
       ? FULL_HISTORY_LIMITS[timeframe]
       : HISTORY_LIMITS[timeframe];
     marketService.getCandles(currentSymbol.symbol, timeframe, limit)
       .then((candles) => {
         if (active) {
-          setHistory(candles);
-          liveCandleRef.current = candles?.[candles.length - 1] || null;
+          const normalizedCandles = normalizeCandles(candles, timeframe, viewRange);
+          setHistory(normalizedCandles);
+          liveCandleRef.current = normalizedCandles?.[normalizedCandles.length - 1] || null;
         }
       })
       .catch(() => {
@@ -192,7 +235,7 @@ export default function TradingChart() {
     return () => {
       active = false;
     };
-  }, [currentSymbol.symbol, timeframe, viewRange]);
+  }, [currentSymbol.symbol, timeframe, viewRange, reloadKey]);
 
   useEffect(() => {
     if (!hasLivePrice(currentSymbol)) return;
@@ -200,6 +243,20 @@ export default function TradingChart() {
     const seconds = TIMEFRAME_SECONDS[timeframe] || 900;
     const time = Math.floor(Date.now() / 1000 / seconds) * seconds;
     const previous = liveCandleRef.current;
+    const previousTime = Number(previous?.time);
+    if (Number.isFinite(previousTime) && time < previousTime) return;
+
+    const hasHistoryGap = previous && Number(previous.time) + seconds * 2 < time;
+
+    if (hasHistoryGap) {
+      const now = Date.now();
+      if (now - lastGapReloadAtRef.current > 30000) {
+        lastGapReloadAtRef.current = now;
+        setReloadKey((value) => value + 1);
+      }
+      return;
+    }
+
     const previousIsPreviousBucket = previous && Number(previous.time) >= time - seconds;
     const open = previousIsPreviousBucket ? Number(previous.close) : price;
     const candle = previous && Number(previous.time) === time

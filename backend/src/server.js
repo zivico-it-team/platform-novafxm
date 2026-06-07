@@ -8,6 +8,7 @@ require('./models');
 const ensureSchema = require('./config/ensureSchema');
 const seedAdmin = require('./seed/seedAdmin');
 const tradingView = require('./services/tradingViewService');
+const { startCandleCatchupScheduler } = require('./services/candleCatchupScheduler');
 
 const app = express();
 app.use(cors({ origin: process.env.CORS_ORIGIN === '*' || !process.env.CORS_ORIGIN ? true : process.env.CORS_ORIGIN }));
@@ -42,12 +43,14 @@ async function start() {
   const stopPriceStream = tradingView.startPriceStream((prices) => {
     if (io.engine.clientsCount) io.emit('market:prices', prices);
   });
+  const stopCandleCatchupScheduler = startCandleCatchupScheduler();
   const ticker = setInterval(async () => {
     if (io.engine.clientsCount) io.emit('market:prices', await tradingView.getPrices());
   }, 2000);
   server.on('close', () => {
     clearInterval(ticker);
     stopPriceStream();
+    stopCandleCatchupScheduler();
   });
   server.listen(port, () => console.log(`NOVA FXM API listening on port ${port}`));
 }

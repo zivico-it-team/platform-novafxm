@@ -8,6 +8,9 @@ const tradingView = require('../services/tradingViewService');
 
 const BINANCE_ARCHIVE = 'https://data.binance.vision/data/spot/monthly/klines';
 const BINANCE_API = 'https://api.binance.com/api/v3/klines';
+const BINANCE_REQUEST_TIMEOUT_MS = Number(process.env.BINANCE_REQUEST_TIMEOUT_MS || 30000);
+const BINANCE_REQUEST_RETRIES = Number(process.env.BINANCE_REQUEST_RETRIES || 5);
+const BINANCE_REQUEST_DELAY_MS = Number(process.env.BINANCE_REQUEST_DELAY_MS || 250);
 
 const TIMEFRAME_TO_BINANCE = {
   '1s': '1s',
@@ -44,6 +47,39 @@ const csv = (value) => String(value || '')
   .split(',')
   .map((item) => item.trim())
   .filter(Boolean);
+
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const fetchWithRetry = async (url, options = {}) => {
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= BINANCE_REQUEST_RETRIES; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), BINANCE_REQUEST_TIMEOUT_MS);
+
+    try {
+      const response = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(timeout);
+
+      if ([418, 429, 500, 502, 503, 504].includes(response.status) && attempt < BINANCE_REQUEST_RETRIES) {
+        lastError = new Error(`${response.status} ${response.statusText} ${url}`);
+        await delay(1000 * attempt);
+        continue;
+      }
+
+      return response;
+    } catch (error) {
+      clearTimeout(timeout);
+      lastError = error;
+      if (attempt < BINANCE_REQUEST_RETRIES) {
+        await delay(1000 * attempt);
+        continue;
+      }
+    }
+  }
+
+  throw lastError;
+};
 
 const appCryptoPairs = () => tradingView.instruments
   .filter((item) => item.group === 'CRYPTO CFD' && item.ticker.startsWith('BINANCE:'))
@@ -102,7 +138,7 @@ const parseKlineCsv = (csvText) => (
 
 const downloadMonthlyKlines = async (pair, interval, month) => {
   const url = `${BINANCE_ARCHIVE}/${pair}/${interval}/${pair}-${interval}-${month}.zip`;
-  const response = await fetch(url);
+  const response = await fetchWithRetry(url);
 
   if (response.status === 404) return { url, candles: [], missing: true };
   if (!response.ok) throw new Error(`${response.status} ${response.statusText} ${url}`);
@@ -122,7 +158,7 @@ const importRecentKlines = async (pair, symbol, timeframe, interval, from, to) =
 
   while (startTime < endTime) {
     const url = `${BINANCE_API}?symbol=${encodeURIComponent(pair)}&interval=${encodeURIComponent(interval)}&startTime=${startTime}&endTime=${endTime}&limit=1000`;
-    const response = await fetch(url);
+    const response = await fetchWithRetry(url);
     if (!response.ok) throw new Error(`${response.status} ${response.statusText} ${url}`);
 
     const rows = await response.json();
@@ -136,6 +172,7 @@ const importRecentKlines = async (pair, symbol, timeframe, interval, from, to) =
     const lastOpenTime = Number(rows[rows.length - 1]?.[0]);
     if (!Number.isFinite(lastOpenTime) || lastOpenTime <= startTime) break;
     startTime = lastOpenTime + 1;
+    if (BINANCE_REQUEST_DELAY_MS > 0) await delay(BINANCE_REQUEST_DELAY_MS);
   }
 
   return total;
