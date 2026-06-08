@@ -100,6 +100,53 @@ const normalizeCandles = (candles, timeframe, viewRange) => {
   return viewRange === 'Recent' ? latestContinuousCandles(sorted, timeframe) : sorted;
 };
 
+const applyLivePriceToCandles = (candles, currentSymbol, timeframe) => {
+  if (!hasLivePrice(currentSymbol)) return candles;
+
+  const price = Number(currentSymbol.price);
+  const seconds = TIMEFRAME_SECONDS[timeframe] || 900;
+  const time = Math.floor(Date.now() / 1000 / seconds) * seconds;
+  if (!Number.isFinite(price) || price <= 0) return candles;
+
+  const nextCandles = [...(candles || [])];
+  const previous = nextCandles[nextCandles.length - 1];
+  const previousTime = Number(previous?.time);
+
+  if (Number.isFinite(previousTime) && previousTime === time) {
+    nextCandles[nextCandles.length - 1] = {
+      ...previous,
+      high: Math.max(Number(previous.high), price),
+      low: Math.min(Number(previous.low), price),
+      close: price,
+    };
+    return nextCandles;
+  }
+
+  if (Number.isFinite(previousTime) && previousTime < time) {
+    const open = Number(previous.close);
+    nextCandles.push({
+      time,
+      open,
+      high: Math.max(open, price),
+      low: Math.min(open, price),
+      close: price,
+    });
+    return nextCandles;
+  }
+
+  if (Number.isFinite(previousTime) && previousTime > time) {
+    nextCandles[nextCandles.length - 1] = {
+      ...previous,
+      high: Math.max(Number(previous.high), price),
+      low: Math.min(Number(previous.low), price),
+      close: price,
+    };
+    return nextCandles;
+  }
+
+  return [{ time, open: price, high: price, low: price, close: price }];
+};
+
 function chartHtml(candles, decimals, timeframe, colors, viewRange) {
   const safeDecimals = Math.max(0, Math.min(Number(decimals) || 2, 8));
   const visibleBars = INITIAL_VISIBLE_BARS[timeframe] || 300;
@@ -288,7 +335,13 @@ export default function TradingChart() {
     `);
   }, [currentSymbol.price, currentSymbol.source, currentSymbol.symbol, timeframe]);
 
-  const candles = useMemo(() => history, [history]);
+  const candles = useMemo(
+    () => applyLivePriceToCandles(history, currentSymbol, timeframe),
+    [history, currentSymbol.symbol, timeframe],
+  );
+  useEffect(() => {
+    liveCandleRef.current = candles?.[candles.length - 1] || null;
+  }, [candles]);
   const html = useMemo(
     () => chartHtml(candles, currentSymbol.decimals, timeframe, colors, viewRange),
     [candles, currentSymbol.decimals, timeframe, colors, viewRange],
