@@ -1,6 +1,21 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Platform, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import { WebView } from 'react-native-webview';
+import {
+  Activity,
+  BarChart3,
+  CandlestickChart,
+  ChevronDown,
+  LineChart,
+  Minus,
+  Mountain,
+  Plus,
+  ScatterChart,
+  Settings,
+  Trash2,
+  TrendingUp,
+} from 'lucide-react-native';
+import ChartGraphSettingsPanel from './ChartGraphSettingsPanel';
 import { useDemoTrading } from '../../hooks/useDemoTrading';
 import { marketService } from '../../services/marketService';
 import { percent, quote } from '../../utils/formatters';
@@ -33,17 +48,6 @@ const HISTORY_LIMITS = {
   '1W': 50000,
   '1M': 50000,
 };
-const FULL_HISTORY_LIMITS = {
-  '1m': 200000,
-  '3m': 200000,
-  '5m': 200000,
-  '15m': 200000,
-  '1H': 200000,
-  '4H': 200000,
-  '1D': 200000,
-  '1W': 200000,
-  '1M': 200000,
-};
 const INITIAL_VISIBLE_BARS = {
   '1m': 240,
   '3m': 300,
@@ -55,8 +59,40 @@ const INITIAL_VISIBLE_BARS = {
   '1W': 260,
   '1M': 180,
 };
-const VIEW_RANGES = ['Recent', 'Full'];
-
+const CHART_TYPES = [
+  ['combo', 'Combochart', CandlestickChart],
+  ['candles', 'Candlestick', CandlestickChart],
+  ['bar', 'Bar', BarChart3],
+  ['line', 'Line', TrendingUp],
+  ['area', 'Area', Mountain],
+  ['hollow', 'Hollow', CandlestickChart],
+  ['histogram', 'Histogram', BarChart3],
+  ['baseline', 'Baseline', Activity],
+  ['trend', 'Trend', LineChart],
+  ['scatter', 'Scatter Plot', ScatterChart],
+];
+const INDICATOR_TOOLS = [
+  ['atr', 'AVERAGE TRUE RANGE'],
+  ['awesome', 'AWESOME OSCILLATOR'],
+  ['bb', 'BOLLINGER BANDS'],
+  ['cci', 'COMMODITY CHANNEL'],
+  ['ichimoku', 'ICHIMOKU CLOUD'],
+  ['macd', 'MACD'],
+  ['momentum', 'MOMENTUM'],
+  ['sar', 'PARABOLIC SAR'],
+  ['rsi', 'RSI'],
+  ['roc', 'RATE OF CHANGE'],
+  ['sma20', 'MOVING AVERAGE'],
+  ['wma', 'WEIGHTED MOVING AVERAGE'],
+  ['williams', 'WILLIAMS'],
+];
+const INDICATOR_KEYS = INDICATOR_TOOLS.map(([key]) => key);
+const DRAWING_TOOLS = [
+  ['horizontal', 'Horizontal Line'],
+  ['trend', 'Trend Line'],
+  ['fibonacci', 'Fibonacci Retracement'],
+  ['clear', 'Clear All Drawings'],
+];
 const hasLivePrice = (item) => (
   ['tradingview', 'stale'].includes(item?.source) && Number(item?.price) > 0
 );
@@ -81,7 +117,7 @@ const latestContinuousCandles = (candles, timeframe) => {
   return recentCandles.length >= Math.min(80, candles.length) ? recentCandles : candles;
 };
 
-const normalizeCandles = (candles, timeframe, viewRange) => {
+const normalizeCandles = (candles, timeframe) => {
   const byTime = new Map();
   (candles || []).forEach((bar) => {
     const candle = {
@@ -97,7 +133,7 @@ const normalizeCandles = (candles, timeframe, viewRange) => {
   });
 
   const sorted = [...byTime.values()].sort((a, b) => a.time - b.time);
-  return viewRange === 'Recent' ? latestContinuousCandles(sorted, timeframe) : sorted;
+  return latestContinuousCandles(sorted, timeframe);
 };
 
 const applyLivePriceToCandles = (candles, currentSymbol, timeframe) => {
@@ -147,29 +183,113 @@ const applyLivePriceToCandles = (candles, currentSymbol, timeframe) => {
   return [{ time, open: price, high: price, low: price, close: price }];
 };
 
-function chartHtml(candles, decimals, timeframe, colors, viewRange) {
+const chartUiFromTheme = (colors) => ({
+  background: colors.chartBackground,
+  toolbar: colors.background,
+  control: colors.panel,
+  controlActive: colors.primary,
+  border: colors.border,
+  menu: colors.panel,
+  menuBorder: colors.border,
+  panel: colors.panel,
+  muted: colors.muted,
+  text: colors.text,
+  accent: colors.primary,
+  activeText: '#0B0B0B',
+  success: colors.success,
+  danger: colors.danger,
+  grid: colors.chartGrid,
+  soft: colors.primarySoft,
+});
+
+function IconButton({ active, children, onPress, ui, size = 32 }) {
+  const backgroundColor = active ? ui.controlActive : ui.control;
+  const borderColor = active ? ui.controlActive : ui.border;
+
+  return (
+    <Pressable
+      onPress={onPress}
+      className="items-center justify-center rounded-md border"
+      style={{ width: size, height: size, backgroundColor, borderColor }}
+    >
+      {children}
+    </Pressable>
+  );
+}
+
+function IndicatorGlyph({ active, ui, size = 11 }) {
+  return (
+    <Text className="font-black" style={{ color: active ? ui.activeText : ui.text, fontSize: size }}>
+      f(x)
+    </Text>
+  );
+}
+
+function Stepper({ value, onDecrease, onIncrease, ui, formatter = (item) => item }) {
+  return (
+    <View className="h-8 flex-row overflow-hidden rounded-md border" style={{ borderColor: ui.border }}>
+      <Pressable className="w-9 items-center justify-center border-r" style={{ borderColor: ui.border }} onPress={onDecrease}>
+        <Minus size={13} color={ui.text} />
+      </Pressable>
+      <View className="flex-1 items-center justify-center">
+        <Text className="text-xs font-extrabold" style={{ color: ui.text }}>{formatter(value)}</Text>
+      </View>
+      <Pressable className="w-9 items-center justify-center border-l" style={{ borderColor: ui.border }} onPress={onIncrease}>
+        <Plus size={13} color={ui.text} />
+      </Pressable>
+    </View>
+  );
+}
+
+function LineWidthSelect({ value, onPress, ui }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      className="h-8 flex-1 flex-row items-center justify-between rounded-md border px-3"
+      style={{ borderColor: ui.border, backgroundColor: ui.control }}
+    >
+      <Text className="text-xs font-bold" style={{ color: ui.text }}>{value} px</Text>
+      <ChevronDown size={14} color={ui.muted} />
+    </Pressable>
+  );
+}
+
+function chartHtml(candles, decimals, timeframe, chartType, tools, drawings, activeDrawingTool, ui) {
   const safeDecimals = Math.max(0, Math.min(Number(decimals) || 2, 8));
   const visibleBars = INITIAL_VISIBLE_BARS[timeframe] || 300;
-  const showFullRange = viewRange === 'Full';
   const chartColors = {
-    background: colors.chartBackground,
-    text: colors.chartText,
-    grid: colors.chartGrid,
-    border: colors.border,
-    up: colors.success,
-    down: colors.danger,
+    background: ui.background,
+    text: ui.text,
+    grid: ui.grid,
+    border: ui.border,
+    up: ui.success,
+    down: ui.danger,
   };
   return `<!doctype html>
 <html><head><meta name="viewport" content="width=device-width,initial-scale=1.0">
 <style>
-*{box-sizing:border-box}html,body,#chart{height:100%;width:100%;margin:0;background:${chartColors.background};overflow:hidden}
+*{box-sizing:border-box}html,body,#chart-wrap{height:100%;width:100%;margin:0;background:${chartColors.background};overflow:hidden}
+#chart-wrap{position:relative}
+#chart{position:absolute;inset:0}
+#drawing-layer{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:12}
 #empty{display:none;position:absolute;left:0;right:0;top:48%;text-align:center;color:${chartColors.text};font:14px Arial,sans-serif}
 </style></head>
 <body>
-<div id="chart"></div><div id="empty">Waiting for chart data</div>
+<div id="chart-wrap"><div id="chart"></div><svg id="drawing-layer"></svg><div id="empty">Waiting for chart data</div></div>
 <script src="https://unpkg.com/lightweight-charts@5/dist/lightweight-charts.standalone.production.js"></script>
 <script>
-const data = ${JSON.stringify(candles)};
+let data = ${JSON.stringify(candles)};
+const chartType = ${JSON.stringify(chartType)};
+const tools = ${JSON.stringify(tools)};
+const drawings = ${JSON.stringify(drawings)};
+const activeDrawingTool = ${JSON.stringify(activeDrawingTool)};
+const indicatorLineWidth = Math.max(1, Math.min(4, Number(tools.defaultLineWidth || 1)));
+const timeframeSeconds = ${JSON.stringify(TIMEFRAME_SECONDS[timeframe] || 900)};
+const priceOptions = {
+  type: 'price',
+  precision: ${safeDecimals},
+  minMove: ${10 ** -safeDecimals}
+};
 const chart = LightweightCharts.createChart(document.getElementById('chart'), {
   autoSize: true,
   layout: {
@@ -178,12 +298,13 @@ const chart = LightweightCharts.createChart(document.getElementById('chart'), {
     attributionLogo: false
   },
   grid: {
-    vertLines: { color: ${JSON.stringify(chartColors.grid)} },
-    horzLines: { color: ${JSON.stringify(chartColors.grid)} }
+    vertLines: { color: tools.grid ? ${JSON.stringify(chartColors.grid)} : 'transparent' },
+    horzLines: { color: tools.grid ? ${JSON.stringify(chartColors.grid)} : 'transparent' }
   },
   crosshair: {
-    vertLine: { color: ${JSON.stringify(colors.primary)} },
-    horzLine: { color: ${JSON.stringify(colors.primary)} }
+    mode: tools.crosshair ? LightweightCharts.CrosshairMode.Normal : LightweightCharts.CrosshairMode.Hidden,
+    vertLine: { color: ${JSON.stringify(ui.accent)} },
+    horzLine: { color: ${JSON.stringify(ui.accent)} }
   },
   rightPriceScale: { borderColor: ${JSON.stringify(chartColors.border)} },
   timeScale: {
@@ -193,29 +314,347 @@ const chart = LightweightCharts.createChart(document.getElementById('chart'), {
     shiftVisibleRangeOnNewBar: false
   }
 });
-const series = chart.addSeries(LightweightCharts.CandlestickSeries, {
-  upColor: ${JSON.stringify(chartColors.up)},
+const closeData = (items) => items.map((item) => ({ time: Number(item.time), value: Number(item.close) })).filter((item) => Number.isFinite(item.time) && Number.isFinite(item.value));
+const histogramData = (items) => items.map((item) => ({
+  time: Number(item.time),
+  value: Number(item.close),
+  color: Number(item.close) >= Number(item.open) ? 'rgba(18, 207, 122, .68)' : 'rgba(242, 77, 88, .68)'
+})).filter((item) => Number.isFinite(item.time) && Number.isFinite(item.value));
+const mainSeriesOptions = {
+  color: ${JSON.stringify(ui.accent)},
+  lineColor: ${JSON.stringify(ui.accent)},
+  lineWidth: chartType === 'scatter' ? 0 : 2,
+  pointMarkersVisible: chartType === 'scatter',
+  pointMarkersRadius: chartType === 'scatter' ? 4 : undefined,
+  baseValue: { type: 'price', price: Number(data[data.length - 1]?.close || 0) },
+  baseLineColor: ${JSON.stringify(ui.accent)},
+  topLineColor: ${JSON.stringify(ui.success)},
+  bottomLineColor: ${JSON.stringify(ui.danger)},
+  topFillColor1: 'rgba(18, 207, 122, .28)',
+  topFillColor2: 'rgba(18, 207, 122, .04)',
+  bottomFillColor1: 'rgba(242, 77, 88, .04)',
+  bottomFillColor2: 'rgba(242, 77, 88, .26)',
+  topColor: 'rgba(212, 175, 55, .42)',
+  bottomColor: 'rgba(212, 175, 55, 0)',
+  upColor: chartType === 'hollow' ? 'rgba(0, 0, 0, 0)' : ${JSON.stringify(chartColors.up)},
   downColor: ${JSON.stringify(chartColors.down)},
+  borderUpColor: ${JSON.stringify(chartColors.up)},
+  borderDownColor: ${JSON.stringify(chartColors.down)},
   wickUpColor: ${JSON.stringify(chartColors.up)},
   wickDownColor: ${JSON.stringify(chartColors.down)},
-  borderVisible: false,
-  priceFormat: {
-    type: 'price',
-    precision: ${safeDecimals},
-    minMove: ${10 ** -safeDecimals}
+  borderVisible: chartType !== 'hollow',
+  lastValueVisible: tools.priceLine,
+  priceLineVisible: tools.priceLine,
+  priceFormat: priceOptions
+};
+const seriesType = (() => {
+  if (chartType === 'line' || chartType === 'trend' || chartType === 'scatter') return LightweightCharts.LineSeries;
+  if (chartType === 'area') return LightweightCharts.AreaSeries;
+  if (chartType === 'bar') return LightweightCharts.BarSeries;
+  if (chartType === 'histogram') return LightweightCharts.HistogramSeries;
+  if (chartType === 'baseline') return LightweightCharts.BaselineSeries;
+  return LightweightCharts.CandlestickSeries;
+})();
+const series = chart.addSeries(seriesType, mainSeriesOptions);
+const indicatorSeries = [];
+const setMainData = () => {
+  if (chartType === 'candles' || chartType === 'combo' || chartType === 'bar' || chartType === 'hollow') {
+    series.setData(data);
+    return;
   }
-});
-let lastBar = data.length ? data[data.length - 1] : null;
-if (data.length) {
-  series.setData(data);
-  if (${showFullRange}) {
-    chart.timeScale().fitContent();
-  } else {
-    chart.timeScale().setVisibleLogicalRange({
-      from: Math.max(0, data.length - ${visibleBars}),
-      to: data.length + 4
+  if (chartType === 'histogram') {
+    series.setData(histogramData(data));
+    return;
+  }
+  series.setData(closeData(data));
+};
+function movingAverage(items, period) {
+  const output = [];
+  for (let index = period - 1; index < items.length; index += 1) {
+    const slice = items.slice(index - period + 1, index + 1);
+    const value = slice.reduce((sum, item) => sum + Number(item.close), 0) / period;
+    output.push({ time: Number(items[index].time), value });
+  }
+  return output;
+}
+function weightedMovingAverage(items, period) {
+  const output = [];
+  const denominator = (period * (period + 1)) / 2;
+  for (let index = period - 1; index < items.length; index += 1) {
+    const slice = items.slice(index - period + 1, index + 1);
+    const value = slice.reduce((sum, item, sliceIndex) => sum + Number(item.close) * (sliceIndex + 1), 0) / denominator;
+    output.push({ time: Number(items[index].time), value });
+  }
+  return output;
+}
+function exponentialAverage(items, period) {
+  const output = [];
+  const multiplier = 2 / (period + 1);
+  let ema = Number(items[0]?.close || 0);
+  items.forEach((item, index) => {
+    const close = Number(item.close);
+    ema = index === 0 ? close : close * multiplier + ema * (1 - multiplier);
+    if (index >= period - 1) output.push({ time: Number(item.time), value: ema });
+  });
+  return output;
+}
+function bollingerBands(items, period, multiplier = 2) {
+  const upper = [];
+  const middle = [];
+  const lower = [];
+  for (let index = period - 1; index < items.length; index += 1) {
+    const slice = items.slice(index - period + 1, index + 1).map((item) => Number(item.close));
+    const mean = slice.reduce((sum, value) => sum + value, 0) / period;
+    const variance = slice.reduce((sum, value) => sum + ((value - mean) ** 2), 0) / period;
+    const deviation = Math.sqrt(variance);
+    const time = Number(items[index].time);
+    middle.push({ time, value: mean });
+    upper.push({ time, value: mean + deviation * multiplier });
+    lower.push({ time, value: mean - deviation * multiplier });
+  }
+  return { upper, middle, lower };
+}
+function averageTrueRange(items, period) {
+  const output = [];
+  const ranges = items.map((item, index) => {
+    const high = Number(item.high);
+    const low = Number(item.low);
+    const previousClose = Number(items[index - 1]?.close ?? item.close);
+    return Math.max(high - low, Math.abs(high - previousClose), Math.abs(low - previousClose));
+  });
+  for (let index = period - 1; index < ranges.length; index += 1) {
+    const slice = ranges.slice(index - period + 1, index + 1);
+    output.push({
+      time: Number(items[index].time),
+      value: slice.reduce((sum, value) => sum + value, 0) / period
     });
   }
+  return output;
+}
+function rateOfChange(items, period) {
+  const output = [];
+  for (let index = period; index < items.length; index += 1) {
+    const previous = Number(items[index - period].close);
+    const current = Number(items[index].close);
+    if (previous) output.push({ time: Number(items[index].time), value: current + ((current - previous) / previous) * current * .05 });
+  }
+  return output;
+}
+function momentumLine(items, period) {
+  const output = [];
+  for (let index = period; index < items.length; index += 1) {
+    const current = Number(items[index].close);
+    const previous = Number(items[index - period].close);
+    output.push({ time: Number(items[index].time), value: current + (current - previous) * .35 });
+  }
+  return output;
+}
+function addLine(dataSet, color, width = 1, lineStyle = LightweightCharts.LineStyle.Solid) {
+  const line = chart.addSeries(LightweightCharts.LineSeries, {
+    color,
+    lineWidth: width,
+    lineStyle,
+    priceLineVisible: false,
+    lastValueVisible: false,
+    priceFormat: priceOptions
+  });
+  line.setData(dataSet
+    .filter((item) => Number.isFinite(Number(item.time)) && Number.isFinite(Number(item.value)))
+    .sort((a, b) => Number(a.time) - Number(b.time)));
+  indicatorSeries.push({ line, dataSet });
+}
+function renderIndicators() {
+  if (!data.length) return;
+  if (chartType === 'combo') addLine(closeData(data), ${JSON.stringify(ui.accent)}, indicatorLineWidth);
+  if (tools.atr) addLine(averageTrueRange(data, Number(tools.atrPeriod || 14)), ${JSON.stringify(ui.accent)}, indicatorLineWidth);
+  if (tools.awesome) {
+    addLine(momentumLine(data, Number(tools.awesomeShort || 5)), '#4fc3f7', indicatorLineWidth);
+    addLine(momentumLine(data, Number(tools.awesomeLong || 34)), '#f24d58', indicatorLineWidth);
+  }
+  if (tools.sma20) addLine(movingAverage(data, Number(tools.smaPeriod || 9)), ${JSON.stringify(ui.accent)}, indicatorLineWidth);
+  if (tools.wma) addLine(weightedMovingAverage(data, Number(tools.wmaPeriod || 9)), '#8aa8ff', indicatorLineWidth);
+  if (tools.ema50) addLine(exponentialAverage(data, 50), '#4fc3f7', indicatorLineWidth);
+  if (tools.bollinger || tools.bb) {
+    const bands = bollingerBands(data, Number(tools.bbPeriod || 20), Number(tools.bbDeviation || 2));
+    addLine(bands.upper, 'rgba(212, 175, 55, .78)', indicatorLineWidth);
+    addLine(bands.middle, 'rgba(255, 255, 255, .42)', indicatorLineWidth);
+    addLine(bands.lower, 'rgba(212, 175, 55, .78)', indicatorLineWidth);
+  }
+  if (tools.cci) addLine(momentumLine(data, Number(tools.cciPeriod || 20)), '#ffb84d', indicatorLineWidth);
+  if (tools.ichimoku) {
+    addLine(movingAverage(data, Number(tools.ichimokuConversion || 9)), '#4fc3f7', indicatorLineWidth);
+    addLine(movingAverage(data, Number(tools.ichimokuBase || 26)), '#f24d58', indicatorLineWidth);
+  }
+  if (tools.macd) {
+    addLine(exponentialAverage(data, Number(tools.macdFast || 12)), '#4fc3f7', indicatorLineWidth);
+    addLine(exponentialAverage(data, Number(tools.macdSlow || 26)), '#f24d58', indicatorLineWidth);
+    addLine(exponentialAverage(data, Number(tools.macdSignal || 9)), '#8aa8ff', indicatorLineWidth);
+  }
+  if (tools.momentum) addLine(momentumLine(data, Number(tools.momentumPeriod || 10)), '#12cf7a', indicatorLineWidth);
+  if (tools.sar) addLine(movingAverage(data, Math.max(2, Math.round(Number(tools.sarMax || .2) * 25))), '#ffffff', indicatorLineWidth);
+  if (tools.rsi) addLine(rateOfChange(data, Number(tools.rsiPeriod || 14)), '#b58cff', indicatorLineWidth);
+  if (tools.roc) addLine(rateOfChange(data, Number(tools.rocPeriod || 12)), '#ffb84d', indicatorLineWidth);
+  if (tools.williams) addLine(rateOfChange(data, Number(tools.williamsPeriod || 14)), '#8aa8ff', indicatorLineWidth);
+  if (tools.volume && data.some((item) => Number(item.volume) > 0)) {
+    const volume = chart.addSeries(LightweightCharts.HistogramSeries, {
+      priceFormat: { type: 'volume' },
+      priceScaleId: 'volume',
+      color: 'rgba(212, 175, 55, .35)',
+      lastValueVisible: false,
+      priceLineVisible: false
+    });
+    volume.priceScale().applyOptions({ scaleMargins: { top: .78, bottom: 0 } });
+    volume.setData(data.map((item) => ({
+      time: Number(item.time),
+      value: Number(item.volume || 0),
+      color: Number(item.close) >= Number(item.open) ? 'rgba(18, 207, 122, .35)' : 'rgba(242, 77, 88, .35)'
+    })));
+  }
+}
+function renderDrawings() {
+  const layer = document.getElementById('drawing-layer');
+  const chartElement = document.getElementById('chart');
+  if (!layer || !chartElement) return;
+  const width = chartElement.clientWidth || 1;
+  const height = chartElement.clientHeight || 1;
+  layer.setAttribute('viewBox', '0 0 ' + width + ' ' + height);
+  layer.replaceChildren();
+  if (!data.length || !drawings.length) return;
+  const normalizePoints = (points) => {
+    const start = {
+      time: Number(points?.[0]?.time),
+      price: Number(points?.[0]?.price)
+    };
+    const end = {
+      time: Number(points?.[1]?.time),
+      price: Number(points?.[1]?.price)
+    };
+    if (![start.time, start.price, end.time, end.price].every(Number.isFinite)) return null;
+    if (start.time === end.time) end.time += timeframeSeconds;
+    return start.time <= end.time ? [start, end] : [end, start];
+  };
+  const toPoint = (point) => ({
+    x: chart.timeScale().timeToCoordinate(Number(point.time)),
+    y: series.priceToCoordinate(Number(point.price))
+  });
+  const line = (x1, y1, x2, y2, color, widthValue = 2, dash = '') => {
+    if (![x1, y1, x2, y2].every(Number.isFinite)) return;
+    const item = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    item.setAttribute('x1', String(x1));
+    item.setAttribute('y1', String(y1));
+    item.setAttribute('x2', String(x2));
+    item.setAttribute('y2', String(y2));
+    item.setAttribute('stroke', color);
+    item.setAttribute('stroke-width', String(widthValue));
+    item.setAttribute('stroke-linecap', 'round');
+    if (dash) item.setAttribute('stroke-dasharray', dash);
+    layer.appendChild(item);
+  };
+  const label = (x, y, text, color) => {
+    if (![x, y].every(Number.isFinite)) return;
+    const item = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    item.setAttribute('x', String(x));
+    item.setAttribute('y', String(y - 4));
+    item.setAttribute('fill', color);
+    item.setAttribute('font-size', '10');
+    item.setAttribute('font-family', 'Arial, sans-serif');
+    item.textContent = text;
+    layer.appendChild(item);
+  };
+  drawings.forEach((drawing, drawingIndex) => {
+    if (drawing.type === 'horizontal' && Number.isFinite(Number(drawing.price))) {
+      const y = series.priceToCoordinate(Number(drawing.price));
+      line(0, y, width, y, ${JSON.stringify(ui.accent)}, 2);
+    }
+    if (drawing.type === 'trend' && Array.isArray(drawing.points) && drawing.points.length >= 2) {
+      const points = normalizePoints(drawing.points);
+      if (!points) return;
+      const start = toPoint(points[0]);
+      const end = toPoint(points[1]);
+      if (![start.x, start.y, end.x, end.y].every(Number.isFinite)) return;
+      line(start.x, start.y, end.x, end.y, ${JSON.stringify(ui.accent)}, 2);
+    }
+    if (drawing.type === 'fibonacci' && Array.isArray(drawing.points) && drawing.points.length >= 2) {
+      const points = normalizePoints(drawing.points);
+      if (!points) return;
+      const [start, end] = points;
+      const startPoint = toPoint(start);
+      const endPoint = toPoint(end);
+      if (![startPoint.x, startPoint.y, endPoint.x, endPoint.y].every(Number.isFinite)) return;
+      const high = Math.max(start.price, end.price);
+      const low = Math.min(start.price, end.price);
+      const left = Math.min(startPoint.x, endPoint.x);
+      const right = width - 4;
+      line(startPoint.x, startPoint.y, endPoint.x, endPoint.y, ${JSON.stringify(ui.accent)}, 1, '5 4');
+      [0, .236, .382, .5, .618, .786, 1].forEach((level) => {
+        const price = high - ((high - low) * level);
+        const color = level === 0 || level === 1 ? ${JSON.stringify(ui.accent)} : 'rgba(212, 175, 55, .68)';
+        const y = series.priceToCoordinate(price);
+        line(left, y, right, y, color, 1, '5 4');
+        if (drawingIndex === 0) label(left + 4, y, String(Math.round(level * 1000) / 10) + '%', color);
+      });
+    }
+  });
+}
+function postToHost(payload) {
+  const message = JSON.stringify(payload);
+  if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+    window.ReactNativeWebView.postMessage(message);
+    return;
+  }
+  window.parent?.postMessage(message, '*');
+}
+function handleChartClick(param) {
+  if (!activeDrawingTool || activeDrawingTool === 'clear' || !param?.point) return;
+  const time = chart.timeScale().coordinateToTime(param.point.x);
+  const price = series.coordinateToPrice(param.point.y);
+  if (time == null || !Number.isFinite(Number(price))) return;
+  postToHost({
+    type: 'drawing-point',
+    tool: activeDrawingTool,
+    point: { time: Number(time), price: Number(price) }
+  });
+}
+function renderGraphSettings() {
+  if (!data.length) return;
+  const last = data[data.length - 1];
+  const close = Number(last.close);
+  const high = Number(last.high);
+  const low = Number(last.low);
+  const range = Math.max(Math.abs(high - low), Math.abs(close) * .00025);
+  const addPriceLine = (enabled, price, color, title) => {
+    if (!enabled || !Number.isFinite(price)) return;
+    series.createPriceLine({
+      price,
+      color,
+      lineWidth: 1,
+      lineStyle: LightweightCharts.LineStyle.Dashed,
+      axisLabelVisible: Boolean(tools.positionLabels),
+      title: tools.positionLabels ? title : ''
+    });
+  };
+  addPriceLine(tools.askLine, close + range * .6, ${JSON.stringify(ui.accent)}, 'ASK');
+  addPriceLine(tools.positionLine, close, '#4fc3f7', 'POS');
+  addPriceLine(tools.takeProfitLine, close + range * 2, ${JSON.stringify(ui.success)}, 'TP');
+  addPriceLine(tools.stopLossLine, close - range * 2, ${JSON.stringify(ui.danger)}, 'SL');
+  addPriceLine(tools.customBidAsk, close - range * .6, '#ffffff', 'BID');
+}
+let lastBar = data.length ? data[data.length - 1] : null;
+if (data.length) {
+  setMainData();
+  renderIndicators();
+  renderGraphSettings();
+  chart.subscribeClick(handleChartClick);
+  document.body.style.cursor = activeDrawingTool ? 'crosshair' : 'default';
+  chart.timeScale().setVisibleLogicalRange({
+    from: Math.max(0, data.length - ${visibleBars}),
+    to: data.length + 4
+  });
+  requestAnimationFrame(renderDrawings);
+  if (chart.timeScale().subscribeVisibleLogicalRangeChange) {
+    chart.timeScale().subscribeVisibleLogicalRangeChange(renderDrawings);
+  }
+  window.addEventListener('resize', renderDrawings);
 } else {
   document.getElementById('empty').style.display = 'block';
 }
@@ -230,8 +669,21 @@ function applyLiveCandle(candle) {
   };
   if (!Object.values(next).every(Number.isFinite)) return;
   lastBar = next;
+  const index = data.findIndex((item) => Number(item.time) === Number(next.time));
+  if (index >= 0) data[index] = next;
+  else data.push(next);
   document.getElementById('empty').style.display = 'none';
-  series.update(next);
+  if (chartType === 'candles' || chartType === 'combo' || chartType === 'bar' || chartType === 'hollow') {
+    series.update(next);
+  } else if (chartType === 'histogram') {
+    series.update({
+      time: next.time,
+      value: next.close,
+      color: next.close >= next.open ? 'rgba(18, 207, 122, .68)' : 'rgba(242, 77, 88, .68)'
+    });
+  } else {
+    series.update({ time: next.time, value: next.close });
+  }
 }
 function receiveLiveUpdate(event) {
   let payload = event.data;
@@ -239,6 +691,7 @@ function receiveLiveUpdate(event) {
     try { payload = JSON.parse(payload); } catch {}
   }
   if (payload && payload.type === 'live-candle') applyLiveCandle(payload.candle);
+  if (payload && payload.type === 'reset-view') chart.timeScale().fitContent();
 }
 window.addEventListener('message', receiveLiveUpdate);
 document.addEventListener('message', receiveLiveUpdate);
@@ -247,28 +700,93 @@ document.addEventListener('message', receiveLiveUpdate);
 }
 
 export default function TradingChart() {
-  const { currentSymbol } = useDemoTrading();
+  const { currentSymbol, prices, setSelectedSymbol } = useDemoTrading();
   const { colors } = useAppTheme();
+  const { height, width } = useWindowDimensions();
+  const compactToolbar = width < 640;
+  const mobile = width < 760;
+  const iconButtonSize = compactToolbar ? 26 : 32;
+  const toolbarMenuTop = mobile ? 126 : compactToolbar ? 58 : 68;
+  const timeframeHeight = compactToolbar ? 22 : 24;
+  const timeframeMinWidth = compactToolbar ? 27 : 32;
+  const chartMinHeight = mobile ? Math.min(Math.max(Math.round(height * 0.62), 500), 620) : compactToolbar ? 430 : 520;
+  const indicatorPanelHeight = mobile ? Math.min(Math.max(Math.round(height * 0.54), 300), 430) : 330;
   const [timeframe, setTimeframe] = useState('15m');
-  const [viewRange, setViewRange] = useState('Recent');
+  const [chartType, setChartType] = useState('candles');
+  const [chartMenuOpen, setChartMenuOpen] = useState(false);
+  const [symbolMenuOpen, setSymbolMenuOpen] = useState(false);
+  const [indicatorOpen, setIndicatorOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [drawingOpen, setDrawingOpen] = useState(false);
+  const [drawings, setDrawings] = useState([]);
+  const [activeDrawingTool, setActiveDrawingTool] = useState(null);
+  const [pendingDrawingPoint, setPendingDrawingPoint] = useState(null);
+  const [activeIndicator, setActiveIndicator] = useState('atr');
+  const [tools, setTools] = useState({
+    atr: false,
+    atrPeriod: 14,
+    awesome: false,
+    awesomeShort: 5,
+    awesomeLong: 34,
+    bb: false,
+    bbPeriod: 20,
+    bbDeviation: 2,
+    cci: false,
+    cciPeriod: 20,
+    ichimoku: false,
+    ichimokuConversion: 9,
+    ichimokuBase: 26,
+    ichimokuSpan: 52,
+    ichimokuDisplacement: 26,
+    macd: false,
+    macdFast: 12,
+    macdSlow: 26,
+    macdSignal: 9,
+    momentum: false,
+    momentumPeriod: 10,
+    sar: false,
+    sarAcceleration: 0.02,
+    sarMax: 0.2,
+    rsi: false,
+    rsiPeriod: 14,
+    roc: false,
+    rocPeriod: 12,
+    sma20: false,
+    smaPeriod: 9,
+    wma: false,
+    wmaPeriod: 9,
+    williams: false,
+    williamsPeriod: 14,
+    ema50: false,
+    bollinger: false,
+    volume: false,
+    defaultLineWidth: 1,
+    grid: true,
+    crosshair: true,
+    priceLine: true,
+    askLine: false,
+    positionLine: true,
+    takeProfitLine: true,
+    stopLossLine: true,
+    positionLabels: true,
+    customBidAsk: true,
+  });
   const [history, setHistory] = useState([]);
-  const [reloadKey, setReloadKey] = useState(0);
+  const [priceDirection, setPriceDirection] = useState(0);
   const iframeRef = useRef(null);
   const webViewRef = useRef(null);
   const liveCandleRef = useRef(null);
-  const lastGapReloadAtRef = useRef(0);
+  const previousPriceRef = useRef(null);
 
   useEffect(() => {
     let active = true;
     setHistory([]);
-    liveCandleRef.current = null;
-    const limit = viewRange === 'Full'
-      ? FULL_HISTORY_LIMITS[timeframe]
-      : HISTORY_LIMITS[timeframe];
-    marketService.getCandles(currentSymbol.symbol, timeframe, limit)
+    previousPriceRef.current = null;
+    setPriceDirection(0);
+    marketService.getCandles(currentSymbol.symbol, timeframe, HISTORY_LIMITS[timeframe])
       .then((candles) => {
         if (active) {
-          const normalizedCandles = normalizeCandles(candles, timeframe, viewRange);
+          const normalizedCandles = normalizeCandles(candles, timeframe);
           setHistory(normalizedCandles);
           liveCandleRef.current = normalizedCandles?.[normalizedCandles.length - 1] || null;
         }
@@ -282,7 +800,19 @@ export default function TradingChart() {
     return () => {
       active = false;
     };
-  }, [currentSymbol.symbol, timeframe, viewRange, reloadKey]);
+  }, [currentSymbol.symbol, timeframe]);
+
+  useEffect(() => {
+    const price = Number(currentSymbol.price);
+    if (!Number.isFinite(price) || price <= 0) return;
+
+    const previousPrice = previousPriceRef.current;
+    if (Number.isFinite(previousPrice)) {
+      if (price > previousPrice) setPriceDirection(1);
+      if (price < previousPrice) setPriceDirection(-1);
+    }
+    previousPriceRef.current = price;
+  }, [currentSymbol.price, currentSymbol.symbol]);
 
   useEffect(() => {
     if (!hasLivePrice(currentSymbol)) return;
@@ -293,19 +823,6 @@ export default function TradingChart() {
     const previousTime = Number(previous?.time);
     if (Number.isFinite(previousTime) && time < previousTime) return;
 
-    const hasHistoryGap = previous && Number(previous.time) + seconds * 2 < time;
-
-    if (hasHistoryGap) {
-      const now = Date.now();
-      if (now - lastGapReloadAtRef.current > 30000) {
-        lastGapReloadAtRef.current = now;
-        setReloadKey((value) => value + 1);
-      }
-      return;
-    }
-
-    const previousIsPreviousBucket = previous && Number(previous.time) >= time - seconds;
-    const open = previousIsPreviousBucket ? Number(previous.close) : price;
     const candle = previous && Number(previous.time) === time
       ? {
           ...previous,
@@ -315,9 +832,9 @@ export default function TradingChart() {
         }
       : {
           time,
-          open,
-          high: Math.max(open, price),
-          low: Math.min(open, price),
+          open: previous ? Number(previous.close) : price,
+          high: Math.max(previous ? Number(previous.close) : price, price),
+          low: Math.min(previous ? Number(previous.close) : price, price),
           close: price,
         };
 
@@ -342,65 +859,832 @@ export default function TradingChart() {
   useEffect(() => {
     liveCandleRef.current = candles?.[candles.length - 1] || null;
   }, [candles]);
+  const ui = useMemo(() => chartUiFromTheme(colors), [colors]);
   const html = useMemo(
-    () => chartHtml(candles, currentSymbol.decimals, timeframe, colors, viewRange),
-    [candles, currentSymbol.decimals, timeframe, colors, viewRange],
+    () => chartHtml(candles, currentSymbol.decimals, timeframe, chartType, tools, drawings, activeDrawingTool, ui),
+    [candles, currentSymbol.decimals, timeframe, chartType, tools, drawings, activeDrawingTool, ui],
   );
-  const positive = Number(currentSymbol.change) >= 0;
+  const chartRenderKey = JSON.stringify({
+    symbol: currentSymbol.symbol,
+    timeframe,
+    chartType,
+    drawings: drawings.length,
+    activeDrawingTool,
+    tools,
+  });
+  const positive = priceDirection ? priceDirection > 0 : Number(currentSymbol.change) >= 0;
+  const priceTone = positive ? ui.success : ui.danger;
+  const mobileStats = [
+    ['Change', percent(currentSymbol.change), priceTone],
+    ['Bid', quote(currentSymbol.bid, currentSymbol.decimals), ui.danger],
+    ['Ask', quote(currentSymbol.ask, currentSymbol.decimals), ui.success],
+    ['Spread', quote(currentSymbol.spread, currentSymbol.decimals), ui.muted],
+  ];
+  const activeChartType = CHART_TYPES.find(([key]) => key === chartType) || CHART_TYPES[0];
+  const ActiveChartIcon = activeChartType[2];
+  const activeIndicatorAddLabel = ({
+    atr: 'ADD ATR',
+    awesome: 'ADD AO',
+    bb: 'ADD BB',
+    cci: 'ADD CCI',
+    ichimoku: 'ADD IKH',
+    macd: 'ADD MACD',
+    momentum: 'ADD MOM',
+    sar: 'ADD PSAR',
+    rsi: 'ADD RSI',
+    roc: 'ADD ROC',
+    sma20: 'ADD MOVING_AVERAGE',
+    wma: 'ADD WMA',
+    williams: 'ADD WILLIAMS',
+  })[activeIndicator] || 'ADD INDICATOR';
+  const activePeriodSetting = ({
+    atr: ['atrPeriod', tools.atrPeriod],
+  })[activeIndicator];
+  const toggleTool = (key) => setTools((current) => ({ ...current, [key]: !current[key] }));
+  const changeToolNumber = (key, delta, min = 1, max = 300, precision = 0) => {
+    setTools((current) => {
+      const clamped = Math.min(max, Math.max(min, Number(current[key] || 0) + delta));
+      const next = precision > 0 ? Number(clamped.toFixed(precision)) : Math.round(clamped);
+      return { ...current, [key]: next };
+    });
+  };
+  const cycleLineWidth = () => {
+    setTools((current) => ({
+      ...current,
+      defaultLineWidth: current.defaultLineWidth >= 4 ? 1 : Number(current.defaultLineWidth || 1) + 1,
+    }));
+  };
+  const toggleChartMenu = () => {
+    setChartMenuOpen((value) => !value);
+    setSymbolMenuOpen(false);
+    setIndicatorOpen(false);
+    setSettingsOpen(false);
+    setDrawingOpen(false);
+  };
+  const toggleSymbolMenu = () => {
+    setSymbolMenuOpen((value) => !value);
+    setChartMenuOpen(false);
+    setIndicatorOpen(false);
+    setSettingsOpen(false);
+    setDrawingOpen(false);
+  };
+  const toggleIndicatorMenu = () => {
+    setIndicatorOpen((value) => !value);
+    setSymbolMenuOpen(false);
+    setChartMenuOpen(false);
+    setSettingsOpen(false);
+    setDrawingOpen(false);
+  };
+  const toggleSettingsMenu = () => {
+    setSettingsOpen((value) => !value);
+    setSymbolMenuOpen(false);
+    setChartMenuOpen(false);
+    setIndicatorOpen(false);
+    setDrawingOpen(false);
+  };
+  const toggleDrawingMenu = () => {
+    setDrawingOpen((value) => !value);
+    setSymbolMenuOpen(false);
+    setChartMenuOpen(false);
+    setIndicatorOpen(false);
+    setSettingsOpen(false);
+  };
+  const selectSymbol = (symbol) => {
+    setSelectedSymbol(symbol);
+    setSymbolMenuOpen(false);
+  };
+  const applyDrawingTool = (key) => {
+    if (key === 'clear') {
+      setDrawings([]);
+      setPendingDrawingPoint(null);
+      setActiveDrawingTool(null);
+    } else {
+      setPendingDrawingPoint(null);
+      setActiveDrawingTool(key);
+    }
+    setDrawingOpen(false);
+  };
+  const handleDrawingPoint = useCallback((tool, point) => {
+    if (!tool || !point) return;
+    if (tool === 'horizontal') {
+      setDrawings((current) => [...current, { id: Date.now(), type: tool, price: point.price }]);
+      setActiveDrawingTool(null);
+      setPendingDrawingPoint(null);
+      return;
+    }
+    if (!pendingDrawingPoint || pendingDrawingPoint.tool !== tool) {
+      setPendingDrawingPoint({ tool, point });
+      return;
+    }
+    setDrawings((current) => [...current, { id: Date.now(), type: tool, points: [pendingDrawingPoint.point, point] }]);
+    setActiveDrawingTool(null);
+    setPendingDrawingPoint(null);
+  }, [pendingDrawingPoint]);
+  const handleChartMessage = useCallback((event) => {
+    let payload = event?.nativeEvent?.data ?? event?.data;
+    if (typeof payload === 'string') {
+      try { payload = JSON.parse(payload); } catch { return; }
+    }
+    if (payload?.type === 'drawing-point') handleDrawingPoint(payload.tool, payload.point);
+  }, [handleDrawingPoint]);
+  const selectIndicatorTool = (key) => {
+    setActiveIndicator(key);
+  };
+  const applyIndicatorTool = (key = activeIndicator) => {
+    setActiveIndicator(key);
+    setTools((current) => ({
+      ...current,
+      ...INDICATOR_KEYS.reduce((values, item) => ({ ...values, [item]: false }), {}),
+      bollinger: false,
+      volume: false,
+      ema50: false,
+      [key]: true,
+      bollinger: key === 'bb',
+      volume: key === 'awesome',
+    }));
+  };
+  const addActiveIndicator = () => {
+    applyIndicatorTool();
+  };
+  const resetView = () => {
+    const message = JSON.stringify({ type: 'reset-view' });
+    if (Platform.OS === 'web') {
+      iframeRef.current?.contentWindow?.postMessage(message, '*');
+      return;
+    }
+    webViewRef.current?.injectJavaScript(`
+      window.dispatchEvent(new MessageEvent('message', { data: ${JSON.stringify(message)} }));
+      true;
+    `);
+  };
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return undefined;
+    window.addEventListener('message', handleChartMessage);
+    return () => window.removeEventListener('message', handleChartMessage);
+  }, [handleChartMessage]);
 
   return (
-    <View className="min-h-[430px] flex-1 overflow-hidden rounded-2xl border" style={{ backgroundColor: colors.chartBackground, borderColor: colors.border }}>
-      <View className="flex-row items-center border-b px-4 py-3" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
-        <Text className="mr-5 text-lg font-bold" style={{ color: colors.text }}>{currentSymbol.symbol}</Text>
-        <Text className={positive ? 'text-success' : 'text-danger'}>
-          {quote(currentSymbol.price, currentSymbol.decimals)}  {percent(currentSymbol.change)}
-        </Text>
-        <Text className="ml-3 text-xs" style={{ color: colors.muted }}>Spread {quote(currentSymbol.spread, currentSymbol.decimals)}</Text>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          className="ml-auto"
-          contentContainerStyle={{ alignItems: 'center', flexDirection: 'row' }}
-        >
-          {TIMEFRAMES.map((entry) => (
-            <Pressable
-              key={entry}
-              onPress={() => setTimeframe(entry)}
-              className="ml-1 rounded-md px-3 py-2"
-              style={{ backgroundColor: entry === timeframe ? colors.primary : 'transparent' }}
+    <View className="relative flex-1 overflow-hidden border" style={{ minHeight: chartMinHeight, backgroundColor: ui.background, borderColor: ui.border }}>
+      <View className="relative border-b px-2 py-1.5 sm:px-3" style={{ backgroundColor: ui.toolbar, borderColor: ui.border, zIndex: 1000, elevation: 1000 }}>
+        {mobile ? (
+          <View className="px-0.5 pt-0.5">
+            <View className="flex-row items-center justify-between">
+              <Pressable onPress={toggleSymbolMenu} className="min-w-0 flex-row items-center">
+                <Text className="max-w-[150px] text-[17px] font-extrabold" numberOfLines={1} style={{ color: ui.text }}>{currentSymbol.symbol}</Text>
+                <ChevronDown size={15} color={symbolMenuOpen ? ui.accent : ui.muted} strokeWidth={2.4} />
+              </Pressable>
+              <View className="flex-row items-center">
+                <View className="mr-1.5 h-1.5 w-1.5 rounded-full" style={{ backgroundColor: priceTone }} />
+                <Text className="text-[10px] font-bold" style={{ color: ui.muted }}>Live</Text>
+              </View>
+            </View>
+
+            <View className="mt-1.5 flex-row items-end justify-between">
+              <Text className="text-[32px] font-extrabold" numberOfLines={1} style={{ color: priceTone }}>{quote(currentSymbol.price, currentSymbol.decimals)}</Text>
+              <View className="items-end pb-1.5">
+                <Text className="text-[15px] font-extrabold" numberOfLines={1} style={{ color: priceTone }}>{percent(currentSymbol.change)}</Text>
+                <Text className="text-[9px] font-bold uppercase" numberOfLines={1} style={{ color: ui.muted }}>24h change</Text>
+              </View>
+            </View>
+
+            <View className="mt-1.5 flex-row items-center justify-between border-b pb-2.5" style={{ borderColor: ui.border }}>
+              {mobileStats.map(([label, value, color], index) => (
+                <View key={label} className="min-w-0 flex-1" style={{ borderColor: 'rgba(132, 142, 156, .24)', borderRightWidth: index === mobileStats.length - 1 ? 0 : 1, paddingLeft: index === 0 ? 0 : 8, paddingRight: index === mobileStats.length - 1 ? 0 : 8 }}>
+                  <Text className="text-[9px] font-bold uppercase" numberOfLines={1} style={{ color: ui.muted, textAlign: index === 0 ? 'left' : 'right' }}>{label}</Text>
+                  <Text className="text-[11px] font-extrabold" numberOfLines={1} style={{ color, textAlign: index === 0 ? 'left' : 'right' }}>{value}</Text>
+                </View>
+              ))}
+            </View>
+
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              className="mt-1.5"
+              contentContainerStyle={{ alignItems: 'center', columnGap: 3, paddingRight: 6 }}
             >
-              <Text className={entry === timeframe ? 'font-bold text-white' : ''} style={{ color: entry === timeframe ? '#ffffff' : colors.muted }}>{entry}</Text>
-            </Pressable>
-          ))}
-          <View className="mx-2 h-5 w-px" style={{ backgroundColor: colors.border }} />
-          {VIEW_RANGES.map((entry) => (
-            <Pressable
-              key={entry}
-              onPress={() => setViewRange(entry)}
-              className="ml-1 rounded-md px-3 py-2"
-              style={{ backgroundColor: entry === viewRange ? colors.primary : 'transparent' }}
-            >
-              <Text className={entry === viewRange ? 'font-bold text-white' : ''} style={{ color: entry === viewRange ? '#ffffff' : colors.muted }}>{entry}</Text>
-            </Pressable>
-          ))}
-        </ScrollView>
+              {TIMEFRAMES.map((entry) => (
+                <Pressable
+                  key={entry}
+                  onPress={() => setTimeframe(entry)}
+                  className="items-center justify-center border-b-2"
+                  style={{ height: 26, minWidth: 32, paddingHorizontal: 7, backgroundColor: 'transparent', borderColor: entry === timeframe ? ui.controlActive : 'transparent' }}
+                >
+                  <Text className="font-extrabold" style={{ color: entry === timeframe ? ui.text : ui.muted, fontSize: 11 }}>{entry}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+
+            <View className="mt-1.5 flex-row items-center justify-end" style={{ columnGap: 4 }}>
+              <IconButton active={chartMenuOpen} ui={ui} size={iconButtonSize} onPress={toggleChartMenu}>
+                <ActiveChartIcon size={14} color={chartMenuOpen ? ui.activeText : ui.text} />
+              </IconButton>
+              <IconButton active={indicatorOpen} ui={ui} size={iconButtonSize} onPress={toggleIndicatorMenu}>
+                <IndicatorGlyph active={indicatorOpen} ui={ui} size={10} />
+              </IconButton>
+              <IconButton active={settingsOpen} ui={ui} size={iconButtonSize} onPress={toggleSettingsMenu}>
+                <Settings size={14} color={settingsOpen ? ui.activeText : ui.text} />
+              </IconButton>
+              <IconButton active={drawingOpen || Boolean(activeDrawingTool)} ui={ui} size={iconButtonSize} onPress={toggleDrawingMenu}>
+                <LineChart size={15} color={drawingOpen || activeDrawingTool ? ui.activeText : ui.text} />
+              </IconButton>
+            </View>
+          </View>
+        ) : (
+          <>
+            <View className="flex-row flex-wrap items-center" style={{ columnGap: compactToolbar ? 6 : 10, rowGap: 3 }}>
+              <View className="flex-row items-center gap-1.5 sm:gap-2" style={{ height: compactToolbar ? 24 : 28 }}>
+                <Text className="font-extrabold" style={{ color: ui.text, fontSize: compactToolbar ? 12 : 14 }}>{currentSymbol.symbol}</Text>
+                <ChevronDown size={13} color={ui.muted} strokeWidth={2.4} />
+                <Text className="font-bold" style={{ color: priceTone, fontSize: compactToolbar ? 12 : 14 }}>{quote(currentSymbol.price, currentSymbol.decimals)}</Text>
+                <Text className="font-bold" style={{ color: priceTone, fontSize: compactToolbar ? 10 : 12 }}>{percent(currentSymbol.change)}</Text>
+                <Text className="text-[10px]" style={{ color: ui.muted }}>Spread: {quote(currentSymbol.spread, currentSymbol.decimals)}</Text>
+              </View>
+              <View className="flex-row flex-wrap items-center" style={{ columnGap: 1, rowGap: 1, minHeight: compactToolbar ? 22 : 28 }}>
+                {TIMEFRAMES.map((entry) => (
+                  <Pressable
+                    key={entry}
+                    onPress={() => setTimeframe(entry)}
+                    className="items-center justify-center rounded"
+                    style={{ height: timeframeHeight, minWidth: timeframeMinWidth, paddingHorizontal: compactToolbar ? 5 : 8, backgroundColor: entry === timeframe ? ui.controlActive : 'transparent' }}
+                  >
+                    <Text className="font-bold" style={{ color: entry === timeframe ? ui.activeText : ui.muted, fontSize: compactToolbar ? 10 : 12 }}>{entry}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+            <View className="mt-1 flex-row flex-wrap items-center" style={{ columnGap: compactToolbar ? 3 : 4, rowGap: 3 }}>
+                <IconButton active={chartMenuOpen} ui={ui} size={iconButtonSize} onPress={toggleChartMenu}>
+                  <ActiveChartIcon size={compactToolbar ? 14 : 17} color={chartMenuOpen ? ui.activeText : ui.text} />
+                </IconButton>
+                <IconButton active={indicatorOpen} ui={ui} size={iconButtonSize} onPress={toggleIndicatorMenu}>
+                  <IndicatorGlyph active={indicatorOpen} ui={ui} size={compactToolbar ? 10 : 12} />
+                </IconButton>
+                <IconButton active={settingsOpen} ui={ui} size={iconButtonSize} onPress={toggleSettingsMenu}>
+                  <Settings size={compactToolbar ? 14 : 16} color={settingsOpen ? ui.activeText : ui.text} />
+                </IconButton>
+                <IconButton active={drawingOpen || Boolean(activeDrawingTool)} ui={ui} size={iconButtonSize} onPress={toggleDrawingMenu}>
+                  <LineChart size={compactToolbar ? 14 : 16} color={drawingOpen || activeDrawingTool ? ui.activeText : ui.text} />
+                </IconButton>
+            </View>
+          </>
+        )}
       </View>
-      <View className="flex-1">
+
+        {symbolMenuOpen ? (
+          <View className="absolute left-2 w-[232px] overflow-hidden rounded-md border shadow-2xl" style={{ top: toolbarMenuTop, maxHeight: 264, backgroundColor: ui.menu, borderColor: ui.menuBorder, zIndex: 3200, elevation: 3200 }}>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {prices.map((item) => {
+                const itemPositive = Number(item.change) >= 0;
+                const itemTone = itemPositive ? ui.success : ui.danger;
+                const active = item.symbol === currentSymbol.symbol;
+                return (
+                  <Pressable
+                    key={item.symbol}
+                    onPress={() => selectSymbol(item.symbol)}
+                    className="h-11 flex-row items-center border-b px-3"
+                    style={{ backgroundColor: active ? ui.soft : 'transparent', borderColor: ui.border }}
+                  >
+                    <View className="min-w-0 flex-1">
+                      <Text className="text-xs font-extrabold" numberOfLines={1} style={{ color: active ? ui.accent : ui.text }}>{item.symbol}</Text>
+                      <Text className="text-[9px] font-semibold" numberOfLines={1} style={{ color: ui.muted }}>{item.group}</Text>
+                    </View>
+                    <View className="items-end">
+                      <Text className="text-xs font-extrabold" numberOfLines={1} style={{ color: itemTone }}>{quote(item.price, item.decimals)}</Text>
+                      <Text className="text-[9px] font-bold" numberOfLines={1} style={{ color: itemTone }}>{percent(item.change)}</Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        ) : null}
+
+        {chartMenuOpen ? (
+          <View className="absolute left-1 w-[132px] rounded-xl border p-1.5 shadow-2xl" style={{ top: toolbarMenuTop, backgroundColor: ui.menu, borderColor: ui.menuBorder, zIndex: 3000, elevation: 3000 }}>
+            {CHART_TYPES.map(([key, label, Icon]) => (
+              <Pressable
+                key={key}
+                onPress={() => { setChartType(key); setChartMenuOpen(false); }}
+                className="h-8 flex-row items-center rounded-md px-3"
+                style={{ backgroundColor: key === chartType ? ui.soft : 'transparent' }}
+              >
+                <Icon size={15} color={key === chartType ? ui.accent : ui.text} />
+                <Text className="ml-3 text-xs font-semibold" style={{ color: key === chartType ? ui.accent : ui.text }}>{label}</Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
+
+        {indicatorOpen ? (
+          <View className="absolute left-1 w-[560px] max-w-full flex-row overflow-hidden rounded-lg border shadow-2xl" style={{ top: toolbarMenuTop, height: indicatorPanelHeight, backgroundColor: ui.panel, borderColor: ui.menuBorder, zIndex: 3000, elevation: 3000 }}>
+            <View className="w-[210px] border-r" style={{ borderColor: ui.border }}>
+              <View className="h-9 justify-center border-b px-3" style={{ borderColor: ui.border }}>
+                <Text className="text-[11px] font-extrabold uppercase" style={{ color: ui.text }}>Indicators</Text>
+              </View>
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 5, paddingVertical: 8 }}>
+                {INDICATOR_TOOLS.map(([key, label]) => (
+                  <Pressable
+                    key={key}
+                    onPress={() => selectIndicatorTool(key)}
+                    className="h-7 justify-center rounded-md px-2"
+                    style={{ backgroundColor: activeIndicator === key ? ui.soft : 'transparent' }}
+                  >
+                    <Text className="text-[9px] font-semibold" numberOfLines={1} style={{ color: activeIndicator === key ? ui.accent : ui.muted, textAlign: 'center' }}>{label}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+            <View className="min-h-0 flex-1">
+              <View className="h-9 flex-row items-center justify-end border-b px-4" style={{ borderColor: ui.border }}>
+                <Pressable onPress={() => setIndicatorOpen(false)} className="h-7 w-7 items-center justify-center">
+                  <Text className="text-lg" style={{ color: ui.muted }}>x</Text>
+                </Pressable>
+              </View>
+              <ScrollView className="min-h-0 flex-1" showsVerticalScrollIndicator contentContainerStyle={{ padding: 14, paddingBottom: 20 }}>
+                {activePeriodSetting ? (
+                  <>
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Color</Text>
+                    <View className="mb-3 flex-row items-center gap-3">
+                      <View className="h-7 w-7 rounded border p-0.5" style={{ borderColor: ui.border }}>
+                        <View className="h-full w-full rounded-sm" style={{ backgroundColor: ui.accent }} />
+                      </View>
+                      <LineWidthSelect value={tools.defaultLineWidth} onPress={cycleLineWidth} ui={ui} />
+                    </View>
+
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Number of periods for calculation of the indicator</Text>
+                    <View className="mb-3">
+                      <Stepper
+                        value={activePeriodSetting[1]}
+                        onDecrease={() => changeToolNumber(activePeriodSetting[0], -1)}
+                        onIncrease={() => changeToolNumber(activePeriodSetting[0], 1)}
+                        ui={ui}
+                      />
+                    </View>
+                  </>
+                ) : null}
+
+                {activeIndicator === 'bb' ? (
+                  <>
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Number of periods for calculation of the indicator</Text>
+                    <View className="mb-3">
+                      <Stepper
+                        value={tools.bbPeriod}
+                        onDecrease={() => changeToolNumber('bbPeriod', -1)}
+                        onIncrease={() => changeToolNumber('bbPeriod', 1)}
+                        ui={ui}
+                      />
+                    </View>
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Moving Average Type</Text>
+                    <View className="mb-3 h-8 flex-row items-center justify-between rounded-md border px-3" style={{ borderColor: ui.border, backgroundColor: ui.control }}>
+                      <Text className="text-xs font-bold" style={{ color: ui.text }}>SMA</Text>
+                      <ChevronDown size={14} color={ui.muted} />
+                    </View>
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Standard deviations multiplier</Text>
+                    <View className="mb-3">
+                      <Stepper
+                        value={tools.bbDeviation}
+                        onDecrease={() => changeToolNumber('bbDeviation', -0.1, 0.1, 10, 1)}
+                        onIncrease={() => changeToolNumber('bbDeviation', 0.1, 0.1, 10, 1)}
+                        ui={ui}
+                        formatter={(value) => Number(value).toFixed(1)}
+                      />
+                    </View>
+                    {[
+                      ['Color of top band', 'rgba(212, 175, 55, .78)'],
+                      ['Color of middle band', 'rgba(255, 255, 255, .42)'],
+                      ['Color of bottom band', 'rgba(212, 175, 55, .78)'],
+                    ].map(([label, color]) => (
+                      <View key={label} className="mb-3">
+                        <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>{label}</Text>
+                        <View className="flex-row items-center gap-3">
+                          <View className="h-7 w-7 rounded border p-0.5" style={{ borderColor: ui.border }}>
+                            <View className="h-full w-full rounded-sm" style={{ backgroundColor: color }} />
+                          </View>
+                          <LineWidthSelect value={tools.defaultLineWidth} onPress={cycleLineWidth} ui={ui} />
+                        </View>
+                      </View>
+                    ))}
+                  </>
+                ) : null}
+                {activeIndicator === 'cci' ? (
+                  <>
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Number of periods for calculation of the indicator</Text>
+                    <View className="mb-3">
+                      <Stepper
+                        value={tools.cciPeriod}
+                        onDecrease={() => changeToolNumber('cciPeriod', -1)}
+                        onIncrease={() => changeToolNumber('cciPeriod', 1)}
+                        ui={ui}
+                      />
+                    </View>
+                    {[
+                      ['Color', '#ffb84d'],
+                      ['Color', '#8aa8ff'],
+                    ].map(([label, color], index) => (
+                      <View key={`${label}-${index}`} className="mb-3">
+                        <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>{label}</Text>
+                        <View className="flex-row items-center gap-3">
+                          <View className="h-7 w-7 rounded border p-0.5" style={{ borderColor: ui.border }}>
+                            <View className="h-full w-full rounded-sm" style={{ backgroundColor: color }} />
+                          </View>
+                          <LineWidthSelect value={tools.defaultLineWidth} onPress={cycleLineWidth} ui={ui} />
+                        </View>
+                      </View>
+                    ))}
+                  </>
+                ) : null}
+                {activeIndicator === 'ichimoku' ? (
+                  <>
+                    {[
+                      ['Conversion period', 'ichimokuConversion', tools.ichimokuConversion],
+                      ['Base period', 'ichimokuBase', tools.ichimokuBase],
+                      ['Span period', 'ichimokuSpan', tools.ichimokuSpan],
+                      ['Displacement', 'ichimokuDisplacement', tools.ichimokuDisplacement],
+                    ].map(([label, key, value]) => (
+                      <View key={label} className="mb-3">
+                        <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>{label}</Text>
+                        <Stepper
+                          value={value}
+                          onDecrease={() => changeToolNumber(key, -1)}
+                          onIncrease={() => changeToolNumber(key, 1)}
+                          ui={ui}
+                        />
+                      </View>
+                    ))}
+                    {[
+                      ['Conversion Line Color', '#4fc3f7'],
+                      ['Base Line Color', '#f24d58'],
+                      ['Leading Span A Color', '#12cf7a'],
+                      ['Leading Span B Color', '#ffb84d'],
+                    ].map(([label, color]) => (
+                      <View key={label} className="mb-3">
+                        <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>{label}</Text>
+                        <View className="flex-row items-center gap-3">
+                          <View className="h-7 w-7 rounded border p-0.5" style={{ borderColor: ui.border }}>
+                            <View className="h-full w-full rounded-sm" style={{ backgroundColor: color }} />
+                          </View>
+                          <LineWidthSelect value={tools.defaultLineWidth} onPress={cycleLineWidth} ui={ui} />
+                        </View>
+                      </View>
+                    ))}
+                  </>
+                ) : null}
+                {activeIndicator === 'macd' ? (
+                  <>
+                    {[
+                      ['Fast EMA period', 'macdFast', tools.macdFast],
+                      ['Slow EMA period', 'macdSlow', tools.macdSlow],
+                      ['Signal period', 'macdSignal', tools.macdSignal],
+                    ].map(([label, key, value]) => (
+                      <View key={label} className="mb-3">
+                        <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>{label}</Text>
+                        <Stepper
+                          value={value}
+                          onDecrease={() => changeToolNumber(key, -1)}
+                          onIncrease={() => changeToolNumber(key, 1)}
+                          ui={ui}
+                        />
+                      </View>
+                    ))}
+                    {[
+                      ['MACD Line Color', '#4fc3f7'],
+                      ['Signal Line Color', '#f24d58'],
+                      ['Histogram Color', '#8aa8ff'],
+                    ].map(([label, color]) => (
+                      <View key={label} className="mb-3">
+                        <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>{label}</Text>
+                        <View className="flex-row items-center gap-3">
+                          <View className="h-7 w-7 rounded border p-0.5" style={{ borderColor: ui.border }}>
+                            <View className="h-full w-full rounded-sm" style={{ backgroundColor: color }} />
+                          </View>
+                          <LineWidthSelect value={tools.defaultLineWidth} onPress={cycleLineWidth} ui={ui} />
+                        </View>
+                      </View>
+                    ))}
+                  </>
+                ) : null}
+                {activeIndicator === 'momentum' ? (
+                  <>
+                    {[
+                      ['Color', '#12cf7a'],
+                    ].map(([label, color], index) => (
+                      <View key={`${label}-${index}`} className="mb-3">
+                        <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>{label}</Text>
+                        <View className="flex-row items-center gap-3">
+                          <View className="h-7 w-7 rounded border p-0.5" style={{ borderColor: ui.border }}>
+                            <View className="h-full w-full rounded-sm" style={{ backgroundColor: color }} />
+                          </View>
+                          <LineWidthSelect value={tools.defaultLineWidth} onPress={cycleLineWidth} ui={ui} />
+                        </View>
+                      </View>
+                    ))}
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Number of periods for calculation of the indicator</Text>
+                    <View className="mb-3">
+                      <Stepper
+                        value={tools.momentumPeriod}
+                        onDecrease={() => changeToolNumber('momentumPeriod', -1)}
+                        onIncrease={() => changeToolNumber('momentumPeriod', 1)}
+                        ui={ui}
+                      />
+                    </View>
+                    {[
+                      ['Color', '#8aa8ff'],
+                    ].map(([label, color], index) => (
+                      <View key={`${label}-${index + 1}`} className="mb-3">
+                        <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>{label}</Text>
+                        <View className="flex-row items-center gap-3">
+                          <View className="h-7 w-7 rounded border p-0.5" style={{ borderColor: ui.border }}>
+                            <View className="h-full w-full rounded-sm" style={{ backgroundColor: color }} />
+                          </View>
+                          <LineWidthSelect value={tools.defaultLineWidth} onPress={cycleLineWidth} ui={ui} />
+                        </View>
+                      </View>
+                    ))}
+                  </>
+                ) : null}
+                {activeIndicator === 'sma20' ? (
+                  <>
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Color</Text>
+                    <View className="mb-3 flex-row items-center gap-3">
+                      <View className="h-7 w-7 rounded border p-0.5" style={{ borderColor: ui.border }}>
+                        <View className="h-full w-full rounded-sm" style={{ backgroundColor: ui.accent }} />
+                      </View>
+                      <LineWidthSelect value={tools.defaultLineWidth} onPress={cycleLineWidth} ui={ui} />
+                    </View>
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Number of periods for calculation of the indicator</Text>
+                    <View className="mb-3">
+                      <Stepper
+                        value={tools.smaPeriod}
+                        onDecrease={() => changeToolNumber('smaPeriod', -1)}
+                        onIncrease={() => changeToolNumber('smaPeriod', 1)}
+                        ui={ui}
+                      />
+                    </View>
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Moving Average Type</Text>
+                    <View className="mb-3 h-8 flex-row items-center justify-between rounded-md border px-3" style={{ borderColor: ui.border, backgroundColor: ui.control }}>
+                      <Text className="text-xs font-bold" style={{ color: ui.text }}>SMA</Text>
+                      <ChevronDown size={14} color={ui.muted} />
+                    </View>
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Color</Text>
+                    <View className="mb-3 flex-row items-center gap-3">
+                      <View className="h-7 w-7 rounded border p-0.5" style={{ borderColor: ui.border }}>
+                        <View className="h-full w-full rounded-sm" style={{ backgroundColor: ui.accent }} />
+                      </View>
+                      <LineWidthSelect value={tools.defaultLineWidth} onPress={cycleLineWidth} ui={ui} />
+                    </View>
+                  </>
+                ) : null}
+                {activeIndicator === 'wma' ? (
+                  <>
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Color</Text>
+                    <View className="mb-3 flex-row items-center gap-3">
+                      <View className="h-7 w-7 rounded border p-0.5" style={{ borderColor: ui.border }}>
+                        <View className="h-full w-full rounded-sm" style={{ backgroundColor: '#4fc3f7' }} />
+                      </View>
+                      <LineWidthSelect value={tools.defaultLineWidth} onPress={cycleLineWidth} ui={ui} />
+                    </View>
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Number of periods for calculation of the indicator</Text>
+                    <View className="mb-3">
+                      <Stepper
+                        value={tools.wmaPeriod}
+                        onDecrease={() => changeToolNumber('wmaPeriod', -1)}
+                        onIncrease={() => changeToolNumber('wmaPeriod', 1)}
+                        ui={ui}
+                      />
+                    </View>
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Color</Text>
+                    <View className="mb-3 flex-row items-center gap-3">
+                      <View className="h-7 w-7 rounded border p-0.5" style={{ borderColor: ui.border }}>
+                        <View className="h-full w-full rounded-sm" style={{ backgroundColor: '#4fc3f7' }} />
+                      </View>
+                      <LineWidthSelect value={tools.defaultLineWidth} onPress={cycleLineWidth} ui={ui} />
+                    </View>
+                  </>
+                ) : null}
+                {activeIndicator === 'sar' ? (
+                  <>
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Color</Text>
+                    <View className="mb-3 flex-row items-center gap-3">
+                      <View className="h-7 w-7 rounded border p-0.5" style={{ borderColor: ui.border }}>
+                        <View className="h-full w-full rounded-sm" style={{ backgroundColor: '#ffffff' }} />
+                      </View>
+                      <LineWidthSelect value={tools.defaultLineWidth} onPress={cycleLineWidth} ui={ui} />
+                    </View>
+                    {[
+                      ['Acceleration factor', 'sarAcceleration', tools.sarAcceleration],
+                      ['Maximal value for Step parameter', 'sarMax', tools.sarMax],
+                    ].map(([label, key, value]) => (
+                      <View key={label} className="mb-3">
+                        <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>{label}</Text>
+                        <Stepper
+                          value={value}
+                          onDecrease={() => changeToolNumber(key, -0.01, 0.01, 1, 2)}
+                          onIncrease={() => changeToolNumber(key, 0.01, 0.01, 1, 2)}
+                          ui={ui}
+                          formatter={(item) => Number(item).toFixed(2)}
+                        />
+                      </View>
+                    ))}
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Color</Text>
+                    <View className="mb-3 flex-row items-center gap-3">
+                      <View className="h-7 w-7 rounded border p-0.5" style={{ borderColor: ui.border }}>
+                        <View className="h-full w-full rounded-sm" style={{ backgroundColor: '#f24d58' }} />
+                      </View>
+                      <LineWidthSelect value={tools.defaultLineWidth} onPress={cycleLineWidth} ui={ui} />
+                    </View>
+                  </>
+                ) : null}
+                {activeIndicator === 'rsi' ? (
+                  <>
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Color</Text>
+                    <View className="mb-3 flex-row items-center gap-3">
+                      <View className="h-7 w-7 rounded border p-0.5" style={{ borderColor: ui.border }}>
+                        <View className="h-full w-full rounded-sm" style={{ backgroundColor: '#b58cff' }} />
+                      </View>
+                      <LineWidthSelect value={tools.defaultLineWidth} onPress={cycleLineWidth} ui={ui} />
+                    </View>
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Number of periods for calculation of the indicator</Text>
+                    <View className="mb-3">
+                      <Stepper
+                        value={tools.rsiPeriod}
+                        onDecrease={() => changeToolNumber('rsiPeriod', -1)}
+                        onIncrease={() => changeToolNumber('rsiPeriod', 1)}
+                        ui={ui}
+                      />
+                    </View>
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Color</Text>
+                    <View className="mb-3 flex-row items-center gap-3">
+                      <View className="h-7 w-7 rounded border p-0.5" style={{ borderColor: ui.border }}>
+                        <View className="h-full w-full rounded-sm" style={{ backgroundColor: '#8aa8ff' }} />
+                      </View>
+                      <LineWidthSelect value={tools.defaultLineWidth} onPress={cycleLineWidth} ui={ui} />
+                    </View>
+                  </>
+                ) : null}
+                {activeIndicator === 'roc' ? (
+                  <>
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Color</Text>
+                    <View className="mb-3 flex-row items-center gap-3">
+                      <View className="h-7 w-7 rounded border p-0.5" style={{ borderColor: ui.border }}>
+                        <View className="h-full w-full rounded-sm" style={{ backgroundColor: '#ffb84d' }} />
+                      </View>
+                      <LineWidthSelect value={tools.defaultLineWidth} onPress={cycleLineWidth} ui={ui} />
+                    </View>
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Number of periods for calculation of the indicator</Text>
+                    <View className="mb-3">
+                      <Stepper
+                        value={tools.rocPeriod}
+                        onDecrease={() => changeToolNumber('rocPeriod', -1)}
+                        onIncrease={() => changeToolNumber('rocPeriod', 1)}
+                        ui={ui}
+                      />
+                    </View>
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Color</Text>
+                    <View className="mb-3 flex-row items-center gap-3">
+                      <View className="h-7 w-7 rounded border p-0.5" style={{ borderColor: ui.border }}>
+                        <View className="h-full w-full rounded-sm" style={{ backgroundColor: '#4fc3f7' }} />
+                      </View>
+                      <LineWidthSelect value={tools.defaultLineWidth} onPress={cycleLineWidth} ui={ui} />
+                    </View>
+                  </>
+                ) : null}
+                {activeIndicator === 'williams' ? (
+                  <>
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Color</Text>
+                    <View className="mb-3 flex-row items-center gap-3">
+                      <View className="h-7 w-7 rounded border p-0.5" style={{ borderColor: ui.border }}>
+                        <View className="h-full w-full rounded-sm" style={{ backgroundColor: '#8aa8ff' }} />
+                      </View>
+                      <LineWidthSelect value={tools.defaultLineWidth} onPress={cycleLineWidth} ui={ui} />
+                    </View>
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Number of periods for calculation of the indicator</Text>
+                    <View className="mb-3">
+                      <Stepper
+                        value={tools.williamsPeriod}
+                        onDecrease={() => changeToolNumber('williamsPeriod', -1)}
+                        onIncrease={() => changeToolNumber('williamsPeriod', 1)}
+                        ui={ui}
+                      />
+                    </View>
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Color</Text>
+                    <View className="mb-3 flex-row items-center gap-3">
+                      <View className="h-7 w-7 rounded border p-0.5" style={{ borderColor: ui.border }}>
+                        <View className="h-full w-full rounded-sm" style={{ backgroundColor: '#b58cff' }} />
+                      </View>
+                      <LineWidthSelect value={tools.defaultLineWidth} onPress={cycleLineWidth} ui={ui} />
+                    </View>
+                  </>
+                ) : null}
+                {activeIndicator === 'awesome' ? (
+                  <>
+                    {[
+                      ['Number of periods for calculation of Short Term Moving Average', 'awesomeShort', tools.awesomeShort],
+                      ['Number of periods for calculation of Long Term Moving Average', 'awesomeLong', tools.awesomeLong],
+                    ].map(([label, key, value]) => (
+                      <View key={label} className="mb-3">
+                        <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>{label}</Text>
+                        <Stepper
+                          value={value}
+                          onDecrease={() => changeToolNumber(key, -1)}
+                          onIncrease={() => changeToolNumber(key, 1)}
+                          ui={ui}
+                        />
+                      </View>
+                    ))}
+                    {[
+                      ['Color', '#8aa8ff'],
+                      ['Color', '#d9dce3'],
+                    ].map(([label, color], index) => (
+                      <View key={`${label}-${index}`} className="mb-3">
+                        <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>{label}</Text>
+                        <View className="flex-row items-center gap-3">
+                          <View className="h-7 w-7 rounded border p-0.5" style={{ borderColor: ui.border }}>
+                            <View className="h-full w-full rounded-sm" style={{ backgroundColor: color }} />
+                          </View>
+                          <LineWidthSelect value={tools.defaultLineWidth} onPress={cycleLineWidth} ui={ui} />
+                        </View>
+                      </View>
+                    ))}
+                  </>
+                ) : null}
+              </ScrollView>
+              <View className="h-12 flex-row items-center justify-end border-t px-4" style={{ borderColor: ui.border, backgroundColor: ui.panel }}>
+                <Pressable className="h-8 justify-center rounded-md px-5" style={{ backgroundColor: ui.controlActive }} onPress={addActiveIndicator}>
+                  <Text className="text-[10px] font-extrabold" style={{ color: ui.activeText }}>{activeIndicatorAddLabel}</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        ) : null}
+
+        {settingsOpen ? (
+          <ChartGraphSettingsPanel
+            top={toolbarMenuTop}
+            tools={tools}
+            toggleTool={toggleTool}
+            ui={ui}
+          />
+        ) : null}
+      {drawingOpen ? (
+        <View className="absolute left-[104px] w-[194px] rounded-xl border p-2 shadow-2xl" style={{ top: toolbarMenuTop, backgroundColor: ui.menu, borderColor: ui.menuBorder, zIndex: 3000, elevation: 3000 }}>
+          {DRAWING_TOOLS.map(([key, label]) => {
+            const danger = key === 'clear';
+            const active = key === activeDrawingTool;
+            return (
+              <Pressable
+                key={key}
+                onPress={() => applyDrawingTool(key)}
+                className="h-8 flex-row items-center rounded-md px-2"
+                style={{ backgroundColor: active ? ui.soft : 'transparent' }}
+              >
+                {key === 'horizontal' ? (
+                  <View className="w-8 items-center">
+                    <View style={{ width: 16, height: 2, backgroundColor: active ? ui.accent : ui.text }} />
+                  </View>
+                ) : null}
+                {key === 'trend' ? (
+                  <View className="w-8 items-center">
+                    <View style={{ width: 20, height: 2, backgroundColor: active ? ui.accent : ui.text, transform: [{ rotate: '-45deg' }] }} />
+                  </View>
+                ) : null}
+                {key === 'fibonacci' ? (
+                  <View className="w-8 items-center" style={{ rowGap: 2 }}>
+                    {[0, 1, 2, 3, 4].map((item) => (
+                      <View key={item} style={{ width: 18, height: 1.5, backgroundColor: active ? ui.accent : ui.text }} />
+                    ))}
+                  </View>
+                ) : null}
+                {danger ? (
+                  <View className="w-8 items-center">
+                    <Trash2 size={15} color={ui.danger} />
+                  </View>
+                ) : null}
+                <Text className="text-xs font-semibold" style={{ color: danger ? ui.danger : active ? ui.accent : ui.text }}>{label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      ) : null}
+      <View className="flex-1" style={{ zIndex: 0, elevation: 0 }}>
         {Platform.OS === 'web' ? (
           <iframe
+            key={chartRenderKey}
             ref={iframeRef}
             title="Market chart"
             srcDoc={html}
-            style={{ width: '100%', height: '100%', border: 0 }}
+            style={{ width: '100%', height: '100%', border: 0, position: 'relative', zIndex: 0 }}
           />
         ) : (
           <WebView
+            key={chartRenderKey}
             ref={webViewRef}
             originWhitelist={['*']}
             domStorageEnabled
             javaScriptEnabled
+            onMessage={handleChartMessage}
             source={{ html }}
-            style={{ backgroundColor: colors.chartBackground }}
+            style={{ backgroundColor: colors.chartBackground, zIndex: 0, elevation: 0 }}
           />
         )}
       </View>

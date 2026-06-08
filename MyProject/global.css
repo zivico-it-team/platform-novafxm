@@ -2,26 +2,42 @@
 @tailwind components;
 @tailwind utilities;
 
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+[role='button'],
+input,
+textarea {
+  outline: none;
+}
+
+[role='button']:focus,
+input:focus,
+textarea:focus {
+  outline: none;
+}
+
 .deep-green-scrollbar {
-  scrollbar-color: #007a46 #04130d;
+  scrollbar-color: rgba(212, 175, 55, .72) #181a20;
   scrollbar-width: thin;
 }
 
 .deep-green-scrollbar::-webkit-scrollbar {
-  width: 8px;
+  width: 7px;
 }
 
 .deep-green-scrollbar::-webkit-scrollbar-track {
-  background: #04130d;
-  border-left: 1px solid #0b3a24;
+  background: #181a20;
+  border-left: 1px solid rgba(212, 175, 55, .14);
 }
 
 .deep-green-scrollbar::-webkit-scrollbar-thumb {
-  background: #007a46;
-  border: 2px solid #04130d;
+  background: rgba(212, 175, 55, .72);
+  border: 2px solid #181a20;
   border-radius: 999px;
 }
 
 .deep-green-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #00a85a;
+  background: #D4AF37;
 }

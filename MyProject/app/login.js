@@ -23,10 +23,10 @@ export default function LoginScreen() {
     }
   };
   return (
-    <View className="flex-1 items-center justify-center bg-[#080f20] p-5">
+    <View className="flex-1 items-center justify-center bg-[#0B0B0B] p-5">
       <View className="w-full max-w-[440px] rounded-2xl border border-border bg-panel p-7">
         <Text className="mb-2 text-3xl font-black text-white"><Text className="text-primary">NOVA</Text> FXM</Text>
-        <Text className="mb-7 text-muted">Sign in to your trading account</Text>
+        <Text className="mb-7 text-muted">Sign in to your live or demo trading account</Text>
         <CustomInput label="Email" autoCapitalize="none" keyboardType="email-address" value={form.email} onChangeText={(email) => setForm((value) => ({ ...value, email }))} />
         <CustomInput label="Password" secureTextEntry value={form.password} onChangeText={(password) => setForm((value) => ({ ...value, password }))} />
         {error ? <Text className="mb-4 text-danger">{error}</Text> : null}

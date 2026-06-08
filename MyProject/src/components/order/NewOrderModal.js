@@ -16,7 +16,7 @@ function Toggle({ selected, onPress, label, colors }) {
   return (
     <Pressable onPress={onPress} className="flex-row items-center">
       <View className="mr-2 h-5 w-5 items-center justify-center rounded border" style={{ backgroundColor: selected ? colors.primary : 'transparent', borderColor: selected ? colors.primary : colors.muted }}>
-        {selected ? <Check size={14} color="#fff" /> : null}
+        {selected ? <Check size={14} color="#0B0B0B" /> : null}
       </View>
       <Text className="font-semibold" style={{ color: colors.text }}>{label}</Text>
     </Pressable>
@@ -33,7 +33,7 @@ function ValueCard({ pips, setPips, price, profit, compact, colors, controlBackg
   );
 }
 
-export default function NewOrderModal({ visible, onClose }) {
+export default function NewOrderModal({ visible, onClose, initialSide = 'BUY' }) {
   const { width } = useWindowDimensions();
   const compact = width < 560;
   const { darkMode, colors } = useAppTheme();
@@ -62,8 +62,10 @@ export default function NewOrderModal({ visible, onClose }) {
       setSymbolSearch('');
       setExpandedGroups({});
       setMessage('');
+    } else {
+      setSide(initialSide);
     }
-  }, [visible]);
+  }, [initialSide, visible]);
 
   const basePrice = Number(entryPrice || currentSymbol.price);
   const pipSize = 10 ** -currentSymbol.decimals;
@@ -86,7 +88,9 @@ export default function NewOrderModal({ visible, onClose }) {
   const modalBackground = darkMode ? colors.panel : '#e8f8ee';
   const sectionBackground = darkMode ? colors.panel : '#f6fff9';
   const controlBackground = darkMode ? colors.surface : '#f6fff9';
-  const activeTabBackground = darkMode ? colors.primarySoft : '#d0efdc';
+  const activeTabBackground = colors.primarySoft;
+  const orderSuccess = '#12cf7a';
+  const orderDanger = darkMode ? colors.danger : '#f24d58';
 
   const placeOrder = async () => {
     setLoading(true);
@@ -115,7 +119,14 @@ export default function NewOrderModal({ visible, onClose }) {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable onPress={onClose} className="flex-1 items-center justify-center bg-black/70 p-3">
-        <Pressable onPress={(event) => event.stopPropagation()} className="max-h-[96%] w-full max-w-[460px] rounded-2xl border p-4 lg:p-5" style={{ backgroundColor: modalBackground, borderColor: colors.border }}>
+        <Pressable
+          onPress={(event) => {
+            event.stopPropagation();
+            if (symbolMenu) setSymbolMenu(false);
+          }}
+          className="max-h-[96%] w-full max-w-[460px] rounded-2xl border p-4 lg:p-5"
+          style={{ backgroundColor: modalBackground, borderColor: colors.border }}
+        >
           <ScrollView showsVerticalScrollIndicator={false}>
             <View className="mb-5 flex-row items-center justify-between">
               <Text className="text-lg font-bold" style={{ color: colors.text }}>Create New Market Order</Text>
@@ -129,7 +140,7 @@ export default function NewOrderModal({ visible, onClose }) {
               ))}
             </View>
             <View className="rounded-2xl border p-4" style={{ backgroundColor: sectionBackground, borderColor: colors.border }}>
-              <View className="relative z-50 mb-5" style={{ zIndex: 50 }}>
+              <Pressable onPress={(event) => event.stopPropagation()} className="relative z-50 mb-5" style={{ zIndex: 50 }}>
                 <Pressable onPress={() => setSymbolMenu((open) => !open)} className="h-12 flex-row items-center justify-between rounded-xl border px-4" style={{ backgroundColor: controlBackground, borderColor: colors.border }}>
                   <Text className="font-bold" style={{ color: colors.text }}>{currentSymbol.symbol}  <Text className="font-normal" style={{ color: colors.muted }}>({currentSymbol.name})</Text></Text>
                   <ChevronDown size={18} color={colors.muted} />
@@ -181,15 +192,15 @@ export default function NewOrderModal({ visible, onClose }) {
                     </ScrollView>
                   </View>
                 ) : null}
-              </View>
+              </Pressable>
               <View className="mb-6 flex-row gap-3">
-                <Pressable onPress={() => setSide('SELL')} className="h-[54px] flex-1 items-center justify-center rounded-xl border" style={{ backgroundColor: side === 'SELL' ? colors.danger : 'transparent', borderColor: colors.danger }}>
-                  <Text className="text-xs" style={{ color: side === 'SELL' ? '#fff' : colors.danger }}>SELL</Text>
-                  {orderType === 'spot' ? <Text className="mt-0.5 font-bold" style={{ color: side === 'SELL' ? '#fff' : colors.danger }}>{quote(currentSymbol.bid, currentSymbol.decimals)}</Text> : null}
+                <Pressable onPress={() => setSide('SELL')} className={`${compact ? 'h-[40px] rounded' : 'h-[54px] rounded-xl'} flex-1 items-center justify-center border`} style={{ backgroundColor: side === 'SELL' ? orderDanger : 'transparent', borderColor: orderDanger }}>
+                  <Text className="text-xs" style={{ color: side === 'SELL' ? '#fff' : orderDanger }}>SELL</Text>
+                  {orderType === 'spot' ? <Text className="mt-0.5 font-bold" style={{ color: side === 'SELL' ? '#fff' : orderDanger }}>{quote(currentSymbol.bid, currentSymbol.decimals)}</Text> : null}
                 </Pressable>
-                <Pressable onPress={() => setSide('BUY')} className="h-[54px] flex-1 items-center justify-center rounded-xl border" style={{ backgroundColor: side === 'BUY' ? colors.success : 'transparent', borderColor: colors.success }}>
-                  <Text className="text-xs" style={{ color: side === 'BUY' ? '#fff' : colors.success }}>BUY</Text>
-                  {orderType === 'spot' ? <Text className="mt-0.5 font-bold" style={{ color: side === 'BUY' ? '#fff' : colors.success }}>{quote(currentSymbol.ask, currentSymbol.decimals)}</Text> : null}
+                <Pressable onPress={() => setSide('BUY')} className={`${compact ? 'h-[40px] rounded' : 'h-[54px] rounded-xl'} flex-1 items-center justify-center border`} style={{ backgroundColor: side === 'BUY' ? orderSuccess : 'transparent', borderColor: orderSuccess }}>
+                  <Text className="text-xs" style={{ color: side === 'BUY' ? '#fff' : orderSuccess }}>BUY</Text>
+                  {orderType === 'spot' ? <Text className="mt-0.5 font-bold" style={{ color: side === 'BUY' ? '#fff' : orderSuccess }}>{quote(currentSymbol.ask, currentSymbol.decimals)}</Text> : null}
                 </Pressable>
               </View>
               <View className={`mb-6 ${orderType === 'spot' ? 'items-center' : compact ? 'gap-4' : 'flex-row gap-4'}`}>
@@ -224,7 +235,7 @@ export default function NewOrderModal({ visible, onClose }) {
                 </View>
               </View>
               {message ? <Text className="mb-4" style={{ color: colors.danger }}>{message}</Text> : null}
-              <Pressable disabled={loading} onPress={placeOrder} className={`h-[48px] items-center justify-center rounded-xl ${loading ? 'opacity-60' : ''}`} style={{ backgroundColor: side === 'SELL' ? colors.danger : colors.success }}>
+              <Pressable disabled={loading} onPress={placeOrder} className={`${compact ? 'h-[40px] rounded' : 'h-[48px] rounded-xl'} items-center justify-center ${loading ? 'opacity-60' : ''}`} style={{ backgroundColor: side === 'SELL' ? orderDanger : orderSuccess }}>
                 <Text className="text-xs font-bold text-white">{loading ? 'PLACING ORDER...' : 'PLACE ORDER'}</Text>
               </Pressable>
               <Text className="mt-4 text-center text-xs" style={{ color: colors.text }}>Spread: {Number(currentSymbol.spreadPoints || 0).toFixed(1)}   High: {quote(Math.max(currentSymbol.bid, currentSymbol.ask), currentSymbol.decimals)}   Low: {quote(Math.min(currentSymbol.bid, currentSymbol.ask), currentSymbol.decimals)}</Text>

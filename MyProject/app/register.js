@@ -7,7 +7,7 @@ import { useAuth } from '../src/hooks/useAuth';
 
 export default function RegisterScreen() {
   const { register } = useAuth();
-  const [form, setForm] = useState({ name: '', email: '', phone: '', password: '' });
+  const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', accountType: 'Demo' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const update = (key) => (value) => setForm((current) => ({ ...current, [key]: value }));
@@ -24,10 +24,21 @@ export default function RegisterScreen() {
     }
   };
   return (
-    <ScrollView className="flex-1 bg-[#080f20]" contentContainerClassName="min-h-full items-center justify-center p-5">
+    <ScrollView className="flex-1 bg-[#0B0B0B]" contentContainerClassName="min-h-full items-center justify-center p-5">
       <View className="w-full max-w-[460px] rounded-2xl border border-border bg-panel p-7">
-        <Text className="mb-2 text-2xl font-bold text-white">Create Demo Account</Text>
-        <Text className="mb-6 text-muted">Start with 5,000.00 USD virtual balance</Text>
+        <Text className="mb-2 text-2xl font-bold text-white">Create Trading Account</Text>
+        <Text className="mb-6 text-muted">{form.accountType === 'Demo' ? 'Start with 5,000.00 USD virtual balance' : 'Create a live wallet and deposit real client funds'}</Text>
+        <View className="mb-4 flex-row rounded-xl border border-border bg-surface p-1">
+          {['Demo', 'Live'].map((type) => (
+            <Pressable
+              key={type}
+              onPress={() => update('accountType')(type)}
+              className={`min-h-[42px] flex-1 items-center justify-center rounded-lg ${form.accountType === type ? 'bg-primary' : ''}`}
+            >
+              <Text className={`font-bold ${form.accountType === type ? 'text-black' : 'text-muted'}`}>{type}</Text>
+            </Pressable>
+          ))}
+        </View>
         <CustomInput label="Full name" value={form.name} onChangeText={update('name')} />
         <CustomInput label="Email" autoCapitalize="none" keyboardType="email-address" value={form.email} onChangeText={update('email')} />
         <CustomInput label="Phone" keyboardType="phone-pad" value={form.phone} onChangeText={update('phone')} />
