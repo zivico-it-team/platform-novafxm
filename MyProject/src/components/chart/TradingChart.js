@@ -768,12 +768,12 @@ export default function TradingChart() {
     grid: true,
     crosshair: true,
     priceLine: true,
-    askLine: false,
-    positionLine: true,
-    takeProfitLine: true,
-    stopLossLine: true,
-    positionLabels: true,
-    customBidAsk: true,
+    askLine: true,
+    positionLine: false,
+    takeProfitLine: false,
+    stopLossLine: false,
+    positionLabels: false,
+    customBidAsk: false,
   });
   const [history, setHistory] = useState([]);
   const [priceDirection, setPriceDirection] = useState(0);
