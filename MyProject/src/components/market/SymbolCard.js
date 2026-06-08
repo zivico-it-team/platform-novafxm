@@ -5,8 +5,8 @@ import { percent, quote } from '../../utils/formatters';
 export default function SymbolCard({ item, selected, onSelect }) {
   const { darkMode, colors } = useAppTheme();
   const positive = Number(item.change) >= 0;
-  const selectedBackground = darkMode ? colors.surface : '#d0efdc';
-  const rowBackground = selected ? selectedBackground : darkMode ? '#06120d' : '#f6fff9';
+  const selectedBackground = darkMode ? colors.surface : colors.primarySoft;
+  const rowBackground = selected ? selectedBackground : darkMode ? '#11161c' : '#f6fff9';
   const priceColor = positive ? colors.success : colors.danger;
   const priceBackground = positive ? 'rgba(18,207,122,0.12)' : 'rgba(242,77,88,0.12)';
 

@@ -6,10 +6,10 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        panel: '#10182c',
-        surface: '#151f36',
-        border: '#283652',
-        primary: '#00a85a',
+        panel: '#181a20',
+        surface: '#1e2329',
+        border: '#2b3139',
+        primary: '#D4AF37',
         success: '#12cf7a',
         danger: '#f24d58',
         muted: '#8fa0bb',

@@ -1,5 +1,5 @@
 import { createContext, useCallback, useEffect, useMemo, useState } from 'react';
-import { SYMBOLS } from '../constants/symbols';
+import { DEFAULT_SYMBOL, SYMBOLS } from '../constants/symbols';
 import { useMarketPrices } from '../hooks/useMarketPrices';
 import { useAuth } from '../hooks/useAuth';
 import { storage } from '../utils/storage';
@@ -13,7 +13,7 @@ const INITIAL_BALANCE = 5000;
 export function TradingProvider({ children }) {
   const { user } = useAuth();
   const { prices, connected } = useMarketPrices();
-  const [selectedSymbol, setSelectedSymbol] = useState('AUD/JPY');
+  const [selectedSymbol, setSelectedSymbol] = useState(DEFAULT_SYMBOL);
   const [positions, setPositions] = useState([]);
   const [closedPositions, setClosedPositions] = useState([]);
   const [wallet, setWallet] = useState({ balance: INITIAL_BALANCE });
@@ -62,8 +62,30 @@ export function TradingProvider({ children }) {
     [positions, prices],
   );
 
-  const summary = useMemo(() => calculateSummary(wallet.balance, livePositions), [wallet.balance, livePositions]);
-  const currentSymbol = prices.find((item) => item.symbol === selectedSymbol) || prices[0] || SYMBOLS[0];
+  const depositTotals = useMemo(
+    () =>
+      transactions.reduce(
+        (values, item) => {
+          if (item.type !== 'deposit') return values;
+          const amount = Number(item.amount || 0);
+          values.totalDeposits += amount;
+          if (item.status === 'pending') values.pendingDeposits += amount;
+          return values;
+        },
+        { totalDeposits: 0, pendingDeposits: 0 },
+      ),
+    [transactions],
+  );
+  const summary = useMemo(
+    () => ({ ...calculateSummary(wallet.balance, livePositions), ...depositTotals }),
+    [wallet.balance, livePositions, depositTotals],
+  );
+  const currentSymbol =
+    prices.find((item) => item.symbol === selectedSymbol) ||
+    prices.find((item) => item.symbol === DEFAULT_SYMBOL) ||
+    SYMBOLS.find((item) => item.symbol === DEFAULT_SYMBOL) ||
+    prices[0] ||
+    SYMBOLS[0];
 
   useEffect(() => {
     if (ready) storage.set('positions', positions);

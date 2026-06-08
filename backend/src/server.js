@@ -29,6 +29,7 @@ app.use((error, req, res, next) => {
 });
 
 const port = Number(process.env.PORT || 5000);
+const host = process.env.HOST || '0.0.0.0';
 
 async function start() {
   await sequelize.authenticate();
@@ -52,7 +53,7 @@ async function start() {
     stopPriceStream();
     stopCandleCatchupScheduler();
   });
-  server.listen(port, () => console.log(`NOVA FXM API listening on port ${port}`));
+  server.listen(port, host, () => console.log(`NOVA FXM API listening on http://${host}:${port}`));
 }
 
 if (require.main === module) {

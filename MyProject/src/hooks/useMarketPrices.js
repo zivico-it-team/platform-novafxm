@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Platform } from 'react-native';
 import { io } from 'socket.io-client';
 import { SYMBOLS } from '../constants/symbols';
+import { socketBaseUrl } from '../services/apiConfig';
 import { createDemoTick, marketService } from '../services/marketService';
 
 const hasTradingViewPrices = (symbols) => symbols?.some((item) => item.source === 'tradingview');
@@ -22,8 +22,7 @@ export function useMarketPrices() {
   useEffect(() => {
     let active = true;
     let receivingSocketPrices = false;
-    const apiUrl = process.env.EXPO_PUBLIC_API_URL || (Platform.OS === 'android' ? 'http://10.0.2.2:5000/api' : 'http://localhost:5000/api');
-    const socket = io(apiUrl.replace(/\/api\/?$/, ''), { transports: ['websocket'], timeout: 4000, reconnection: true });
+    const socket = io(socketBaseUrl(), { transports: ['websocket'], timeout: 4000, reconnection: true });
     socket.on('market:prices', (next) => {
       if (active && next?.length) {
         receivingSocketPrices = true;

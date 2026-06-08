@@ -7,7 +7,7 @@ export default function WithdrawScreen() {
   const { user } = useAuth();
   const { withdraw, loading } = useWallet();
   return (
-    <ScrollView className="flex-1 bg-[#080f20]" contentContainerClassName="mx-auto w-full max-w-[650px] p-6">
+    <ScrollView className="flex-1 bg-[#0B0B0B]" contentContainerClassName="mx-auto w-full max-w-[650px] p-6">
       <Text className="mb-5 text-2xl font-bold text-white">New Withdrawal</Text>
       <WithdrawForm onSubmit={(values) => withdraw(values, Boolean(user))} loading={loading} />
     </ScrollView>

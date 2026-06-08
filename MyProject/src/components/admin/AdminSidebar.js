@@ -20,7 +20,7 @@ export default function AdminSidebar({ section, onChange, stats, pendingCount, o
       <ScrollView horizontal className="md:hidden" contentContainerClassName="p-3">
         {navigation.map(({ id, label }) => (
           <Pressable key={id} onPress={() => onChange(id)} className={`mr-2 rounded-xl px-4 py-3 ${section === id ? 'bg-primary' : 'bg-surface'}`}>
-            <Text className="font-semibold text-white">{label}</Text>
+            <Text className={`font-semibold ${section === id ? 'text-black' : 'text-white'}`}>{label}</Text>
           </Pressable>
         ))}
       </ScrollView>
@@ -31,8 +31,8 @@ export default function AdminSidebar({ section, onChange, stats, pendingCount, o
             onPress={() => onChange(id)}
             className={`mb-2 flex-row items-center rounded-xl px-4 py-4 ${section === id ? 'bg-primary' : 'bg-transparent'}`}
           >
-            <Icon size={19} color={section === id ? '#ffffff' : '#8fa0bb'} />
-            <Text className={`ml-3 font-semibold ${section === id ? 'text-white' : 'text-muted'}`}>{label}</Text>
+            <Icon size={19} color={section === id ? '#0B0B0B' : '#8fa0bb'} />
+            <Text className={`ml-3 font-semibold ${section === id ? 'text-black' : 'text-muted'}`}>{label}</Text>
             {id === 'funding' && pendingCount ? (
               <Text className="ml-auto rounded-full bg-danger px-2 py-1 text-xs font-bold text-white">{pendingCount}</Text>
             ) : null}
