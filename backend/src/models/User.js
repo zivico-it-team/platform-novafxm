@@ -12,6 +12,8 @@ const User = sequelize.define('User', {
   leverage: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, defaultValue: 100 },
   tradingStatus: { type: DataTypes.ENUM('active', 'frozen'), field: 'trading_status', allowNull: false, defaultValue: 'active' },
   adminNotes: { type: DataTypes.TEXT, field: 'admin_notes', allowNull: true },
+  referralCode: { type: DataTypes.STRING(40), unique: true, field: 'referral_code', allowNull: true },
+  referredById: { type: DataTypes.INTEGER.UNSIGNED, field: 'referred_by_id', allowNull: true },
 }, { tableName: 'users' });
 
 module.exports = User;

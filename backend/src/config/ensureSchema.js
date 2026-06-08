@@ -32,6 +32,17 @@ async function ensureSchema() {
     allowNull: true,
     after: 'trading_status',
   });
+  await addColumnIfMissing(queryInterface, 'users', 'referral_code', {
+    type: DataTypes.STRING(40),
+    allowNull: true,
+    unique: true,
+    after: 'admin_notes',
+  });
+  await addColumnIfMissing(queryInterface, 'users', 'referred_by_id', {
+    type: DataTypes.INTEGER.UNSIGNED,
+    allowNull: true,
+    after: 'referral_code',
+  });
 
   await addColumnIfMissing(queryInterface, 'wallets', 'equity', {
     type: DataTypes.DECIMAL(15, 2),

@@ -20,6 +20,7 @@ app.use('/api/users', require('./routes/userRoutes'));
 app.use('/api/wallet', require('./routes/walletRoutes'));
 app.use('/api/trades', require('./routes/tradeRoutes'));
 app.use('/api/market', require('./routes/marketRoutes'));
+app.use('/api/dashboard', require('./routes/dashboardRoutes'));
 app.use('/api/admin', require('./routes/adminRoutes'));
 
 app.use((req, res) => res.status(404).json({ message: 'Route not found.' }));

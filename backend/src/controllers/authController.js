@@ -1,7 +1,8 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const sequelize = require('../config/db');
-const { User, Wallet } = require('../models');
+const { User, Wallet, TradingAccount } = require('../models');
+const { ensureReferralCode } = require('../services/dashboardService');
 
 const publicUser = (user) => {
   const values = user.toJSON ? user.toJSON() : user;
@@ -18,17 +19,36 @@ const tokenFor = (user) => jwt.sign({ id: user.id, role: user.role }, secret(), 
 
 exports.register = async (req, res, next) => {
   try {
-    const { name, email, phone, password, accountType } = req.body;
+    const { name, email, phone, password, accountType, referralCode } = req.body;
     if (!name || !email || !password || password.length < 8) return res.status(400).json({ message: 'Name, email and password of at least 8 characters are required.' });
     const selectedAccountType = accountType === 'Live' ? 'Live' : 'Demo';
     const startingBalance = selectedAccountType === 'Demo' ? 5000 : 0;
     const normalizedEmail = email.trim().toLowerCase();
     if (await User.findOne({ where: { email: normalizedEmail } })) return res.status(409).json({ message: 'Email already registered.' });
+    const referrer = referralCode
+      ? await User.findOne({ where: { referralCode: String(referralCode).trim() } })
+      : null;
     const user = await sequelize.transaction(async (transaction) => {
-      const created = await User.create({ name: name.trim(), email: normalizedEmail, phone, password: await bcrypt.hash(password, 12), accountType: selectedAccountType }, { transaction });
+      const created = await User.create({
+        name: name.trim(),
+        email: normalizedEmail,
+        phone,
+        password: await bcrypt.hash(password, 12),
+        accountType: selectedAccountType,
+        referredById: referrer?.id || null,
+      }, { transaction });
       await Wallet.create({ userId: created.id, balance: startingBalance, equity: startingBalance, freeFunds: startingBalance }, { transaction });
+      await TradingAccount.create({
+        userId: created.id,
+        type: selectedAccountType,
+        name: `${selectedAccountType} account 1`,
+        balance: startingBalance,
+        status: selectedAccountType === 'Live' ? 'pending' : 'active',
+        isPrimary: true,
+      }, { transaction });
       return created;
     });
+    await ensureReferralCode(user);
     return res.status(201).json({ token: tokenFor(user), user: publicUser(user) });
   } catch (error) {
     return next(error);
