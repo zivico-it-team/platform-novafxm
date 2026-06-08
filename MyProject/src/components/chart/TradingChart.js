@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import { WebView } from 'react-native-webview';
 import {
@@ -80,7 +80,11 @@ const INDICATOR_TOOLS = [
   ['sar', 'PARABOLIC SAR'],
   ['rsi', 'RSI'],
   ['roc', 'RATE OF CHANGE'],
+  ['sma20', 'MOVING AVERAGE'],
+  ['wma', 'WEIGHTED MOVING AVERAGE'],
+  ['williams', 'WILLIAMS'],
 ];
+const INDICATOR_KEYS = INDICATOR_TOOLS.map(([key]) => key);
 const GRAPH_SETTINGS = [
   ['askLine', 'Display ask line'],
   ['positionLine', 'Display position line'],
@@ -125,11 +129,19 @@ function IconButton({ active, children, onPress, ui, size = 32 }) {
   return (
     <Pressable
       onPress={onPress}
-      className="items-center justify-center rounded border"
+      className="items-center justify-center rounded-md border"
       style={{ width: size, height: size, backgroundColor, borderColor }}
     >
       {children}
     </Pressable>
+  );
+}
+
+function IndicatorGlyph({ active, ui, size = 11 }) {
+  return (
+    <Text className="font-black" style={{ color: active ? ui.activeText : ui.text, fontSize: size }}>
+      f(x)
+    </Text>
   );
 }
 
@@ -148,7 +160,36 @@ function ToggleSwitch({ active, onPress, ui }) {
   );
 }
 
-function chartHtml(candles, decimals, timeframe, chartType, tools, drawings, ui) {
+function Stepper({ value, onDecrease, onIncrease, ui, formatter = (item) => item }) {
+  return (
+    <View className="h-8 flex-row overflow-hidden rounded-md border" style={{ borderColor: ui.border }}>
+      <Pressable className="w-9 items-center justify-center border-r" style={{ borderColor: ui.border }} onPress={onDecrease}>
+        <Minus size={13} color={ui.text} />
+      </Pressable>
+      <View className="flex-1 items-center justify-center">
+        <Text className="text-xs font-extrabold" style={{ color: ui.text }}>{formatter(value)}</Text>
+      </View>
+      <Pressable className="w-9 items-center justify-center border-l" style={{ borderColor: ui.border }} onPress={onIncrease}>
+        <Plus size={13} color={ui.text} />
+      </Pressable>
+    </View>
+  );
+}
+
+function LineWidthSelect({ value, onPress, ui }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      className="h-8 flex-1 flex-row items-center justify-between rounded-md border px-3"
+      style={{ borderColor: ui.border, backgroundColor: ui.control }}
+    >
+      <Text className="text-xs font-bold" style={{ color: ui.text }}>{value} px</Text>
+      <ChevronDown size={14} color={ui.muted} />
+    </Pressable>
+  );
+}
+
+function chartHtml(candles, decimals, timeframe, chartType, tools, drawings, activeDrawingTool, ui) {
   const safeDecimals = Math.max(0, Math.min(Number(decimals) || 2, 8));
   const visibleBars = INITIAL_VISIBLE_BARS[timeframe] || 300;
   const chartColors = {
@@ -162,17 +203,23 @@ function chartHtml(candles, decimals, timeframe, chartType, tools, drawings, ui)
   return `<!doctype html>
 <html><head><meta name="viewport" content="width=device-width,initial-scale=1.0">
 <style>
-*{box-sizing:border-box}html,body,#chart{height:100%;width:100%;margin:0;background:${chartColors.background};overflow:hidden}
+*{box-sizing:border-box}html,body,#chart-wrap{height:100%;width:100%;margin:0;background:${chartColors.background};overflow:hidden}
+#chart-wrap{position:relative}
+#chart{position:absolute;inset:0}
+#drawing-layer{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:12}
 #empty{display:none;position:absolute;left:0;right:0;top:48%;text-align:center;color:${chartColors.text};font:14px Arial,sans-serif}
 </style></head>
 <body>
-<div id="chart"></div><div id="empty">Waiting for chart data</div>
+<div id="chart-wrap"><div id="chart"></div><svg id="drawing-layer"></svg><div id="empty">Waiting for chart data</div></div>
 <script src="https://unpkg.com/lightweight-charts@5/dist/lightweight-charts.standalone.production.js"></script>
 <script>
 let data = ${JSON.stringify(candles)};
 const chartType = ${JSON.stringify(chartType)};
 const tools = ${JSON.stringify(tools)};
 const drawings = ${JSON.stringify(drawings)};
+const activeDrawingTool = ${JSON.stringify(activeDrawingTool)};
+const indicatorLineWidth = Math.max(1, Math.min(4, Number(tools.defaultLineWidth || 1)));
+const timeframeSeconds = ${JSON.stringify(TIMEFRAME_SECONDS[timeframe] || 900)};
 const priceOptions = {
   type: 'price',
   precision: ${safeDecimals},
@@ -265,6 +312,16 @@ function movingAverage(items, period) {
   }
   return output;
 }
+function weightedMovingAverage(items, period) {
+  const output = [];
+  const denominator = (period * (period + 1)) / 2;
+  for (let index = period - 1; index < items.length; index += 1) {
+    const slice = items.slice(index - period + 1, index + 1);
+    const value = slice.reduce((sum, item, sliceIndex) => sum + Number(item.close) * (sliceIndex + 1), 0) / denominator;
+    output.push({ time: Number(items[index].time), value });
+  }
+  return output;
+}
 function exponentialAverage(items, period) {
   const output = [];
   const multiplier = 2 / (period + 1);
@@ -276,7 +333,7 @@ function exponentialAverage(items, period) {
   });
   return output;
 }
-function bollingerBands(items, period) {
+function bollingerBands(items, period, multiplier = 2) {
   const upper = [];
   const middle = [];
   const lower = [];
@@ -287,8 +344,8 @@ function bollingerBands(items, period) {
     const deviation = Math.sqrt(variance);
     const time = Number(items[index].time);
     middle.push({ time, value: mean });
-    upper.push({ time, value: mean + deviation * 2 });
-    lower.push({ time, value: mean - deviation * 2 });
+    upper.push({ time, value: mean + deviation * multiplier });
+    lower.push({ time, value: mean - deviation * multiplier });
   }
   return { upper, middle, lower };
 }
@@ -327,43 +384,52 @@ function momentumLine(items, period) {
   }
   return output;
 }
-function addLine(dataSet, color, width = 1) {
+function addLine(dataSet, color, width = 1, lineStyle = LightweightCharts.LineStyle.Solid) {
   const line = chart.addSeries(LightweightCharts.LineSeries, {
     color,
     lineWidth: width,
+    lineStyle,
     priceLineVisible: false,
     lastValueVisible: false,
     priceFormat: priceOptions
   });
-  line.setData(dataSet);
+  line.setData(dataSet
+    .filter((item) => Number.isFinite(Number(item.time)) && Number.isFinite(Number(item.value)))
+    .sort((a, b) => Number(a.time) - Number(b.time)));
   indicatorSeries.push({ line, dataSet });
 }
 function renderIndicators() {
   if (!data.length) return;
-  if (chartType === 'combo') addLine(closeData(data), ${JSON.stringify(ui.accent)}, 1);
-  if (tools.atr) addLine(averageTrueRange(data, Number(tools.atrPeriod || 14)), ${JSON.stringify(ui.accent)}, 2);
-  if (tools.awesome) addLine(momentumLine(data, 5), '#4fc3f7', 2);
-  if (tools.sma20) addLine(movingAverage(data, 20), ${JSON.stringify(ui.accent)}, 2);
-  if (tools.ema50) addLine(exponentialAverage(data, 50), '#4fc3f7', 2);
-  if (tools.bollinger || tools.bb) {
-    const bands = bollingerBands(data, 20);
-    addLine(bands.upper, 'rgba(212, 175, 55, .78)');
-    addLine(bands.middle, 'rgba(255, 255, 255, .42)');
-    addLine(bands.lower, 'rgba(212, 175, 55, .78)');
+  if (chartType === 'combo') addLine(closeData(data), ${JSON.stringify(ui.accent)}, indicatorLineWidth);
+  if (tools.atr) addLine(averageTrueRange(data, Number(tools.atrPeriod || 14)), ${JSON.stringify(ui.accent)}, indicatorLineWidth);
+  if (tools.awesome) {
+    addLine(momentumLine(data, Number(tools.awesomeShort || 5)), '#4fc3f7', indicatorLineWidth);
+    addLine(momentumLine(data, Number(tools.awesomeLong || 34)), '#f24d58', indicatorLineWidth);
   }
-  if (tools.cci) addLine(momentumLine(data, 20), '#ffb84d', 1);
+  if (tools.sma20) addLine(movingAverage(data, Number(tools.smaPeriod || 9)), ${JSON.stringify(ui.accent)}, indicatorLineWidth);
+  if (tools.wma) addLine(weightedMovingAverage(data, Number(tools.wmaPeriod || 9)), '#8aa8ff', indicatorLineWidth);
+  if (tools.ema50) addLine(exponentialAverage(data, 50), '#4fc3f7', indicatorLineWidth);
+  if (tools.bollinger || tools.bb) {
+    const bands = bollingerBands(data, Number(tools.bbPeriod || 20), Number(tools.bbDeviation || 2));
+    addLine(bands.upper, 'rgba(212, 175, 55, .78)', indicatorLineWidth);
+    addLine(bands.middle, 'rgba(255, 255, 255, .42)', indicatorLineWidth);
+    addLine(bands.lower, 'rgba(212, 175, 55, .78)', indicatorLineWidth);
+  }
+  if (tools.cci) addLine(momentumLine(data, Number(tools.cciPeriod || 20)), '#ffb84d', indicatorLineWidth);
   if (tools.ichimoku) {
-    addLine(movingAverage(data, 9), '#4fc3f7', 1);
-    addLine(movingAverage(data, 26), '#f24d58', 1);
+    addLine(movingAverage(data, Number(tools.ichimokuConversion || 9)), '#4fc3f7', indicatorLineWidth);
+    addLine(movingAverage(data, Number(tools.ichimokuBase || 26)), '#f24d58', indicatorLineWidth);
   }
   if (tools.macd) {
-    addLine(exponentialAverage(data, 12), '#4fc3f7', 1);
-    addLine(exponentialAverage(data, 26), '#f24d58', 1);
+    addLine(exponentialAverage(data, Number(tools.macdFast || 12)), '#4fc3f7', indicatorLineWidth);
+    addLine(exponentialAverage(data, Number(tools.macdSlow || 26)), '#f24d58', indicatorLineWidth);
+    addLine(exponentialAverage(data, Number(tools.macdSignal || 9)), '#8aa8ff', indicatorLineWidth);
   }
-  if (tools.momentum) addLine(momentumLine(data, 10), '#12cf7a', 2);
-  if (tools.sar) addLine(movingAverage(data, 5), '#ffffff', 1);
-  if (tools.rsi) addLine(rateOfChange(data, 14), '#b58cff', 2);
-  if (tools.roc) addLine(rateOfChange(data, 12), '#ffb84d', 2);
+  if (tools.momentum) addLine(momentumLine(data, Number(tools.momentumPeriod || 10)), '#12cf7a', indicatorLineWidth);
+  if (tools.sar) addLine(movingAverage(data, Math.max(2, Math.round(Number(tools.sarMax || .2) * 25))), '#ffffff', indicatorLineWidth);
+  if (tools.rsi) addLine(rateOfChange(data, Number(tools.rsiPeriod || 14)), '#b58cff', indicatorLineWidth);
+  if (tools.roc) addLine(rateOfChange(data, Number(tools.rocPeriod || 12)), '#ffb84d', indicatorLineWidth);
+  if (tools.williams) addLine(rateOfChange(data, Number(tools.williamsPeriod || 14)), '#8aa8ff', indicatorLineWidth);
   if (tools.volume && data.some((item) => Number(item.volume) > 0)) {
     const volume = chart.addSeries(LightweightCharts.HistogramSeries, {
       priceFormat: { type: 'volume' },
@@ -381,40 +447,107 @@ function renderIndicators() {
   }
 }
 function renderDrawings() {
+  const layer = document.getElementById('drawing-layer');
+  const chartElement = document.getElementById('chart');
+  if (!layer || !chartElement) return;
+  const width = chartElement.clientWidth || 1;
+  const height = chartElement.clientHeight || 1;
+  layer.setAttribute('viewBox', '0 0 ' + width + ' ' + height);
+  layer.replaceChildren();
   if (!data.length || !drawings.length) return;
-  const last = data[data.length - 1];
-  const recent = data.slice(Math.max(0, data.length - 36));
-  const high = Math.max(...recent.map((item) => Number(item.high)));
-  const low = Math.min(...recent.map((item) => Number(item.low)));
+  const normalizePoints = (points) => {
+    const start = {
+      time: Number(points?.[0]?.time),
+      price: Number(points?.[0]?.price)
+    };
+    const end = {
+      time: Number(points?.[1]?.time),
+      price: Number(points?.[1]?.price)
+    };
+    if (![start.time, start.price, end.time, end.price].every(Number.isFinite)) return null;
+    if (start.time === end.time) end.time += timeframeSeconds;
+    return start.time <= end.time ? [start, end] : [end, start];
+  };
+  const toPoint = (point) => ({
+    x: chart.timeScale().timeToCoordinate(Number(point.time)),
+    y: series.priceToCoordinate(Number(point.price))
+  });
+  const line = (x1, y1, x2, y2, color, widthValue = 2, dash = '') => {
+    if (![x1, y1, x2, y2].every(Number.isFinite)) return;
+    const item = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    item.setAttribute('x1', String(x1));
+    item.setAttribute('y1', String(y1));
+    item.setAttribute('x2', String(x2));
+    item.setAttribute('y2', String(y2));
+    item.setAttribute('stroke', color);
+    item.setAttribute('stroke-width', String(widthValue));
+    item.setAttribute('stroke-linecap', 'round');
+    if (dash) item.setAttribute('stroke-dasharray', dash);
+    layer.appendChild(item);
+  };
+  const label = (x, y, text, color) => {
+    if (![x, y].every(Number.isFinite)) return;
+    const item = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    item.setAttribute('x', String(x));
+    item.setAttribute('y', String(y - 4));
+    item.setAttribute('fill', color);
+    item.setAttribute('font-size', '10');
+    item.setAttribute('font-family', 'Arial, sans-serif');
+    item.textContent = text;
+    layer.appendChild(item);
+  };
   drawings.forEach((drawing, drawingIndex) => {
-    if (drawing.type === 'horizontal') {
-      series.createPriceLine({
-        price: Number(last.close),
-        color: ${JSON.stringify(ui.accent)},
-        lineWidth: 1,
-        lineStyle: LightweightCharts.LineStyle.Solid,
-        axisLabelVisible: true,
-        title: 'Horizontal'
+    if (drawing.type === 'horizontal' && Number.isFinite(Number(drawing.price))) {
+      const y = series.priceToCoordinate(Number(drawing.price));
+      line(0, y, width, y, ${JSON.stringify(ui.accent)}, 2);
+    }
+    if (drawing.type === 'trend' && Array.isArray(drawing.points) && drawing.points.length >= 2) {
+      const points = normalizePoints(drawing.points);
+      if (!points) return;
+      const start = toPoint(points[0]);
+      const end = toPoint(points[1]);
+      if (![start.x, start.y, end.x, end.y].every(Number.isFinite)) return;
+      line(start.x, start.y, end.x, end.y, ${JSON.stringify(ui.accent)}, 2);
+    }
+    if (drawing.type === 'fibonacci' && Array.isArray(drawing.points) && drawing.points.length >= 2) {
+      const points = normalizePoints(drawing.points);
+      if (!points) return;
+      const [start, end] = points;
+      const startPoint = toPoint(start);
+      const endPoint = toPoint(end);
+      if (![startPoint.x, startPoint.y, endPoint.x, endPoint.y].every(Number.isFinite)) return;
+      const high = Math.max(start.price, end.price);
+      const low = Math.min(start.price, end.price);
+      const left = Math.min(startPoint.x, endPoint.x);
+      const right = width - 4;
+      line(startPoint.x, startPoint.y, endPoint.x, endPoint.y, ${JSON.stringify(ui.accent)}, 1, '5 4');
+      [0, .236, .382, .5, .618, .786, 1].forEach((level) => {
+        const price = high - ((high - low) * level);
+        const color = level === 0 || level === 1 ? ${JSON.stringify(ui.accent)} : 'rgba(212, 175, 55, .68)';
+        const y = series.priceToCoordinate(price);
+        line(left, y, right, y, color, 1, '5 4');
+        if (drawingIndex === 0) label(left + 4, y, String(Math.round(level * 1000) / 10) + '%', color);
       });
     }
-    if (drawing.type === 'trend' && recent.length > 1) {
-      addLine([
-        { time: Number(recent[0].time), value: Number(recent[0].low) },
-        { time: Number(recent[recent.length - 1].time), value: Number(recent[recent.length - 1].high) }
-      ], ${JSON.stringify(ui.accent)}, 2);
-    }
-    if (drawing.type === 'fibonacci' && Number.isFinite(high) && Number.isFinite(low)) {
-      [0, .236, .382, .5, .618, 1].forEach((level) => {
-        series.createPriceLine({
-          price: high - ((high - low) * level),
-          color: level === 0 || level === 1 ? ${JSON.stringify(ui.accent)} : 'rgba(212, 175, 55, .58)',
-          lineWidth: 1,
-          lineStyle: LightweightCharts.LineStyle.Dashed,
-          axisLabelVisible: false,
-          title: drawingIndex === 0 ? 'Fib' : ''
-        });
-      });
-    }
+  });
+}
+function postToHost(payload) {
+  const message = JSON.stringify(payload);
+  if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+    window.ReactNativeWebView.postMessage(message);
+    return;
+  }
+  window.parent?.postMessage(message, '*');
+}
+function handleChartClick(param) {
+  if (!activeDrawingTool || activeDrawingTool === 'clear' || !param?.point) return;
+  const time = chart.timeScale().coordinateToTime(param.point.x);
+  const price = series.coordinateToPrice(param.point.y);
+  if (time == null || !Number.isFinite(Number(price))) return;
+  postToHost({
+    type: 'drawing-point',
+    tool: activeDrawingTool,
+    point: { time: Number(time), price: Number(price) }
   });
 }
 function renderGraphSettings() {
@@ -445,12 +578,18 @@ let lastBar = data.length ? data[data.length - 1] : null;
 if (data.length) {
   setMainData();
   renderIndicators();
-  renderDrawings();
   renderGraphSettings();
+  chart.subscribeClick(handleChartClick);
+  document.body.style.cursor = activeDrawingTool ? 'crosshair' : 'default';
   chart.timeScale().setVisibleLogicalRange({
     from: Math.max(0, data.length - ${visibleBars}),
     to: data.length + 4
   });
+  requestAnimationFrame(renderDrawings);
+  if (chart.timeScale().subscribeVisibleLogicalRangeChange) {
+    chart.timeScale().subscribeVisibleLogicalRangeChange(renderDrawings);
+  }
+  window.addEventListener('resize', renderDrawings);
 } else {
   document.getElementById('empty').style.display = 'block';
 }
@@ -506,6 +645,7 @@ export default function TradingChart() {
   const timeframeHeight = compactToolbar ? 22 : 24;
   const timeframeMinWidth = compactToolbar ? 27 : 32;
   const chartMinHeight = mobile ? Math.min(Math.max(Math.round(height * 0.62), 500), 620) : compactToolbar ? 430 : 520;
+  const indicatorPanelHeight = mobile ? Math.min(Math.max(Math.round(height * 0.54), 300), 430) : 330;
   const [timeframe, setTimeframe] = useState('15m');
   const [chartType, setChartType] = useState('candles');
   const [chartMenuOpen, setChartMenuOpen] = useState(false);
@@ -514,23 +654,48 @@ export default function TradingChart() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [drawingOpen, setDrawingOpen] = useState(false);
   const [drawings, setDrawings] = useState([]);
+  const [activeDrawingTool, setActiveDrawingTool] = useState(null);
+  const [pendingDrawingPoint, setPendingDrawingPoint] = useState(null);
   const [activeIndicator, setActiveIndicator] = useState('atr');
   const [tools, setTools] = useState({
     atr: false,
     atrPeriod: 14,
     awesome: false,
+    awesomeShort: 5,
+    awesomeLong: 34,
     bb: false,
+    bbPeriod: 20,
+    bbDeviation: 2,
     cci: false,
+    cciPeriod: 20,
     ichimoku: false,
+    ichimokuConversion: 9,
+    ichimokuBase: 26,
+    ichimokuSpan: 52,
+    ichimokuDisplacement: 26,
     macd: false,
+    macdFast: 12,
+    macdSlow: 26,
+    macdSignal: 9,
     momentum: false,
+    momentumPeriod: 10,
     sar: false,
+    sarAcceleration: 0.02,
+    sarMax: 0.2,
     rsi: false,
+    rsiPeriod: 14,
     roc: false,
+    rocPeriod: 12,
     sma20: false,
+    smaPeriod: 9,
+    wma: false,
+    wmaPeriod: 9,
+    williams: false,
+    williamsPeriod: 14,
     ema50: false,
     bollinger: false,
     volume: false,
+    defaultLineWidth: 1,
     grid: true,
     crosshair: true,
     priceLine: true,
@@ -621,14 +786,15 @@ export default function TradingChart() {
   const candles = useMemo(() => history, [history]);
   const ui = useMemo(() => chartUiFromTheme(colors), [colors]);
   const html = useMemo(
-    () => chartHtml(candles, currentSymbol.decimals, timeframe, chartType, tools, drawings, ui),
-    [candles, currentSymbol.decimals, timeframe, chartType, tools, drawings, ui],
+    () => chartHtml(candles, currentSymbol.decimals, timeframe, chartType, tools, drawings, activeDrawingTool, ui),
+    [candles, currentSymbol.decimals, timeframe, chartType, tools, drawings, activeDrawingTool, ui],
   );
   const chartRenderKey = JSON.stringify({
     symbol: currentSymbol.symbol,
     timeframe,
     chartType,
     drawings: drawings.length,
+    activeDrawingTool,
     tools,
   });
   const positive = priceDirection ? priceDirection > 0 : Number(currentSymbol.change) >= 0;
@@ -639,8 +805,40 @@ export default function TradingChart() {
     ['Ask', quote(currentSymbol.ask, currentSymbol.decimals), ui.success],
     ['Spread', quote(currentSymbol.spread, currentSymbol.decimals), ui.muted],
   ];
+  const activeChartType = CHART_TYPES.find(([key]) => key === chartType) || CHART_TYPES[0];
+  const ActiveChartIcon = activeChartType[2];
+  const activeIndicatorAddLabel = ({
+    atr: 'ADD ATR',
+    awesome: 'ADD AO',
+    bb: 'ADD BB',
+    cci: 'ADD CCI',
+    ichimoku: 'ADD IKH',
+    macd: 'ADD MACD',
+    momentum: 'ADD MOM',
+    sar: 'ADD PSAR',
+    rsi: 'ADD RSI',
+    roc: 'ADD ROC',
+    sma20: 'ADD MOVING_AVERAGE',
+    wma: 'ADD WMA',
+    williams: 'ADD WILLIAMS',
+  })[activeIndicator] || 'ADD INDICATOR';
+  const activePeriodSetting = ({
+    atr: ['atrPeriod', tools.atrPeriod],
+  })[activeIndicator];
   const toggleTool = (key) => setTools((current) => ({ ...current, [key]: !current[key] }));
-  const setAtrPeriod = (period) => setTools((current) => ({ ...current, atrPeriod: Math.max(1, period) }));
+  const changeToolNumber = (key, delta, min = 1, max = 300, precision = 0) => {
+    setTools((current) => {
+      const clamped = Math.min(max, Math.max(min, Number(current[key] || 0) + delta));
+      const next = precision > 0 ? Number(clamped.toFixed(precision)) : Math.round(clamped);
+      return { ...current, [key]: next };
+    });
+  };
+  const cycleLineWidth = () => {
+    setTools((current) => ({
+      ...current,
+      defaultLineWidth: current.defaultLineWidth >= 4 ? 1 : Number(current.defaultLineWidth || 1) + 1,
+    }));
+  };
   const toggleChartMenu = () => {
     setChartMenuOpen((value) => !value);
     setSymbolMenuOpen(false);
@@ -683,21 +881,55 @@ export default function TradingChart() {
   const applyDrawingTool = (key) => {
     if (key === 'clear') {
       setDrawings([]);
+      setPendingDrawingPoint(null);
+      setActiveDrawingTool(null);
     } else {
-      setDrawings((current) => [...current, { id: Date.now(), type: key }]);
+      setPendingDrawingPoint(null);
+      setActiveDrawingTool(key);
     }
     setDrawingOpen(false);
   };
-  const applyIndicatorTool = (key) => {
+  const handleDrawingPoint = useCallback((tool, point) => {
+    if (!tool || !point) return;
+    if (tool === 'horizontal') {
+      setDrawings((current) => [...current, { id: Date.now(), type: tool, price: point.price }]);
+      setActiveDrawingTool(null);
+      setPendingDrawingPoint(null);
+      return;
+    }
+    if (!pendingDrawingPoint || pendingDrawingPoint.tool !== tool) {
+      setPendingDrawingPoint({ tool, point });
+      return;
+    }
+    setDrawings((current) => [...current, { id: Date.now(), type: tool, points: [pendingDrawingPoint.point, point] }]);
+    setActiveDrawingTool(null);
+    setPendingDrawingPoint(null);
+  }, [pendingDrawingPoint]);
+  const handleChartMessage = useCallback((event) => {
+    let payload = event?.nativeEvent?.data ?? event?.data;
+    if (typeof payload === 'string') {
+      try { payload = JSON.parse(payload); } catch { return; }
+    }
+    if (payload?.type === 'drawing-point') handleDrawingPoint(payload.tool, payload.point);
+  }, [handleDrawingPoint]);
+  const selectIndicatorTool = (key) => {
     setActiveIndicator(key);
-    if (key === 'atr') return;
+  };
+  const applyIndicatorTool = (key = activeIndicator) => {
+    setActiveIndicator(key);
     setTools((current) => ({
       ...current,
+      ...INDICATOR_KEYS.reduce((values, item) => ({ ...values, [item]: false }), {}),
+      bollinger: false,
+      volume: false,
+      ema50: false,
       [key]: true,
-      bollinger: key === 'bb' ? true : current.bollinger,
-      volume: key === 'awesome' ? true : current.volume,
+      bollinger: key === 'bb',
+      volume: key === 'awesome',
     }));
-    setIndicatorOpen(false);
+  };
+  const addActiveIndicator = () => {
+    applyIndicatorTool();
   };
   const resetView = () => {
     const message = JSON.stringify({ type: 'reset-view' });
@@ -710,6 +942,12 @@ export default function TradingChart() {
       true;
     `);
   };
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return undefined;
+    window.addEventListener('message', handleChartMessage);
+    return () => window.removeEventListener('message', handleChartMessage);
+  }, [handleChartMessage]);
 
   return (
     <View className="relative flex-1 overflow-hidden border" style={{ minHeight: chartMinHeight, backgroundColor: ui.background, borderColor: ui.border }}>
@@ -764,26 +1002,16 @@ export default function TradingChart() {
 
             <View className="mt-1.5 flex-row items-center justify-end" style={{ columnGap: 4 }}>
               <IconButton active={chartMenuOpen} ui={ui} size={iconButtonSize} onPress={toggleChartMenu}>
-                <BarChart3 size={14} color={chartMenuOpen ? ui.activeText : ui.text} />
+                <ActiveChartIcon size={14} color={chartMenuOpen ? ui.activeText : ui.text} />
               </IconButton>
               <IconButton active={indicatorOpen} ui={ui} size={iconButtonSize} onPress={toggleIndicatorMenu}>
-                <Text className="font-extrabold" style={{ color: indicatorOpen ? ui.activeText : ui.text, fontSize: 10 }}>f(x)</Text>
+                <IndicatorGlyph active={indicatorOpen} ui={ui} size={10} />
               </IconButton>
               <IconButton active={settingsOpen} ui={ui} size={iconButtonSize} onPress={toggleSettingsMenu}>
                 <Settings size={14} color={settingsOpen ? ui.activeText : ui.text} />
               </IconButton>
-              <IconButton active={drawingOpen} ui={ui} size={iconButtonSize} onPress={toggleDrawingMenu}>
-                <View className="h-5 w-5 items-center justify-center">
-                  <View
-                    className="rounded-full"
-                    style={{
-                      width: 18,
-                      height: 2,
-                      backgroundColor: drawingOpen ? ui.activeText : ui.text,
-                      transform: [{ rotate: '-45deg' }],
-                    }}
-                  />
-                </View>
+              <IconButton active={drawingOpen || Boolean(activeDrawingTool)} ui={ui} size={iconButtonSize} onPress={toggleDrawingMenu}>
+                <LineChart size={15} color={drawingOpen || activeDrawingTool ? ui.activeText : ui.text} />
               </IconButton>
             </View>
           </View>
@@ -812,26 +1040,16 @@ export default function TradingChart() {
             </View>
             <View className="mt-1 flex-row flex-wrap items-center" style={{ columnGap: compactToolbar ? 3 : 4, rowGap: 3 }}>
                 <IconButton active={chartMenuOpen} ui={ui} size={iconButtonSize} onPress={toggleChartMenu}>
-                  <BarChart3 size={compactToolbar ? 14 : 17} color={chartMenuOpen ? ui.activeText : ui.text} />
+                  <ActiveChartIcon size={compactToolbar ? 14 : 17} color={chartMenuOpen ? ui.activeText : ui.text} />
                 </IconButton>
                 <IconButton active={indicatorOpen} ui={ui} size={iconButtonSize} onPress={toggleIndicatorMenu}>
-                  <Text className="font-extrabold" style={{ color: indicatorOpen ? ui.activeText : ui.text, fontSize: compactToolbar ? 10 : 12 }}>f(x)</Text>
+                  <IndicatorGlyph active={indicatorOpen} ui={ui} size={compactToolbar ? 10 : 12} />
                 </IconButton>
                 <IconButton active={settingsOpen} ui={ui} size={iconButtonSize} onPress={toggleSettingsMenu}>
                   <Settings size={compactToolbar ? 14 : 16} color={settingsOpen ? ui.activeText : ui.text} />
                 </IconButton>
-                <IconButton active={drawingOpen} ui={ui} size={iconButtonSize} onPress={toggleDrawingMenu}>
-                  <View className="h-5 w-5 items-center justify-center">
-                    <View
-                      className="rounded-full"
-                      style={{
-                        width: compactToolbar ? 18 : 22,
-                        height: 2,
-                        backgroundColor: drawingOpen ? ui.activeText : ui.text,
-                        transform: [{ rotate: '-45deg' }],
-                      }}
-                    />
-                  </View>
+                <IconButton active={drawingOpen || Boolean(activeDrawingTool)} ui={ui} size={iconButtonSize} onPress={toggleDrawingMenu}>
+                  <LineChart size={compactToolbar ? 14 : 16} color={drawingOpen || activeDrawingTool ? ui.activeText : ui.text} />
                 </IconButton>
             </View>
           </>
@@ -884,49 +1102,443 @@ export default function TradingChart() {
         ) : null}
 
         {indicatorOpen ? (
-          <View className="absolute left-0 h-[322px] w-[536px] max-w-full flex-row border shadow-2xl" style={{ top: toolbarMenuTop, backgroundColor: ui.panel, borderColor: ui.menuBorder, zIndex: 3000, elevation: 3000 }}>
-            <View className="w-[212px] border-r pt-8" style={{ borderColor: ui.border }}>
-              <Text className="absolute left-3 top-4 text-sm font-extrabold" style={{ color: ui.text }}>INDICATORS</Text>
-              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 4, paddingBottom: 14 }}>
+          <View className="absolute left-1 w-[560px] max-w-full flex-row overflow-hidden rounded-lg border shadow-2xl" style={{ top: toolbarMenuTop, height: indicatorPanelHeight, backgroundColor: ui.panel, borderColor: ui.menuBorder, zIndex: 3000, elevation: 3000 }}>
+            <View className="w-[210px] border-r" style={{ borderColor: ui.border }}>
+              <View className="h-9 justify-center border-b px-3" style={{ borderColor: ui.border }}>
+                <Text className="text-[11px] font-extrabold uppercase" style={{ color: ui.text }}>Indicators</Text>
+              </View>
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 5, paddingVertical: 8 }}>
                 {INDICATOR_TOOLS.map(([key, label]) => (
                   <Pressable
                     key={key}
-                    onPress={() => applyIndicatorTool(key)}
-                    className="h-8 justify-center rounded-md px-3"
-                    style={{ backgroundColor: activeIndicator === key || tools[key] || (key === 'bb' && tools.bollinger) ? ui.soft : 'transparent' }}
+                    onPress={() => selectIndicatorTool(key)}
+                    className="h-7 justify-center rounded-md px-2"
+                    style={{ backgroundColor: activeIndicator === key ? ui.soft : 'transparent' }}
                   >
-                    <Text className="text-xs font-semibold" style={{ color: activeIndicator === key || tools[key] || (key === 'bb' && tools.bollinger) ? ui.accent : ui.muted, textAlign: 'center' }}>{label}</Text>
+                    <Text className="text-[9px] font-semibold" numberOfLines={1} style={{ color: activeIndicator === key ? ui.accent : ui.muted, textAlign: 'center' }}>{label}</Text>
                   </Pressable>
                 ))}
               </ScrollView>
             </View>
-            <View className="flex-1 px-8 py-14">
-              <View className="absolute left-0 top-5 h-[260px] w-1 rounded-full" style={{ backgroundColor: ui.accent }} />
-              <Text className="text-xs font-semibold" style={{ color: ui.muted }}>Number of periods for calculation of the indicator</Text>
-              <View className="mt-2 h-9 flex-row overflow-hidden rounded-md border" style={{ borderColor: ui.border }}>
-                <Pressable className="w-10 items-center justify-center border-r" style={{ borderColor: ui.border }} onPress={() => setAtrPeriod(tools.atrPeriod - 1)}>
-                  <Minus size={14} color={ui.text} />
-                </Pressable>
-                <View className="flex-1 items-center justify-center">
-                  <Text className="text-sm font-extrabold" style={{ color: ui.text }}>{tools.atrPeriod}</Text>
-                </View>
-                <Pressable className="w-10 items-center justify-center border-l" style={{ borderColor: ui.border }} onPress={() => setAtrPeriod(tools.atrPeriod + 1)}>
-                  <Plus size={14} color={ui.text} />
+            <View className="min-h-0 flex-1">
+              <View className="h-9 flex-row items-center justify-end border-b px-4" style={{ borderColor: ui.border }}>
+                <Pressable onPress={() => setIndicatorOpen(false)} className="h-7 w-7 items-center justify-center">
+                  <Text className="text-lg" style={{ color: ui.muted }}>x</Text>
                 </Pressable>
               </View>
-              <Text className="mt-4 text-xs font-semibold" style={{ color: ui.muted }}>Color</Text>
-              <View className="mt-2 flex-row items-center gap-3">
-                <View className="h-8 w-8 rounded border p-0.5" style={{ borderColor: ui.border }}>
-                  <View className="h-full w-full rounded-sm" style={{ backgroundColor: ui.accent }} />
-                </View>
-                <View className="h-9 flex-1 flex-row items-center justify-between rounded-md border px-3" style={{ borderColor: ui.border }}>
-                  <Text className="text-sm font-bold" style={{ color: ui.text }}>1 px</Text>
-                  <ChevronDown size={15} color={ui.muted} />
-                </View>
+              <ScrollView className="min-h-0 flex-1" showsVerticalScrollIndicator contentContainerStyle={{ padding: 14, paddingBottom: 20 }}>
+                {activePeriodSetting ? (
+                  <>
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Color</Text>
+                    <View className="mb-3 flex-row items-center gap-3">
+                      <View className="h-7 w-7 rounded border p-0.5" style={{ borderColor: ui.border }}>
+                        <View className="h-full w-full rounded-sm" style={{ backgroundColor: ui.accent }} />
+                      </View>
+                      <LineWidthSelect value={tools.defaultLineWidth} onPress={cycleLineWidth} ui={ui} />
+                    </View>
+
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Number of periods for calculation of the indicator</Text>
+                    <View className="mb-3">
+                      <Stepper
+                        value={activePeriodSetting[1]}
+                        onDecrease={() => changeToolNumber(activePeriodSetting[0], -1)}
+                        onIncrease={() => changeToolNumber(activePeriodSetting[0], 1)}
+                        ui={ui}
+                      />
+                    </View>
+                  </>
+                ) : null}
+
+                {activeIndicator === 'bb' ? (
+                  <>
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Number of periods for calculation of the indicator</Text>
+                    <View className="mb-3">
+                      <Stepper
+                        value={tools.bbPeriod}
+                        onDecrease={() => changeToolNumber('bbPeriod', -1)}
+                        onIncrease={() => changeToolNumber('bbPeriod', 1)}
+                        ui={ui}
+                      />
+                    </View>
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Moving Average Type</Text>
+                    <View className="mb-3 h-8 flex-row items-center justify-between rounded-md border px-3" style={{ borderColor: ui.border, backgroundColor: ui.control }}>
+                      <Text className="text-xs font-bold" style={{ color: ui.text }}>SMA</Text>
+                      <ChevronDown size={14} color={ui.muted} />
+                    </View>
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Standard deviations multiplier</Text>
+                    <View className="mb-3">
+                      <Stepper
+                        value={tools.bbDeviation}
+                        onDecrease={() => changeToolNumber('bbDeviation', -0.1, 0.1, 10, 1)}
+                        onIncrease={() => changeToolNumber('bbDeviation', 0.1, 0.1, 10, 1)}
+                        ui={ui}
+                        formatter={(value) => Number(value).toFixed(1)}
+                      />
+                    </View>
+                    {[
+                      ['Color of top band', 'rgba(212, 175, 55, .78)'],
+                      ['Color of middle band', 'rgba(255, 255, 255, .42)'],
+                      ['Color of bottom band', 'rgba(212, 175, 55, .78)'],
+                    ].map(([label, color]) => (
+                      <View key={label} className="mb-3">
+                        <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>{label}</Text>
+                        <View className="flex-row items-center gap-3">
+                          <View className="h-7 w-7 rounded border p-0.5" style={{ borderColor: ui.border }}>
+                            <View className="h-full w-full rounded-sm" style={{ backgroundColor: color }} />
+                          </View>
+                          <LineWidthSelect value={tools.defaultLineWidth} onPress={cycleLineWidth} ui={ui} />
+                        </View>
+                      </View>
+                    ))}
+                  </>
+                ) : null}
+                {activeIndicator === 'cci' ? (
+                  <>
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Number of periods for calculation of the indicator</Text>
+                    <View className="mb-3">
+                      <Stepper
+                        value={tools.cciPeriod}
+                        onDecrease={() => changeToolNumber('cciPeriod', -1)}
+                        onIncrease={() => changeToolNumber('cciPeriod', 1)}
+                        ui={ui}
+                      />
+                    </View>
+                    {[
+                      ['Color', '#ffb84d'],
+                      ['Color', '#8aa8ff'],
+                    ].map(([label, color], index) => (
+                      <View key={`${label}-${index}`} className="mb-3">
+                        <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>{label}</Text>
+                        <View className="flex-row items-center gap-3">
+                          <View className="h-7 w-7 rounded border p-0.5" style={{ borderColor: ui.border }}>
+                            <View className="h-full w-full rounded-sm" style={{ backgroundColor: color }} />
+                          </View>
+                          <LineWidthSelect value={tools.defaultLineWidth} onPress={cycleLineWidth} ui={ui} />
+                        </View>
+                      </View>
+                    ))}
+                  </>
+                ) : null}
+                {activeIndicator === 'ichimoku' ? (
+                  <>
+                    {[
+                      ['Conversion period', 'ichimokuConversion', tools.ichimokuConversion],
+                      ['Base period', 'ichimokuBase', tools.ichimokuBase],
+                      ['Span period', 'ichimokuSpan', tools.ichimokuSpan],
+                      ['Displacement', 'ichimokuDisplacement', tools.ichimokuDisplacement],
+                    ].map(([label, key, value]) => (
+                      <View key={label} className="mb-3">
+                        <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>{label}</Text>
+                        <Stepper
+                          value={value}
+                          onDecrease={() => changeToolNumber(key, -1)}
+                          onIncrease={() => changeToolNumber(key, 1)}
+                          ui={ui}
+                        />
+                      </View>
+                    ))}
+                    {[
+                      ['Conversion Line Color', '#4fc3f7'],
+                      ['Base Line Color', '#f24d58'],
+                      ['Leading Span A Color', '#12cf7a'],
+                      ['Leading Span B Color', '#ffb84d'],
+                    ].map(([label, color]) => (
+                      <View key={label} className="mb-3">
+                        <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>{label}</Text>
+                        <View className="flex-row items-center gap-3">
+                          <View className="h-7 w-7 rounded border p-0.5" style={{ borderColor: ui.border }}>
+                            <View className="h-full w-full rounded-sm" style={{ backgroundColor: color }} />
+                          </View>
+                          <LineWidthSelect value={tools.defaultLineWidth} onPress={cycleLineWidth} ui={ui} />
+                        </View>
+                      </View>
+                    ))}
+                  </>
+                ) : null}
+                {activeIndicator === 'macd' ? (
+                  <>
+                    {[
+                      ['Fast EMA period', 'macdFast', tools.macdFast],
+                      ['Slow EMA period', 'macdSlow', tools.macdSlow],
+                      ['Signal period', 'macdSignal', tools.macdSignal],
+                    ].map(([label, key, value]) => (
+                      <View key={label} className="mb-3">
+                        <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>{label}</Text>
+                        <Stepper
+                          value={value}
+                          onDecrease={() => changeToolNumber(key, -1)}
+                          onIncrease={() => changeToolNumber(key, 1)}
+                          ui={ui}
+                        />
+                      </View>
+                    ))}
+                    {[
+                      ['MACD Line Color', '#4fc3f7'],
+                      ['Signal Line Color', '#f24d58'],
+                      ['Histogram Color', '#8aa8ff'],
+                    ].map(([label, color]) => (
+                      <View key={label} className="mb-3">
+                        <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>{label}</Text>
+                        <View className="flex-row items-center gap-3">
+                          <View className="h-7 w-7 rounded border p-0.5" style={{ borderColor: ui.border }}>
+                            <View className="h-full w-full rounded-sm" style={{ backgroundColor: color }} />
+                          </View>
+                          <LineWidthSelect value={tools.defaultLineWidth} onPress={cycleLineWidth} ui={ui} />
+                        </View>
+                      </View>
+                    ))}
+                  </>
+                ) : null}
+                {activeIndicator === 'momentum' ? (
+                  <>
+                    {[
+                      ['Color', '#12cf7a'],
+                    ].map(([label, color], index) => (
+                      <View key={`${label}-${index}`} className="mb-3">
+                        <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>{label}</Text>
+                        <View className="flex-row items-center gap-3">
+                          <View className="h-7 w-7 rounded border p-0.5" style={{ borderColor: ui.border }}>
+                            <View className="h-full w-full rounded-sm" style={{ backgroundColor: color }} />
+                          </View>
+                          <LineWidthSelect value={tools.defaultLineWidth} onPress={cycleLineWidth} ui={ui} />
+                        </View>
+                      </View>
+                    ))}
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Number of periods for calculation of the indicator</Text>
+                    <View className="mb-3">
+                      <Stepper
+                        value={tools.momentumPeriod}
+                        onDecrease={() => changeToolNumber('momentumPeriod', -1)}
+                        onIncrease={() => changeToolNumber('momentumPeriod', 1)}
+                        ui={ui}
+                      />
+                    </View>
+                    {[
+                      ['Color', '#8aa8ff'],
+                    ].map(([label, color], index) => (
+                      <View key={`${label}-${index + 1}`} className="mb-3">
+                        <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>{label}</Text>
+                        <View className="flex-row items-center gap-3">
+                          <View className="h-7 w-7 rounded border p-0.5" style={{ borderColor: ui.border }}>
+                            <View className="h-full w-full rounded-sm" style={{ backgroundColor: color }} />
+                          </View>
+                          <LineWidthSelect value={tools.defaultLineWidth} onPress={cycleLineWidth} ui={ui} />
+                        </View>
+                      </View>
+                    ))}
+                  </>
+                ) : null}
+                {activeIndicator === 'sma20' ? (
+                  <>
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Color</Text>
+                    <View className="mb-3 flex-row items-center gap-3">
+                      <View className="h-7 w-7 rounded border p-0.5" style={{ borderColor: ui.border }}>
+                        <View className="h-full w-full rounded-sm" style={{ backgroundColor: ui.accent }} />
+                      </View>
+                      <LineWidthSelect value={tools.defaultLineWidth} onPress={cycleLineWidth} ui={ui} />
+                    </View>
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Number of periods for calculation of the indicator</Text>
+                    <View className="mb-3">
+                      <Stepper
+                        value={tools.smaPeriod}
+                        onDecrease={() => changeToolNumber('smaPeriod', -1)}
+                        onIncrease={() => changeToolNumber('smaPeriod', 1)}
+                        ui={ui}
+                      />
+                    </View>
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Moving Average Type</Text>
+                    <View className="mb-3 h-8 flex-row items-center justify-between rounded-md border px-3" style={{ borderColor: ui.border, backgroundColor: ui.control }}>
+                      <Text className="text-xs font-bold" style={{ color: ui.text }}>SMA</Text>
+                      <ChevronDown size={14} color={ui.muted} />
+                    </View>
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Color</Text>
+                    <View className="mb-3 flex-row items-center gap-3">
+                      <View className="h-7 w-7 rounded border p-0.5" style={{ borderColor: ui.border }}>
+                        <View className="h-full w-full rounded-sm" style={{ backgroundColor: ui.accent }} />
+                      </View>
+                      <LineWidthSelect value={tools.defaultLineWidth} onPress={cycleLineWidth} ui={ui} />
+                    </View>
+                  </>
+                ) : null}
+                {activeIndicator === 'wma' ? (
+                  <>
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Color</Text>
+                    <View className="mb-3 flex-row items-center gap-3">
+                      <View className="h-7 w-7 rounded border p-0.5" style={{ borderColor: ui.border }}>
+                        <View className="h-full w-full rounded-sm" style={{ backgroundColor: '#4fc3f7' }} />
+                      </View>
+                      <LineWidthSelect value={tools.defaultLineWidth} onPress={cycleLineWidth} ui={ui} />
+                    </View>
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Number of periods for calculation of the indicator</Text>
+                    <View className="mb-3">
+                      <Stepper
+                        value={tools.wmaPeriod}
+                        onDecrease={() => changeToolNumber('wmaPeriod', -1)}
+                        onIncrease={() => changeToolNumber('wmaPeriod', 1)}
+                        ui={ui}
+                      />
+                    </View>
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Color</Text>
+                    <View className="mb-3 flex-row items-center gap-3">
+                      <View className="h-7 w-7 rounded border p-0.5" style={{ borderColor: ui.border }}>
+                        <View className="h-full w-full rounded-sm" style={{ backgroundColor: '#4fc3f7' }} />
+                      </View>
+                      <LineWidthSelect value={tools.defaultLineWidth} onPress={cycleLineWidth} ui={ui} />
+                    </View>
+                  </>
+                ) : null}
+                {activeIndicator === 'sar' ? (
+                  <>
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Color</Text>
+                    <View className="mb-3 flex-row items-center gap-3">
+                      <View className="h-7 w-7 rounded border p-0.5" style={{ borderColor: ui.border }}>
+                        <View className="h-full w-full rounded-sm" style={{ backgroundColor: '#ffffff' }} />
+                      </View>
+                      <LineWidthSelect value={tools.defaultLineWidth} onPress={cycleLineWidth} ui={ui} />
+                    </View>
+                    {[
+                      ['Acceleration factor', 'sarAcceleration', tools.sarAcceleration],
+                      ['Maximal value for Step parameter', 'sarMax', tools.sarMax],
+                    ].map(([label, key, value]) => (
+                      <View key={label} className="mb-3">
+                        <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>{label}</Text>
+                        <Stepper
+                          value={value}
+                          onDecrease={() => changeToolNumber(key, -0.01, 0.01, 1, 2)}
+                          onIncrease={() => changeToolNumber(key, 0.01, 0.01, 1, 2)}
+                          ui={ui}
+                          formatter={(item) => Number(item).toFixed(2)}
+                        />
+                      </View>
+                    ))}
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Color</Text>
+                    <View className="mb-3 flex-row items-center gap-3">
+                      <View className="h-7 w-7 rounded border p-0.5" style={{ borderColor: ui.border }}>
+                        <View className="h-full w-full rounded-sm" style={{ backgroundColor: '#f24d58' }} />
+                      </View>
+                      <LineWidthSelect value={tools.defaultLineWidth} onPress={cycleLineWidth} ui={ui} />
+                    </View>
+                  </>
+                ) : null}
+                {activeIndicator === 'rsi' ? (
+                  <>
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Color</Text>
+                    <View className="mb-3 flex-row items-center gap-3">
+                      <View className="h-7 w-7 rounded border p-0.5" style={{ borderColor: ui.border }}>
+                        <View className="h-full w-full rounded-sm" style={{ backgroundColor: '#b58cff' }} />
+                      </View>
+                      <LineWidthSelect value={tools.defaultLineWidth} onPress={cycleLineWidth} ui={ui} />
+                    </View>
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Number of periods for calculation of the indicator</Text>
+                    <View className="mb-3">
+                      <Stepper
+                        value={tools.rsiPeriod}
+                        onDecrease={() => changeToolNumber('rsiPeriod', -1)}
+                        onIncrease={() => changeToolNumber('rsiPeriod', 1)}
+                        ui={ui}
+                      />
+                    </View>
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Color</Text>
+                    <View className="mb-3 flex-row items-center gap-3">
+                      <View className="h-7 w-7 rounded border p-0.5" style={{ borderColor: ui.border }}>
+                        <View className="h-full w-full rounded-sm" style={{ backgroundColor: '#8aa8ff' }} />
+                      </View>
+                      <LineWidthSelect value={tools.defaultLineWidth} onPress={cycleLineWidth} ui={ui} />
+                    </View>
+                  </>
+                ) : null}
+                {activeIndicator === 'roc' ? (
+                  <>
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Color</Text>
+                    <View className="mb-3 flex-row items-center gap-3">
+                      <View className="h-7 w-7 rounded border p-0.5" style={{ borderColor: ui.border }}>
+                        <View className="h-full w-full rounded-sm" style={{ backgroundColor: '#ffb84d' }} />
+                      </View>
+                      <LineWidthSelect value={tools.defaultLineWidth} onPress={cycleLineWidth} ui={ui} />
+                    </View>
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Number of periods for calculation of the indicator</Text>
+                    <View className="mb-3">
+                      <Stepper
+                        value={tools.rocPeriod}
+                        onDecrease={() => changeToolNumber('rocPeriod', -1)}
+                        onIncrease={() => changeToolNumber('rocPeriod', 1)}
+                        ui={ui}
+                      />
+                    </View>
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Color</Text>
+                    <View className="mb-3 flex-row items-center gap-3">
+                      <View className="h-7 w-7 rounded border p-0.5" style={{ borderColor: ui.border }}>
+                        <View className="h-full w-full rounded-sm" style={{ backgroundColor: '#4fc3f7' }} />
+                      </View>
+                      <LineWidthSelect value={tools.defaultLineWidth} onPress={cycleLineWidth} ui={ui} />
+                    </View>
+                  </>
+                ) : null}
+                {activeIndicator === 'williams' ? (
+                  <>
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Color</Text>
+                    <View className="mb-3 flex-row items-center gap-3">
+                      <View className="h-7 w-7 rounded border p-0.5" style={{ borderColor: ui.border }}>
+                        <View className="h-full w-full rounded-sm" style={{ backgroundColor: '#8aa8ff' }} />
+                      </View>
+                      <LineWidthSelect value={tools.defaultLineWidth} onPress={cycleLineWidth} ui={ui} />
+                    </View>
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Number of periods for calculation of the indicator</Text>
+                    <View className="mb-3">
+                      <Stepper
+                        value={tools.williamsPeriod}
+                        onDecrease={() => changeToolNumber('williamsPeriod', -1)}
+                        onIncrease={() => changeToolNumber('williamsPeriod', 1)}
+                        ui={ui}
+                      />
+                    </View>
+                    <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>Color</Text>
+                    <View className="mb-3 flex-row items-center gap-3">
+                      <View className="h-7 w-7 rounded border p-0.5" style={{ borderColor: ui.border }}>
+                        <View className="h-full w-full rounded-sm" style={{ backgroundColor: '#b58cff' }} />
+                      </View>
+                      <LineWidthSelect value={tools.defaultLineWidth} onPress={cycleLineWidth} ui={ui} />
+                    </View>
+                  </>
+                ) : null}
+                {activeIndicator === 'awesome' ? (
+                  <>
+                    {[
+                      ['Number of periods for calculation of Short Term Moving Average', 'awesomeShort', tools.awesomeShort],
+                      ['Number of periods for calculation of Long Term Moving Average', 'awesomeLong', tools.awesomeLong],
+                    ].map(([label, key, value]) => (
+                      <View key={label} className="mb-3">
+                        <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>{label}</Text>
+                        <Stepper
+                          value={value}
+                          onDecrease={() => changeToolNumber(key, -1)}
+                          onIncrease={() => changeToolNumber(key, 1)}
+                          ui={ui}
+                        />
+                      </View>
+                    ))}
+                    {[
+                      ['Color', '#8aa8ff'],
+                      ['Color', '#d9dce3'],
+                    ].map(([label, color], index) => (
+                      <View key={`${label}-${index}`} className="mb-3">
+                        <Text className="mb-1 text-[10px] font-semibold" style={{ color: ui.muted }}>{label}</Text>
+                        <View className="flex-row items-center gap-3">
+                          <View className="h-7 w-7 rounded border p-0.5" style={{ borderColor: ui.border }}>
+                            <View className="h-full w-full rounded-sm" style={{ backgroundColor: color }} />
+                          </View>
+                          <LineWidthSelect value={tools.defaultLineWidth} onPress={cycleLineWidth} ui={ui} />
+                        </View>
+                      </View>
+                    ))}
+                  </>
+                ) : null}
+              </ScrollView>
+              <View className="h-12 flex-row items-center justify-end border-t px-4" style={{ borderColor: ui.border, backgroundColor: ui.panel }}>
+                <Pressable className="h-8 justify-center rounded-md px-5" style={{ backgroundColor: ui.controlActive }} onPress={addActiveIndicator}>
+                  <Text className="text-[10px] font-extrabold" style={{ color: ui.activeText }}>{activeIndicatorAddLabel}</Text>
+                </Pressable>
               </View>
-              <Pressable className="mt-4 h-8 self-end justify-center rounded-lg px-6" style={{ backgroundColor: ui.controlActive }} onPress={() => { setTools((current) => ({ ...current, atr: true })); setIndicatorOpen(false); }}>
-                <Text className="text-xs font-extrabold" style={{ color: ui.activeText }}>ADD ATR</Text>
-              </Pressable>
             </View>
           </View>
         ) : null}
@@ -946,26 +1558,28 @@ export default function TradingChart() {
         <View className="absolute left-[104px] w-[194px] rounded-xl border p-2 shadow-2xl" style={{ top: toolbarMenuTop, backgroundColor: ui.menu, borderColor: ui.menuBorder, zIndex: 3000, elevation: 3000 }}>
           {DRAWING_TOOLS.map(([key, label]) => {
             const danger = key === 'clear';
+            const active = key === activeDrawingTool;
             return (
               <Pressable
                 key={key}
                 onPress={() => applyDrawingTool(key)}
                 className="h-8 flex-row items-center rounded-md px-2"
+                style={{ backgroundColor: active ? ui.soft : 'transparent' }}
               >
                 {key === 'horizontal' ? (
                   <View className="w-8 items-center">
-                    <View style={{ width: 16, height: 2, backgroundColor: ui.text }} />
+                    <View style={{ width: 16, height: 2, backgroundColor: active ? ui.accent : ui.text }} />
                   </View>
                 ) : null}
                 {key === 'trend' ? (
                   <View className="w-8 items-center">
-                    <View style={{ width: 20, height: 2, backgroundColor: ui.text, transform: [{ rotate: '-45deg' }] }} />
+                    <View style={{ width: 20, height: 2, backgroundColor: active ? ui.accent : ui.text, transform: [{ rotate: '-45deg' }] }} />
                   </View>
                 ) : null}
                 {key === 'fibonacci' ? (
                   <View className="w-8 items-center" style={{ rowGap: 2 }}>
                     {[0, 1, 2, 3, 4].map((item) => (
-                      <View key={item} style={{ width: 18, height: 1.5, backgroundColor: ui.text }} />
+                      <View key={item} style={{ width: 18, height: 1.5, backgroundColor: active ? ui.accent : ui.text }} />
                     ))}
                   </View>
                 ) : null}
@@ -974,7 +1588,7 @@ export default function TradingChart() {
                     <Trash2 size={15} color={ui.danger} />
                   </View>
                 ) : null}
-                <Text className="text-xs font-semibold" style={{ color: danger ? ui.danger : ui.text }}>{label}</Text>
+                <Text className="text-xs font-semibold" style={{ color: danger ? ui.danger : active ? ui.accent : ui.text }}>{label}</Text>
               </Pressable>
             );
           })}
@@ -996,6 +1610,7 @@ export default function TradingChart() {
             originWhitelist={['*']}
             domStorageEnabled
             javaScriptEnabled
+            onMessage={handleChartMessage}
             source={{ html }}
             style={{ backgroundColor: colors.chartBackground, zIndex: 0, elevation: 0 }}
           />
