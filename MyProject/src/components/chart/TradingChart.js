@@ -159,6 +159,10 @@ const applyLivePriceToCandles = (candles, currentSymbol, timeframe) => {
   }
 
   if (Number.isFinite(previousTime) && previousTime < time) {
+    if (time - previousTime > seconds * 2) {
+      return nextCandles;
+    }
+
     const open = Number(previous.close);
     nextCandles.push({
       time,
