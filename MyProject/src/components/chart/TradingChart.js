@@ -159,7 +159,10 @@ const applyLivePriceToCandles = (candles, currentSymbol, timeframe) => {
   }
 
   if (Number.isFinite(previousTime) && previousTime < time) {
-    if (time - previousTime > seconds * 2) {
+    const gapSeconds = time - previousTime;
+    const hasMissingHistory = gapSeconds > seconds * 2;
+
+    if (hasMissingHistory) {
       return nextCandles;
     }
 
