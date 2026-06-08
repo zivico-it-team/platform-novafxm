@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, router } from 'expo-router';
+import { Link, router, useLocalSearchParams } from 'expo-router';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import CustomButton from '../src/components/common/CustomButton';
 import CustomInput from '../src/components/common/CustomInput';
@@ -7,7 +7,8 @@ import { useAuth } from '../src/hooks/useAuth';
 
 export default function RegisterScreen() {
   const { register } = useAuth();
-  const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', accountType: 'Demo' });
+  const params = useLocalSearchParams();
+  const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', accountType: 'Demo', referralCode: String(params.ref || '') });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const update = (key) => (value) => setForm((current) => ({ ...current, [key]: value }));
@@ -42,6 +43,7 @@ export default function RegisterScreen() {
         <CustomInput label="Full name" value={form.name} onChangeText={update('name')} />
         <CustomInput label="Email" autoCapitalize="none" keyboardType="email-address" value={form.email} onChangeText={update('email')} />
         <CustomInput label="Phone" keyboardType="phone-pad" value={form.phone} onChangeText={update('phone')} />
+        <CustomInput label="Referral code" value={form.referralCode} onChangeText={update('referralCode')} />
         <CustomInput label="Password" secureTextEntry value={form.password} onChangeText={update('password')} />
         {error ? <Text className="mb-4 text-danger">{error}</Text> : null}
         <CustomButton title="Register" onPress={submit} loading={loading} />

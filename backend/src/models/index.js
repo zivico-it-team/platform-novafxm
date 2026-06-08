@@ -5,6 +5,7 @@ const Withdrawal = require('./Withdrawal');
 const Transaction = require('./Transaction');
 const Trade = require('./Trade');
 const Candle = require('./Candle');
+const TradingAccount = require('./TradingAccount');
 
 User.hasOne(Wallet, { foreignKey: 'userId', as: 'wallet' });
 Wallet.belongsTo(User, { foreignKey: 'userId' });
@@ -16,5 +17,9 @@ User.hasMany(Transaction, { foreignKey: 'userId' });
 Transaction.belongsTo(User, { foreignKey: 'userId' });
 User.hasMany(Trade, { foreignKey: 'userId' });
 Trade.belongsTo(User, { foreignKey: 'userId' });
+User.hasMany(TradingAccount, { foreignKey: 'userId', as: 'tradingAccounts' });
+TradingAccount.belongsTo(User, { foreignKey: 'userId' });
+User.hasMany(User, { foreignKey: 'referredById', as: 'referrals' });
+User.belongsTo(User, { foreignKey: 'referredById', as: 'referrer' });
 
-module.exports = { User, Wallet, Deposit, Withdrawal, Transaction, Trade, Candle };
+module.exports = { User, Wallet, Deposit, Withdrawal, Transaction, Trade, Candle, TradingAccount };
