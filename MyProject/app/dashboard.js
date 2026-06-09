@@ -1,7 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, router, useLocalSearchParams } from 'expo-router';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
-import { ArrowUpRight, CheckCircle2, Clock3, Plus, ShieldCheck, Wallet } from 'lucide-react-native';
+import {
+  ArrowUpRight,
+  Award,
+  CheckCircle2,
+  Clock3,
+  Copy,
+  Plus,
+  RefreshCcw,
+  ShieldCheck,
+  TrendingUp,
+  UsersRound,
+  Wallet,
+} from 'lucide-react-native';
 import CustomButton from '../src/components/common/CustomButton';
 import DepositForm from '../src/components/wallet/DepositForm';
 import WithdrawForm from '../src/components/wallet/WithdrawForm';
@@ -28,6 +40,93 @@ function Stat({ label, value }) {
     <View className="min-w-[150px] flex-1 rounded-xl border border-border bg-surface p-4">
       <Text className="text-xs font-semibold uppercase text-muted">{label}</Text>
       <Text className="mt-2 text-xl font-extrabold text-white">{value}</Text>
+    </View>
+  );
+}
+
+function referralBaseUrl() {
+  if (typeof window !== 'undefined' && window.location?.origin) return window.location.origin;
+  return 'http://localhost:8081';
+}
+
+function RewardMetric({ label, value, caption, icon: Icon, tone = 'primary' }) {
+  const color = tone === 'success' ? '#12cf7a' : '#D4AF37';
+
+  return (
+    <View className="min-w-[220px] flex-1 rounded-2xl border border-border bg-panel p-4">
+      <View className="mb-4 flex-row items-center justify-between">
+        <View className="h-10 w-10 items-center justify-center rounded-xl" style={{ backgroundColor: `${color}22` }}>
+          <Icon size={19} color={color} />
+        </View>
+        <Text className="text-xs font-bold uppercase text-muted">{label}</Text>
+      </View>
+      <Text className="text-2xl font-black text-white">{value}</Text>
+      <Text className="mt-2 text-xs text-muted">{caption}</Text>
+    </View>
+  );
+}
+
+function RewardProgress({ approved, pending }) {
+  const approvedValue = Number(approved || 0);
+  const pendingValue = Number(pending || 0);
+  const total = approvedValue + pendingValue;
+  const approvedPct = total > 0 ? Math.min(100, Math.max(0, (approvedValue / total) * 100)) : 0;
+
+  return (
+    <View className="rounded-2xl border border-border bg-panel p-5">
+      <View className="mb-3 flex-row items-center justify-between">
+        <Text className="text-base font-black text-white">Referral Deposit Progress</Text>
+        <Text className="text-sm font-bold text-muted">{total.toFixed(2)} USD</Text>
+      </View>
+      <View className="h-3 overflow-hidden rounded-full bg-surface">
+        <View className="h-full rounded-full bg-primary" style={{ width: `${approvedPct}%` }} />
+      </View>
+      <View className="mt-3 flex-row justify-between">
+        <Text className="text-xs text-muted">Approved {approvedValue.toFixed(2)} USD</Text>
+        <Text className="text-xs text-muted">Pending {pendingValue.toFixed(2)} USD</Text>
+      </View>
+    </View>
+  );
+}
+
+function ReferralStep({ number, title, description }) {
+  return (
+    <View className="flex-1 rounded-2xl border border-border bg-panel p-4">
+      <View className="mb-3 h-8 w-8 items-center justify-center rounded-full bg-primary">
+        <Text className="font-black text-black">{number}</Text>
+      </View>
+      <Text className="font-black text-white">{title}</Text>
+      <Text className="mt-2 text-sm text-muted">{description}</Text>
+    </View>
+  );
+}
+
+function LinkedReferralList({ referrals }) {
+  if (!referrals?.length) {
+    return (
+      <View className="rounded-2xl border border-dashed border-border bg-surface p-5">
+        <Text className="font-bold text-white">No linked clients yet</Text>
+        <Text className="mt-1 text-sm text-muted">Share your referral link to connect new client accounts.</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View className="gap-3">
+      {referrals.map((item) => (
+        <View key={item.id} className="rounded-xl border border-border bg-surface p-4">
+          <View className="flex-row items-center justify-between">
+            <View className="min-w-0 flex-1">
+              <Text className="font-black text-white" numberOfLines={1}>{item.name || 'Client'}</Text>
+              <Text className="mt-1 text-sm text-muted" numberOfLines={1}>{item.email || '-'}</Text>
+            </View>
+            <View className="rounded-full bg-panel px-3 py-1">
+              <Text className="text-xs font-bold text-primary">{item.accountType || 'Demo'}</Text>
+            </View>
+          </View>
+          <Text className="mt-2 text-xs text-muted">Joined {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : '-'}</Text>
+        </View>
+      ))}
     </View>
   );
 }
