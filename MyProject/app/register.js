@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, router, useLocalSearchParams } from 'expo-router';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import CustomButton from '../src/components/common/CustomButton';
@@ -6,12 +6,26 @@ import CustomInput from '../src/components/common/CustomInput';
 import { useAuth } from '../src/hooks/useAuth';
 
 export default function RegisterScreen() {
-  const { register } = useAuth();
+  const { claimReferral, register, user } = useAuth();
   const params = useLocalSearchParams();
   const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', accountType: 'Demo', referralCode: String(params.ref || '') });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const update = (key) => (value) => setForm((current) => ({ ...current, [key]: value }));
+
+  useEffect(() => {
+    const referralCode = String(params.ref || '').trim().toUpperCase();
+    if (!referralCode) return;
+    setForm((current) => (
+      current.referralCode ? current : { ...current, referralCode }
+    ));
+    if (user) {
+      claimReferral(referralCode)
+        .then(() => router.replace('/dashboard?section=rewards'))
+        .catch((requestError) => setError(requestError.response?.data?.message || 'Unable to link referral.'));
+    }
+  }, [claimReferral, params.ref, user]);
+
   const submit = async () => {
     setLoading(true);
     setError('');
@@ -47,7 +61,7 @@ export default function RegisterScreen() {
         <CustomInput label="Password" secureTextEntry value={form.password} onChangeText={update('password')} />
         {error ? <Text className="mb-4 text-danger">{error}</Text> : null}
         <CustomButton title="Register" onPress={submit} loading={loading} />
-        <Link href="/login" asChild><Pressable className="mt-5"><Text className="text-center text-primary">Already registered? Login</Text></Pressable></Link>
+        <Link href={form.referralCode ? `/login?ref=${encodeURIComponent(form.referralCode)}` : '/login'} asChild><Pressable className="mt-5"><Text className="text-center text-primary">Already registered? Login</Text></Pressable></Link>
       </View>
     </ScrollView>
   );

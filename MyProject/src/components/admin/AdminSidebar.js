@@ -31,7 +31,7 @@ export default function AdminSidebar({ section, onChange, stats, pendingCount, o
             onPress={() => onChange(id)}
             className={`mb-2 flex-row items-center rounded-xl px-4 py-4 ${section === id ? 'bg-primary' : 'bg-transparent'}`}
           >
-            <Icon size={19} color={section === id ? '#0B0B0B' : '#8fa0bb'} />
+            <Icon size={19} color={section === id ? '#0B0B0B' : '#848e9c'} />
             <Text className={`ml-3 font-semibold ${section === id ? 'text-black' : 'text-muted'}`}>{label}</Text>
             {id === 'funding' && pendingCount ? (
               <Text className="ml-auto rounded-full bg-danger px-2 py-1 text-xs font-bold text-white">{pendingCount}</Text>
@@ -48,7 +48,7 @@ export default function AdminSidebar({ section, onChange, stats, pendingCount, o
       <View className="hidden mt-auto border-t border-border p-4 md:flex">
         <Link href="/trading" asChild>
           <Pressable className="mb-2 flex-row items-center rounded-xl bg-surface px-4 py-4">
-            <BriefcaseBusiness size={18} color="#8fa0bb" />
+            <BriefcaseBusiness size={18} color="#848e9c" />
             <Text className="ml-3 font-semibold text-muted">Trading Platform</Text>
           </Pressable>
         </Link>

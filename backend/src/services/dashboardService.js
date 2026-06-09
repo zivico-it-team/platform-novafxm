@@ -1,5 +1,5 @@
 const { Op } = require('sequelize');
-const { User, Wallet, Transaction, TradingAccount } = require('../models');
+const { User, Wallet, Deposit, Transaction, TradingAccount } = require('../models');
 
 const money = (value) => Number(Number(value || 0).toFixed(2));
 
@@ -59,14 +59,38 @@ async function dashboardForUser(userId, origin = '') {
     }),
   ]);
 
-  const referralIds = referrals.map((item) => item.id);
+  const referralRows = referrals.map((item) => item.toJSON());
+  const referralIds = referralRows.map((item) => item.id);
   const approvedDeposits = referralIds.length
-    ? await Transaction.sum('amount', {
-      where: { userId: { [Op.in]: referralIds }, type: 'deposit', status: { [Op.in]: ['approved', 'completed'] } },
+    ? await Deposit.sum('amount', {
+      where: { userId: { [Op.in]: referralIds }, status: 'approved' },
+    })
+    : 0;
+  const pendingDeposits = referralIds.length
+    ? await Deposit.sum('amount', {
+      where: { userId: { [Op.in]: referralIds }, status: 'pending' },
     })
     : 0;
   const referralCommissionRate = Number(process.env.REFERRAL_COMMISSION_RATE || 0.05);
   const referralCommission = money(Number(approvedDeposits || 0) * referralCommissionRate);
+  const depositsByReferral = referralIds.length
+    ? await Promise.all(referralRows.map(async (referral) => {
+      const approvedDepositTotal = money(await Deposit.sum('amount', {
+        where: { userId: referral.id, status: 'approved' },
+      }) || 0);
+      const pendingDepositTotal = money(await Deposit.sum('amount', {
+        where: { userId: referral.id, status: 'pending' },
+      }) || 0);
+      const depositCount = await Deposit.count({ where: { userId: referral.id } });
+      return {
+        ...referral,
+        approvedDepositTotal,
+        pendingDepositTotal,
+        depositCount,
+        commission: money(approvedDepositTotal * referralCommissionRate),
+      };
+    }))
+    : [];
   const baseUrl = origin || process.env.FRONTEND_URL || 'http://localhost:8081';
 
   return {
@@ -79,7 +103,10 @@ async function dashboardForUser(userId, origin = '') {
       url: `${baseUrl.replace(/\/$/, '')}/register?ref=${encodeURIComponent(referralCode)}`,
       commissionRate: referralCommissionRate,
       commission: referralCommission,
-      referrals,
+      approvedDeposits: money(approvedDeposits || 0),
+      pendingDeposits: money(pendingDeposits || 0),
+      referralCount: depositsByReferral.length,
+      referrals: depositsByReferral,
     },
   };
 }

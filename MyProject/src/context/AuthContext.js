@@ -35,6 +35,13 @@ export function AuthProvider({ children }) {
   const login = useCallback(async (values) => storeSession(await authService.login(values)), [storeSession]);
   const register = useCallback(async (values) => storeSession(await authService.register(values)), [storeSession]);
 
+  const claimReferral = useCallback(async (referralCode) => {
+    const result = await authService.claimReferral(referralCode);
+    setUser(result.user);
+    await storage.set('user', result.user);
+    return result.user;
+  }, []);
+
   const logout = useCallback(async () => {
     await storage.clearSession();
     setUser(null);
