@@ -51,6 +51,7 @@ export default function AdminScreen() {
   const [transactionsModal, setTransactionsModal] = useState(null);
   const [verificationUser, setVerificationUser] = useState(null);
   const [receiptModal, setReceiptModal] = useState(null);
+  const [depositDetails, setDepositDetails] = useState(null);
 
   const load = useCallback(async () => {
     if (!isAdmin) return;
@@ -155,7 +156,12 @@ export default function AdminScreen() {
 
   const reviewFunding = (type, item, decision) => ask(
     `${decision === 'approve' ? 'Approve' : 'Reject'} this ${type === 'deposits' ? 'deposit' : 'withdrawal'} for $${money(item.amount)}?`,
-    () => action(item.id, () => api.put(`/admin/${type}/${item.id}/${decision}`), `${type === 'deposits' ? 'Deposit' : 'Withdrawal'} ${decision}d.`),
+    () => action(
+      item.id,
+      () => api.put(`/admin/${type}/${item.id}/${decision}`),
+      `${type === 'deposits' ? 'Deposit' : 'Withdrawal'} ${decision}d.`,
+      type === 'deposits' ? closeDepositDetails : undefined,
+    ),
   );
 
   const reviewVerification = (user, decision) => ask(
@@ -171,6 +177,7 @@ export default function AdminScreen() {
     if (!item.receiptImage) return;
     setReceiptModal(item);
   };
+  const closeDepositDetails = () => setDepositDetails(null);
   const downloadDepositReceipt = (item) => {
     if (!item.receiptImage || Platform.OS !== 'web' || typeof document === 'undefined') return;
     const link = document.createElement('a');
@@ -226,19 +233,18 @@ export default function AdminScreen() {
                 <View className="mb-2 mr-4">
                   <Text className="font-semibold text-white">{item.User?.name || item.User?.email || 'User'}</Text>
                   <Text className="mt-1 text-sm text-muted">${money(item.amount)} | {item.status} | {dateTime(item.createdAt)}</Text>
-                  {type === 'deposits' && item.receiptImage ? (
-                    <View className="mt-2 flex-row flex-wrap gap-2">
-                      <Pressable onPress={() => openDepositReceipt(item)} className="rounded-lg border border-primary/40 bg-primary/10 px-3 py-2">
-                        <Text className="text-xs font-bold text-primary">View Receipt</Text>
-                      </Pressable>
-                      <Pressable onPress={() => downloadDepositReceipt(item)} className="rounded-lg border border-success/40 bg-success/10 px-3 py-2">
-                        <Text className="text-xs font-bold text-success">Download Receipt</Text>
-                      </Pressable>
-                    </View>
-                  ) : null}
                 </View>
-                {item.status === 'pending' ? (
-                  <View className="flex-row">
+                <View className="flex-row flex-wrap items-center">
+                  {type === 'deposits' ? (
+                    <Pressable
+                      onPress={() => setDepositDetails(item)}
+                      className="mb-2 mr-2 min-h-[38px] justify-center rounded-lg border border-primary/50 bg-primary/10 px-4"
+                    >
+                      <Text className="text-xs font-bold text-primary">View Details</Text>
+                    </Pressable>
+                  ) : null}
+                  {item.status === 'pending' ? (
+                    <>
                     <Pressable
                       disabled={busyId === item.id}
                       onPress={() => reviewFunding(type, item, 'approve')}
@@ -253,8 +259,9 @@ export default function AdminScreen() {
                     >
                       <Text className="text-xs font-bold text-danger">Reject</Text>
                     </Pressable>
-                  </View>
-                ) : null}
+                    </>
+                  ) : null}
+                </View>
               </View>
             ))}
             {!data[type].length ? <EmptyRow>No {type} requests found.</EmptyRow> : null}
@@ -354,6 +361,72 @@ export default function AdminScreen() {
       <UserSettingsModal user={settingsUser} loading={busyId === settingsUser?.id} onClose={() => setSettingsUser(null)} onSave={saveSettings} onStatus={() => setTrading(settingsUser)} onReset={() => resetDemo(settingsUser)} />
       <UserWalletDetails user={walletModal?.user} wallet={walletModal?.wallet} loading={walletModal?.loading} onClose={() => setWalletModal(null)} />
       <UserTransactionsModal user={transactionsModal?.user} transactions={transactionsModal?.transactions || []} loading={transactionsModal?.loading} onClose={() => setTransactionsModal(null)} />
+      {depositDetails ? (
+        <View className="absolute inset-0 z-50 items-center justify-center bg-black/70 p-4">
+          <View className="max-h-[92vh] w-full max-w-[900px] rounded-2xl border border-border bg-panel p-5">
+            <View className="mb-4 flex-row items-center justify-between">
+              <View>
+                <Text className="text-2xl font-bold text-white">Deposit Details</Text>
+                <Text className="mt-1 text-sm text-muted">{depositDetails.User?.name || depositDetails.User?.email || 'User'} | {dateTime(depositDetails.createdAt)}</Text>
+              </View>
+              <Pressable onPress={closeDepositDetails}><Text className="text-muted">Close</Text></Pressable>
+            </View>
+            <ScrollView>
+              <View className="gap-4 lg:flex-row">
+                <View className="flex-1 rounded-2xl border border-border bg-surface p-4">
+                  <Text className="mb-4 text-sm font-bold uppercase text-muted">Request Info</Text>
+                  {[
+                    ['Client', depositDetails.User?.name || depositDetails.User?.email || '-'],
+                    ['Email', depositDetails.User?.email || '-'],
+                    ['Amount', `$${money(depositDetails.amount)}`],
+                    ['Payment Method', depositDetails.paymentMethod || '-'],
+                    ['Reference Number', depositDetails.referenceNumber || '-'],
+                    ['Status', depositDetails.status || '-'],
+                    ['Submitted', dateTime(depositDetails.createdAt)],
+                    ['Note', depositDetails.note || '-'],
+                  ].map(([label, value]) => (
+                    <View key={label} className="mb-3 rounded-xl border border-border bg-panel p-3">
+                      <Text className="text-xs font-bold uppercase text-muted">{label}</Text>
+                      <Text className="mt-1 text-sm font-semibold text-white">{value}</Text>
+                    </View>
+                  ))}
+                </View>
+                <View className="flex-1 rounded-2xl border border-border bg-surface p-4">
+                  <Text className="mb-4 text-sm font-bold uppercase text-muted">Receipt</Text>
+                  {depositDetails.receiptImage ? (
+                    <>
+                      <Image source={{ uri: depositDetails.receiptImage }} className="h-[360px] w-full rounded-xl bg-black" resizeMode="contain" />
+                      <View className="mt-4 flex-row flex-wrap justify-end gap-2">
+                        <CustomButton title="Download Receipt" variant="success" className="min-w-[170px]" onPress={() => downloadDepositReceipt(depositDetails)} />
+                      </View>
+                    </>
+                  ) : (
+                    <Text className="rounded-xl bg-panel p-6 text-muted">No receipt uploaded.</Text>
+                  )}
+                </View>
+              </View>
+              {depositDetails.status === 'pending' ? (
+                <View className="mt-5 flex-row justify-end">
+                  <Pressable
+                    disabled={busyId === depositDetails.id}
+                    onPress={() => reviewFunding('deposits', depositDetails, 'approve')}
+                    className={`mr-2 min-h-[42px] justify-center rounded-lg border border-border bg-surface px-5 ${busyId === depositDetails.id ? 'opacity-50' : ''}`}
+                  >
+                    <Text className="text-xs font-bold text-white">Approve</Text>
+                  </Pressable>
+                  <Pressable
+                    disabled={busyId === depositDetails.id}
+                    onPress={() => reviewFunding('deposits', depositDetails, 'reject')}
+                    className={`min-h-[42px] justify-center rounded-lg border border-danger/70 bg-danger/10 px-5 ${busyId === depositDetails.id ? 'opacity-50' : ''}`}
+                  >
+                    <Text className="text-xs font-bold text-danger">Reject</Text>
+                  </Pressable>
+                </View>
+              ) : null}
+            </ScrollView>
+          </View>
+        </View>
+      ) : null}
       {receiptModal ? (
         <View className="absolute inset-0 z-50 items-center justify-center bg-black/70 p-4">
           <View className="max-h-[92vh] w-full max-w-[760px] rounded-2xl border border-border bg-panel p-5">
