@@ -105,6 +105,12 @@ async function ensureSchema() {
     after: 'balance_after',
   });
 
+  await addColumnIfMissing(queryInterface, 'deposits', 'receipt_image', {
+    type: DataTypes.TEXT('long'),
+    allowNull: true,
+    after: 'reference_number',
+  });
+
   await addColumnIfMissing(queryInterface, 'trades', 'trading_account_id', {
     type: DataTypes.INTEGER.UNSIGNED,
     allowNull: true,

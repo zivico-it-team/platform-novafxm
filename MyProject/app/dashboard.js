@@ -123,6 +123,7 @@ export default function DashboardScreen() {
   const demoAccountCount = accounts.filter((account) => account.type === 'Demo').length;
   const liveAccountCount = accounts.filter((account) => account.type === 'Live').length;
   const transactions = dashboard?.transactions || [];
+  const depositTransactions = transactions.filter((item) => item.type === 'deposit');
   const referrals = referral.referrals || [];
   const sections = [
     ['overview', 'Overview'],
@@ -187,12 +188,14 @@ export default function DashboardScreen() {
         </View>
       </View>
 
-      <View className="mb-5 flex-row flex-wrap gap-3">
-        <Stat label="Balance" value={`${Number(wallet.balance || 0).toFixed(2)} ${wallet.currency || 'USD'}`} />
-        <Stat label="Equity" value={`${Number(wallet.equity || wallet.balance || 0).toFixed(2)} ${wallet.currency || 'USD'}`} />
-        <Stat label="Free Funds" value={`${Number(wallet.freeFunds || 0).toFixed(2)} ${wallet.currency || 'USD'}`} />
-        <Stat label="Referral Commission" value={`${Number(referral.commission || 0).toFixed(2)} USD`} />
-      </View>
+      {activeSection === 'overview' ? (
+        <View className="mb-5 flex-row flex-wrap gap-3">
+          <Stat label="Balance" value={`${Number(wallet.balance || 0).toFixed(2)} ${wallet.currency || 'USD'}`} />
+          <Stat label="Equity" value={`${Number(wallet.equity || wallet.balance || 0).toFixed(2)} ${wallet.currency || 'USD'}`} />
+          <Stat label="Free Funds" value={`${Number(wallet.freeFunds || 0).toFixed(2)} ${wallet.currency || 'USD'}`} />
+          <Stat label="Referral Commission" value={`${Number(referral.commission || 0).toFixed(2)} USD`} />
+        </View>
+      ) : null}
 
       {activeSection === 'overview' ? (
         <View className="gap-4 lg:flex-row">
@@ -248,8 +251,9 @@ export default function DashboardScreen() {
       ) : null}
 
       {activeSection === 'deposit' ? (
-        <Card title="Deposit Funds">
+        <Card title="Deposit" subtitle="Submit a funding request with your payment reference.">
           <DepositForm onSubmit={(values) => deposit(values, Boolean(user)).then(loadDashboard)} loading={walletLoading} disabled={fundingLocked} disabledMessage={fundingLockedMessage} />
+          <TransactionList transactions={depositTransactions} title="Deposit History" />
         </Card>
       ) : null}
 

@@ -303,10 +303,24 @@ exports.reviewDeposit = (status) => async (req, res, next) => {
         await wallet.update({ balance: after }, { transaction });
         await storedSummary(deposit.userId, transaction);
       }
-      await Transaction.update({ status: status === 'approved' ? 'completed' : 'rejected', balanceBefore: before, balanceAfter: after }, {
+      const [updatedTransactions] = await Transaction.update({ status: status === 'approved' ? 'completed' : 'rejected', balanceBefore: before, balanceAfter: after }, {
         where: { referenceType: 'deposit', referenceId: deposit.id },
         transaction,
       });
+      if (!updatedTransactions) {
+        await Transaction.create({
+          userId: deposit.userId,
+          type: 'deposit',
+          amount: deposit.amount,
+          status: status === 'approved' ? 'completed' : 'rejected',
+          balanceBefore: before,
+          balanceAfter: after,
+          note: deposit.note,
+          referenceType: 'deposit',
+          referenceId: deposit.id,
+          description: `Deposit via ${deposit.paymentMethod}`,
+        }, { transaction });
+      }
       result = deposit;
     });
     return res.json({ deposit: result });
