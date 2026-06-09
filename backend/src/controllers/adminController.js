@@ -1,5 +1,5 @@
 const sequelize = require('../config/db');
-const { User, Wallet, Deposit, Withdrawal, Transaction, Trade } = require('../models');
+const { User, Wallet, Deposit, Withdrawal, Transaction, Trade, TradingAccount } = require('../models');
 const tradingView = require('../services/tradingViewService');
 
 const DEMO_BALANCE = 5000;
@@ -63,7 +63,17 @@ async function storedSummary(userId, transaction) {
 exports.users = async (req, res, next) => {
   try {
     const [users, trades, livePrices] = await Promise.all([
-      User.findAll({ attributes: publicAttributes, include: [{ model: Wallet, as: 'wallet' }], order: [['createdAt', 'DESC']] }),
+      User.findAll({
+        attributes: publicAttributes,
+        include: [
+          { model: Wallet, as: 'wallet' },
+          { model: TradingAccount, as: 'tradingAccounts' },
+        ],
+        order: [
+          ['createdAt', 'DESC'],
+          [{ model: TradingAccount, as: 'tradingAccounts' }, 'createdAt', 'ASC'],
+        ],
+      }),
       Trade.findAll({ where: { status: 'open' } }),
       tradingView.getPrices(),
     ]);

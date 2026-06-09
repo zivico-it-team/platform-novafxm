@@ -104,6 +104,12 @@ async function ensureSchema() {
     allowNull: true,
     after: 'balance_after',
   });
+
+  await addColumnIfMissing(queryInterface, 'trades', 'trading_account_id', {
+    type: DataTypes.INTEGER.UNSIGNED,
+    allowNull: true,
+    after: 'user_id',
+  });
 }
 
 module.exports = ensureSchema;

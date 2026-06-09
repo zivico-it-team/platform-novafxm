@@ -4,6 +4,7 @@ const sequelize = require('../config/db');
 const Trade = sequelize.define('Trade', {
   id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
   userId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, field: 'user_id' },
+  tradingAccountId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true, field: 'trading_account_id' },
   symbol: { type: DataTypes.STRING(30), allowNull: false },
   side: { type: DataTypes.ENUM('BUY', 'SELL'), allowNull: false },
   lots: { type: DataTypes.DECIMAL(10, 2), allowNull: false },

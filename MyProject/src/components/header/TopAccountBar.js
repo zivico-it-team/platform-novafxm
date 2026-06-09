@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useLocalSearchParams } from 'expo-router';
 import { Modal, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import { CircleUserRound, Plus, RefreshCw, Settings2 } from 'lucide-react-native';
 import { useAuth } from '../../hooks/useAuth';
 import { useDemoTrading } from '../../hooks/useDemoTrading';
 import { money } from '../../utils/formatters';
 import { useAppTheme } from '../../context/ThemeContext';
+import { dashboardService } from '../../services/dashboardService';
 import NovaLogo from '../brand/NovaLogo';
 import DemoAccountMenu from './DemoAccountMenu';
 import NewOrderModal from '../order/NewOrderModal';
@@ -14,14 +16,25 @@ const visibleMetricCount = 5;
 
 export default function TopAccountBar() {
   const { width } = useWindowDimensions();
-  const { summary, syncAccount } = useDemoTrading();
+  const { summary, syncAccount, selectedTradingAccount, setSelectedTradingAccount } = useDemoTrading();
+  const params = useLocalSearchParams();
   const { user } = useAuth();
   const { darkMode, colors } = useAppTheme();
   const metricsScrollRef = useRef(null);
   const [metricsWidth, setMetricsWidth] = useState(0);
   const [menu, setMenu] = useState(null);
   const [orderModal, setOrderModal] = useState(false);
+  const [accounts, setAccounts] = useState([]);
   const mobile = width < 760;
+  const fallbackAccount = useMemo(() => ({
+    id: `user-${user?.id || 'demo'}`,
+    type: user?.accountType || 'Demo',
+    name: user?.accountType === 'Live' ? 'Live account 1' : 'Demo account 1',
+    status: user?.tradingStatus === 'frozen' ? 'frozen' : 'active',
+  }), [user?.accountType, user?.id, user?.tradingStatus]);
+  const tradingAccounts = accounts.length ? accounts : [fallbackAccount];
+  const selectedAccount = tradingAccounts.find((account) => String(account.id) === String(selectedTradingAccount?.id)) || selectedTradingAccount || tradingAccounts[0];
+  const routeAccountId = params.accountId ? String(params.accountId) : '';
   const metrics = [
     ['Balance', `${money(summary.balance)} USD`],
     ['Equity', `${money(summary.equity)} USD`],
@@ -34,6 +47,43 @@ export default function TopAccountBar() {
     ['Free Funds', `${money(summary.freeFunds)} USD`],
   ];
   const maxMetricStep = Math.max(metrics.length - visibleMetricCount, 0);
+
+  useEffect(() => {
+    let active = true;
+    if (!user) {
+      setAccounts([]);
+      setSelectedTradingAccount(null);
+      return undefined;
+    }
+
+    dashboardService.getDashboard()
+      .then((result) => {
+        if (!active) return;
+        const nextAccounts = result.accounts || [];
+        setAccounts(nextAccounts);
+      })
+      .catch(() => {});
+
+    return () => {
+      active = false;
+    };
+  }, [setSelectedTradingAccount, user]);
+
+  useEffect(() => {
+    if (!tradingAccounts.length) return;
+    const routeAccount = routeAccountId ? tradingAccounts.find((account) => String(account.id) === routeAccountId) : null;
+    if (routeAccount && String(selectedTradingAccount?.id) !== String(routeAccount.id)) {
+      setSelectedTradingAccount(routeAccount);
+      return;
+    }
+    const selectedExists = tradingAccounts.some((account) => String(account.id) === String(selectedTradingAccount?.id));
+    if (!selectedExists) setSelectedTradingAccount(tradingAccounts[0]);
+  }, [routeAccountId, selectedTradingAccount?.id, setSelectedTradingAccount, tradingAccounts]);
+
+  const selectAccount = (account) => {
+    setSelectedTradingAccount(account);
+    setMenu(null);
+  };
 
   useEffect(() => {
     if (!metricsWidth || maxMetricStep === 0) return undefined;
@@ -57,8 +107,8 @@ export default function TopAccountBar() {
           <Pressable onPress={() => setMenu(menu === 'account' ? null : 'account')} className="h-[40px] flex-1 flex-row items-center rounded-md border px-2" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
             <CircleUserRound color={colors.muted} size={18} />
             <View className="ml-2 min-w-0 flex-1">
-              <Text className="text-xs font-bold" numberOfLines={1} style={{ color: colors.text }}>{user?.accountType || 'Demo'}</Text>
-              <Text className="text-[10px]" numberOfLines={1} style={{ color: colors.muted }}>{user?.accountType === 'Live' ? 'Live account 1' : 'Demo account 1'}</Text>
+              <Text className="text-xs font-bold" numberOfLines={1} style={{ color: colors.text }}>{selectedAccount?.type || 'Demo'}</Text>
+              <Text className="text-[10px]" numberOfLines={1} style={{ color: colors.muted }}>{selectedAccount?.name || 'Demo account 1'}</Text>
             </View>
             <View className="ml-1 h-2 w-2 rounded-full" style={{ backgroundColor: colors.success }} />
           </Pressable>
@@ -105,8 +155,8 @@ export default function TopAccountBar() {
         <Pressable onPress={() => setMenu(menu === 'account' ? null : 'account')} className="mt-3 flex-row items-center rounded-xl border px-4 py-3 lg:mt-0 lg:w-[250px]" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
           <CircleUserRound color={colors.muted} size={23} />
           <View>
-            <Text className="ml-4 font-bold" style={{ color: colors.text }}>{user?.accountType || 'Demo'}</Text>
-            <Text className="ml-4 text-xs" style={{ color: colors.muted }}>{user?.accountType === 'Live' ? 'Live account 1' : 'Demo account 1'}</Text>
+            <Text className="ml-4 font-bold" style={{ color: colors.text }}>{selectedAccount?.type || 'Demo'}</Text>
+            <Text className="ml-4 text-xs" style={{ color: colors.muted }}>{selectedAccount?.name || 'Demo account 1'}</Text>
           </View>
           <View className="ml-auto h-2.5 w-2.5 rounded-full" style={{ backgroundColor: colors.success }} />
         </Pressable>
@@ -120,7 +170,14 @@ export default function TopAccountBar() {
       <Modal visible={Boolean(menu)} transparent animationType="none" onRequestClose={() => setMenu(null)}>
         <Pressable className="flex-1" style={{ flex: 1 }} onPress={() => setMenu(null)}>
           <Pressable onPress={(event) => event.stopPropagation()}>
-            {menu === 'account' ? <DemoAccountMenu onClose={() => setMenu(null)} /> : null}
+            {menu === 'account' ? (
+              <DemoAccountMenu
+                accounts={tradingAccounts}
+                selectedAccount={selectedAccount}
+                onSelectAccount={selectAccount}
+                onClose={() => setMenu(null)}
+              />
+            ) : null}
             {menu === 'profile' ? <ProfileMenu onClose={() => setMenu(null)} /> : null}
           </Pressable>
         </Pressable>

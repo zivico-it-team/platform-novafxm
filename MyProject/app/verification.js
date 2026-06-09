@@ -67,20 +67,22 @@ function AccountDashboardHeader({ user }) {
           <Link href="/login" asChild><Pressable><Text className="text-danger">Sign Out</Text></Pressable></Link>
         </View>
       </View>
-      <View className="flex-row flex-wrap gap-2">
-        {sections.map(([label, href]) => {
-          const active = label === 'Verification';
-          return (
-            <Link key={label} href={href} asChild>
-              <Pressable
-                className="rounded-xl px-4 py-2"
-                style={{ backgroundColor: active ? GOLD : BLACK, borderColor: active ? GOLD : GREEN, borderWidth: 1 }}
-              >
-                <Text className="font-bold" style={{ color: active ? BLACK : '#9CA3AF' }}>{label}</Text>
-              </Pressable>
-            </Link>
-          );
-        })}
+      <View className="rounded-2xl border border-border bg-panel p-2">
+        <View className="flex-row flex-wrap gap-2">
+          {sections.map(([label, href]) => {
+            const active = label === 'Verification';
+            return (
+              <Link key={label} href={href} asChild>
+                <Pressable
+                  className="rounded-xl px-4 py-3"
+                  style={{ backgroundColor: active ? GOLD : 'transparent', borderColor: active ? GOLD : '#243142', borderWidth: 1 }}
+                >
+                  <Text className="font-bold" style={{ color: active ? BLACK : '#9CA3AF' }}>{label}</Text>
+                </Pressable>
+              </Link>
+            );
+          })}
+        </View>
       </View>
     </View>
   );
@@ -100,7 +102,7 @@ export default function VerificationScreen() {
         <View className="absolute left-4 right-4 top-4 lg:left-8 lg:right-8 lg:top-8">
           <AccountDashboardHeader user={user} />
         </View>
-        <View className="w-full max-w-[640px] items-center rounded-2xl border p-10" style={{ backgroundColor: '#101010', borderColor: GREEN }}>
+        <View className="mt-40 w-full max-w-[640px] items-center rounded-2xl border p-10" style={{ backgroundColor: '#101010', borderColor: GREEN }}>
           <View className="mb-6 h-20 w-20 items-center justify-center rounded-full" style={{ backgroundColor: GREEN }}>
             <CheckCircle2 size={42} color={GOLD} />
           </View>
@@ -118,7 +120,7 @@ export default function VerificationScreen() {
         <View className="absolute left-4 right-4 top-4 lg:left-8 lg:right-8 lg:top-8">
           <AccountDashboardHeader user={user} />
         </View>
-        <View className="w-full max-w-[640px] items-center rounded-2xl border border-danger/60 bg-danger/10 p-10">
+        <View className="mt-40 w-full max-w-[640px] items-center rounded-2xl border border-danger/60 bg-danger/10 p-10">
           <Text className="text-center text-4xl font-extrabold text-white">Try Again</Text>
           <Text className="mt-3 text-center text-muted">Your verification was not approved. Upload clear ID proof and address proof photos again.</Text>
           <CustomButton title="Upload Again" onPress={() => router.push('/verification-upload')} className="mt-8 min-w-[190px]" />
@@ -133,7 +135,7 @@ export default function VerificationScreen() {
         <View className="absolute left-4 right-4 top-4 lg:left-8 lg:right-8 lg:top-8">
           <AccountDashboardHeader user={user} />
         </View>
-        <View className="w-full max-w-[640px] items-center rounded-2xl border p-10" style={{ backgroundColor: '#101010', borderColor: GOLD }}>
+        <View className="mt-40 w-full max-w-[640px] items-center rounded-2xl border p-10" style={{ backgroundColor: '#101010', borderColor: GOLD }}>
           <View className="mb-6 h-20 w-20 items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(212, 175, 55, .14)' }}>
             <ShieldCheck size={42} color={GOLD} />
           </View>

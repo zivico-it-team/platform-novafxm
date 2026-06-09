@@ -19,6 +19,8 @@ User.hasMany(Trade, { foreignKey: 'userId' });
 Trade.belongsTo(User, { foreignKey: 'userId' });
 User.hasMany(TradingAccount, { foreignKey: 'userId', as: 'tradingAccounts' });
 TradingAccount.belongsTo(User, { foreignKey: 'userId' });
+TradingAccount.hasMany(Trade, { foreignKey: 'tradingAccountId', as: 'trades' });
+Trade.belongsTo(TradingAccount, { foreignKey: 'tradingAccountId', as: 'tradingAccount' });
 User.hasMany(User, { foreignKey: 'referredById', as: 'referrals' });
 User.belongsTo(User, { foreignKey: 'referredById', as: 'referrer' });
 

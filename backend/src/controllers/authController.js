@@ -45,7 +45,7 @@ exports.register = async (req, res, next) => {
         type: selectedAccountType,
         name: `${selectedAccountType} account 1`,
         balance: startingBalance,
-        status: selectedAccountType === 'Live' ? 'pending' : 'active',
+        status: 'active',
         isPrimary: true,
       }, { transaction });
       return created;
