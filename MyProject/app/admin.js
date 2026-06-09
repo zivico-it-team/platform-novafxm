@@ -36,6 +36,15 @@ function EmptyRow({ children }) {
   return <Text className="rounded-xl bg-surface p-5 text-muted">{children}</Text>;
 }
 
+function DetailItem({ label, value, accent }) {
+  return (
+    <View className="mb-3 rounded-xl border border-border bg-surface p-4">
+      <Text className="text-xs font-bold uppercase text-muted">{label}</Text>
+      <Text className={`mt-2 font-bold ${accent || 'text-white'}`}>{value || '-'}</Text>
+    </View>
+  );
+}
+
 export default function AdminScreen() {
   const { isAdmin, logout } = useAuth();
   const router = useRouter();
@@ -51,6 +60,7 @@ export default function AdminScreen() {
   const [transactionsModal, setTransactionsModal] = useState(null);
   const [verificationUser, setVerificationUser] = useState(null);
   const [receiptModal, setReceiptModal] = useState(null);
+  const [linkedClientModal, setLinkedClientModal] = useState(null);
 
   const load = useCallback(async () => {
     if (!isAdmin) return;
@@ -344,6 +354,7 @@ export default function AdminScreen() {
               onVerification={setVerificationUser}
               onVerificationDecision={reviewVerification}
               onSettings={setSettingsUser}
+              onClientDetails={(client, broker) => setLinkedClientModal({ client, broker })}
             />
           </View>
         ) : null}
@@ -354,6 +365,54 @@ export default function AdminScreen() {
       <UserSettingsModal user={settingsUser} loading={busyId === settingsUser?.id} onClose={() => setSettingsUser(null)} onSave={saveSettings} onStatus={() => setTrading(settingsUser)} onReset={() => resetDemo(settingsUser)} />
       <UserWalletDetails user={walletModal?.user} wallet={walletModal?.wallet} loading={walletModal?.loading} onClose={() => setWalletModal(null)} />
       <UserTransactionsModal user={transactionsModal?.user} transactions={transactionsModal?.transactions || []} loading={transactionsModal?.loading} onClose={() => setTransactionsModal(null)} />
+      {linkedClientModal ? (
+        <View className="absolute inset-0 z-50 items-center justify-center bg-black/70 p-4">
+          <View className="max-h-[92vh] w-full max-w-[760px] rounded-2xl border border-border bg-panel p-5">
+            <View className="mb-4 flex-row items-start justify-between">
+              <View>
+                <Text className="text-2xl font-bold text-white">Linked Client Details</Text>
+                <Text className="mt-1 text-sm text-muted">Broker: {linkedClientModal.broker?.name || linkedClientModal.broker?.email || '-'}</Text>
+              </View>
+              <Pressable onPress={() => setLinkedClientModal(null)}><Text className="text-muted">Close</Text></Pressable>
+            </View>
+            <ScrollView>
+              <View className="gap-3 lg:flex-row">
+                <View className="flex-1">
+                  <DetailItem label="Name" value={linkedClientModal.client.name} />
+                  <DetailItem label="Email" value={linkedClientModal.client.email} />
+                  <DetailItem label="Phone" value={linkedClientModal.client.phone} />
+                  <DetailItem label="Account Type" value={`${linkedClientModal.client.accountType || 'Demo'} Account`} accent="text-primary" />
+                </View>
+                <View className="flex-1">
+                  <DetailItem label="Trading Status" value={linkedClientModal.client.tradingStatus || 'active'} accent={linkedClientModal.client.tradingStatus === 'frozen' ? 'text-danger' : 'text-success'} />
+                  <DetailItem label="Verification" value={linkedClientModal.client.verificationStatus || 'unverified'} />
+                  <DetailItem label="Joined" value={linkedClientModal.client.createdAt ? new Date(linkedClientModal.client.createdAt).toLocaleString() : '-'} />
+                  <DetailItem label="Client ID" value={String(linkedClientModal.client.id || '-')} />
+                </View>
+              </View>
+              <View className="mt-2 rounded-2xl border border-border bg-surface p-4">
+                <Text className="mb-3 text-xs font-bold uppercase text-muted">Wallet Summary</Text>
+                <View className="gap-3 lg:flex-row">
+                  <DetailItem label="Balance" value={`$${money(linkedClientModal.client.wallet?.balance)}`} />
+                  <DetailItem label="Equity" value={`$${money(linkedClientModal.client.wallet?.equity)}`} />
+                  <DetailItem label="Free Funds" value={`$${money(linkedClientModal.client.wallet?.freeFunds)}`} />
+                </View>
+              </View>
+              <View className="mt-4 flex-row justify-end">
+                <CustomButton
+                  title="Open Wallet"
+                  className="min-w-[150px]"
+                  onPress={() => {
+                    const client = linkedClientModal.client;
+                    setLinkedClientModal(null);
+                    openWallet(client);
+                  }}
+                />
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      ) : null}
       {receiptModal ? (
         <View className="absolute inset-0 z-50 items-center justify-center bg-black/70 p-4">
           <View className="max-h-[92vh] w-full max-w-[760px] rounded-2xl border border-border bg-panel p-5">

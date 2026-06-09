@@ -51,15 +51,63 @@ function AccountDetails({ accounts }) {
   );
 }
 
-function BrokerReferralCell({ user }) {
+function BrokerReferralCell({ user, expanded, onToggle, onClientWallet, onClientDetails }) {
   const summary = user.referralSummary || {};
   const broker = summary.broker;
+  const clients = summary.clients || [];
+  const linkedCount = Number(summary.linkedClients || clients.length || 0);
 
   return (
-    <View style={{ width: 260 }} className="px-3 py-4">
+    <View style={{ width: 300 }} className="px-3 py-4">
       <Text className="text-xs font-bold uppercase text-muted">Broker Code</Text>
       <Text className="mt-1 font-semibold text-primary">{summary.code || user.referralCode || '-'}</Text>
-      <Text className="mt-2 text-xs text-muted">Linked clients: {summary.linkedClients || 0}</Text>
+      <Pressable
+        onPress={linkedCount ? onToggle : undefined}
+        disabled={!linkedCount}
+        hitSlop={8}
+        className={`mt-2 flex-row items-center self-start rounded-full border border-border bg-surface px-3 py-1.5 ${!linkedCount ? 'opacity-60' : ''}`}
+      >
+        <Text className="mr-2 text-xs font-bold text-muted">{expanded ? 'Hide' : 'Show'} clients: {linkedCount}</Text>
+        {linkedCount ? <ChevronDown size={13} color="#D4AF37" style={{ transform: [{ rotate: expanded ? '180deg' : '0deg' }] }} /> : null}
+      </Pressable>
+      {expanded ? (
+        <View className="mt-3 gap-2">
+          {clients.length ? clients.map((client) => (
+            <View key={client.id} className="rounded-lg border border-border bg-surface p-2">
+              <Text className="text-xs font-semibold text-white">{client.name || client.email || 'Client'}</Text>
+              <Text className="mt-1 text-[11px] text-muted">{client.email || '-'}</Text>
+              <Text className="mt-1 text-[11px] text-muted">Phone: {client.phone || '-'}</Text>
+              <View className="mt-2 flex-row flex-wrap gap-2">
+                <Text className="rounded-full bg-panel px-2 py-1 text-[10px] font-bold text-primary">{client.accountType || 'Demo'} Account</Text>
+                <Text className={`rounded-full bg-panel px-2 py-1 text-[10px] font-bold ${client.tradingStatus === 'frozen' ? 'text-danger' : 'text-success'}`}>
+                  {client.tradingStatus || 'active'}
+                </Text>
+              </View>
+              <View className="mt-2 rounded-md border border-border bg-panel p-2">
+                <Text className="text-[10px] font-bold uppercase text-muted">Wallet</Text>
+                <Text className="mt-1 text-[11px] text-white">Balance: ${money(client.wallet?.balance)}</Text>
+                <Text className="mt-1 text-[11px] text-muted">Equity: ${money(client.wallet?.equity)} | Free: ${money(client.wallet?.freeFunds)}</Text>
+              </View>
+              <View className="mt-2 flex-row items-center justify-between">
+                <Text className="text-[11px] text-muted">Joined {client.createdAt ? new Date(client.createdAt).toLocaleDateString() : '-'}</Text>
+                <View className="flex-row gap-2">
+                  <Pressable onPress={() => onClientDetails?.(client, user)} className="rounded-md border border-border bg-panel px-2 py-1">
+                    <Text className="text-[10px] font-bold text-white">Details</Text>
+                  </Pressable>
+                  <Pressable onPress={() => onClientWallet?.(client)} className="rounded-md border border-border bg-panel px-2 py-1">
+                    <Text className="text-[10px] font-bold text-primary">Wallet</Text>
+                  </Pressable>
+                </View>
+              </View>
+            </View>
+          )) : (
+            <View className="rounded-lg border border-primary/30 bg-primary/10 p-3">
+              <Text className="text-xs font-bold text-primary">Client count found, but details are not loaded.</Text>
+              <Text className="mt-1 text-[11px] text-muted">Refresh the admin dashboard after the backend restarts.</Text>
+            </View>
+          )}
+        </View>
+      ) : null}
       <View className="mt-3 rounded-lg border border-border bg-surface p-2">
         <Text className="text-[10px] font-bold uppercase text-muted">Registered under</Text>
         {broker ? (
@@ -75,19 +123,23 @@ function BrokerReferralCell({ user }) {
   );
 }
 
-export default function AdminUsersTable({ users, busyId, onBalance, onStatus, onReset, onWallet, onTransactions, onSettings }) {
+export default function AdminUsersTable({ users, busyId, onBalance, onStatus, onReset, onWallet, onTransactions, onSettings, onClientDetails }) {
   const [expandedUsers, setExpandedUsers] = useState({});
+  const [expandedReferrals, setExpandedReferrals] = useState({});
   const toggleAccounts = (userId) => {
     setExpandedUsers((current) => ({ ...current, [userId]: !current[userId] }));
+  };
+  const toggleReferrals = (userId) => {
+    setExpandedReferrals((current) => ({ ...current, [userId]: !current[userId] }));
   };
 
   return (
     <View className="overflow-hidden rounded-2xl border border-border bg-panel">
       <ScrollView horizontal>
-        <View style={{ minWidth: 1960 }}>
+        <View style={{ minWidth: 2000 }}>
           <View className="flex-row border-b border-border bg-surface">
             <Header width={220}>Client Account</Header>
-            <Header width={260}>Broker Referral</Header>
+            <Header width={300}>Broker Referral</Header>
             <Header width={130}>Wallet Balance</Header>
             <Header width={120}>Equity</Header>
             <Header width={110}>Margin</Header>
@@ -104,6 +156,7 @@ export default function AdminUsersTable({ users, busyId, onBalance, onStatus, on
               ? user.tradingAccounts
               : [{ id: `user-${user.id}`, name: `${user.accountType || 'Demo'} account`, type: user.accountType || 'Demo', balance: user.wallet?.balance, status: user.tradingStatus }];
             const expanded = Boolean(expandedUsers[user.id]);
+            const referralsExpanded = Boolean(expandedReferrals[user.id]);
             const visibleAccounts = expanded ? accounts : [];
 
             return (
@@ -114,7 +167,7 @@ export default function AdminUsersTable({ users, busyId, onBalance, onStatus, on
                   <AccountsDropdown count={accounts.length} expanded={expanded} onPress={() => toggleAccounts(user.id)} />
                   <AccountDetails accounts={visibleAccounts} />
                 </View>
-                <BrokerReferralCell user={user} />
+                <BrokerReferralCell user={user} expanded={referralsExpanded} onToggle={() => toggleReferrals(user.id)} onClientWallet={onWallet} onClientDetails={onClientDetails} />
                 <TextCell width={130}>${money(user.wallet?.balance)}</TextCell>
                 <TextCell width={120}>${money(user.wallet?.equity)}</TextCell>
                 <TextCell width={110}>${money(user.wallet?.margin)}</TextCell>

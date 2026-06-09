@@ -87,6 +87,27 @@ exports.users = async (req, res, next) => {
       if (user.referredById) map.set(user.referredById, (map.get(user.referredById) || 0) + 1);
       return map;
     }, new Map());
+    const referralsByUser = users.reduce((map, user) => {
+      if (!user.referredById) return map;
+      const values = user.toJSON();
+      const walletSummary = values.wallet
+        ? buildSummary(values.wallet, byUser.get(user.id) || [], prices)
+        : { balance: 0, equity: 0, margin: 0, freeFunds: 0, openProfit: 0 };
+      const current = map.get(user.referredById) || [];
+      current.push({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        accountType: user.accountType,
+        tradingStatus: user.tradingStatus,
+        verificationStatus: user.verificationStatus,
+        wallet: values.wallet ? { ...values.wallet, ...walletSummary } : null,
+        createdAt: user.createdAt,
+      });
+      map.set(user.referredById, current);
+      return map;
+    }, new Map());
     const referralCodeById = users.reduce((map, user) => map.set(user.id, user.referralCode), new Map());
     let totalWalletFunds = 0;
     const result = users.map((user) => {
@@ -101,6 +122,7 @@ exports.users = async (req, res, next) => {
         referralSummary: {
           code: values.referralCode,
           linkedClients: referralCounts.get(user.id) || 0,
+          clients: referralsByUser.get(user.id) || [],
           broker: values.referrer
             ? {
               id: values.referrer.id,
