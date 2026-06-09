@@ -37,6 +37,7 @@ const TIMEFRAME_SECONDS = {
   '1W': 604800,
   '1M': 2592000,
 };
+const liveGapGraceSeconds = (timeframe) => Math.max((TIMEFRAME_SECONDS[timeframe] || 900) * 2, 10 * 60);
 const HISTORY_LIMITS = {
   '1m': 50000,
   '3m': 50000,
@@ -160,7 +161,7 @@ const applyLivePriceToCandles = (candles, currentSymbol, timeframe) => {
 
   if (Number.isFinite(previousTime) && previousTime < time) {
     const gapSeconds = time - previousTime;
-    const hasMissingHistory = gapSeconds > seconds * 2;
+    const hasMissingHistory = gapSeconds > liveGapGraceSeconds(timeframe);
 
     if (hasMissingHistory) {
       return nextCandles;
@@ -297,6 +298,19 @@ const priceOptions = {
   precision: ${safeDecimals},
   minMove: ${10 ** -safeDecimals}
 };
+const padTime = (value) => String(value).padStart(2, '0');
+const localDate = (time) => new Date(Number(time) * 1000);
+const formatLocalTime = (time) => {
+  const date = localDate(time);
+  return padTime(date.getHours()) + ':' + padTime(date.getMinutes());
+};
+const formatLocalDateTime = (time) => {
+  const date = localDate(time);
+  const day = padTime(date.getDate());
+  const month = date.toLocaleString(undefined, { month: 'short' });
+  const year = String(date.getFullYear()).slice(-2);
+  return day + ' ' + month + ' ' + year + '   ' + padTime(date.getHours()) + ':' + padTime(date.getMinutes()) + ':' + padTime(date.getSeconds());
+};
 const chart = LightweightCharts.createChart(document.getElementById('chart'), {
   autoSize: true,
   layout: {
@@ -314,11 +328,15 @@ const chart = LightweightCharts.createChart(document.getElementById('chart'), {
     horzLine: { color: ${JSON.stringify(ui.accent)} }
   },
   rightPriceScale: { borderColor: ${JSON.stringify(chartColors.border)} },
+  localization: {
+    timeFormatter: formatLocalDateTime
+  },
   timeScale: {
     borderColor: ${JSON.stringify(chartColors.border)},
     timeVisible: true,
     secondsVisible: true,
-    shiftVisibleRangeOnNewBar: false
+    shiftVisibleRangeOnNewBar: false,
+    tickMarkFormatter: formatLocalTime
   }
 });
 const closeData = (items) => items.map((item) => ({ time: Number(item.time), value: Number(item.close) })).filter((item) => Number.isFinite(item.time) && Number.isFinite(item.value));
@@ -779,11 +797,13 @@ export default function TradingChart() {
     customBidAsk: false,
   });
   const [history, setHistory] = useState([]);
+  const [reloadKey, setReloadKey] = useState(0);
   const [priceDirection, setPriceDirection] = useState(0);
   const iframeRef = useRef(null);
   const webViewRef = useRef(null);
   const liveCandleRef = useRef(null);
   const previousPriceRef = useRef(null);
+  const lastGapReloadAtRef = useRef(0);
 
   useEffect(() => {
     let active = true;
@@ -807,7 +827,7 @@ export default function TradingChart() {
     return () => {
       active = false;
     };
-  }, [currentSymbol.symbol, timeframe]);
+  }, [currentSymbol.symbol, timeframe, reloadKey]);
 
   useEffect(() => {
     const price = Number(currentSymbol.price);
@@ -829,6 +849,15 @@ export default function TradingChart() {
     const previous = liveCandleRef.current;
     const previousTime = Number(previous?.time);
     if (Number.isFinite(previousTime) && time < previousTime) return;
+
+    if (Number.isFinite(previousTime) && time - previousTime > liveGapGraceSeconds(timeframe)) {
+      const now = Date.now();
+      if (now - lastGapReloadAtRef.current > 30000) {
+        lastGapReloadAtRef.current = now;
+        setReloadKey((value) => value + 1);
+      }
+      return;
+    }
 
     const candle = previous && Number(previous.time) === time
       ? {
@@ -861,7 +890,7 @@ export default function TradingChart() {
 
   const candles = useMemo(
     () => applyLivePriceToCandles(history, currentSymbol, timeframe),
-    [history, currentSymbol.symbol, timeframe],
+    [history, currentSymbol.symbol, currentSymbol.price, currentSymbol.source, timeframe],
   );
   useEffect(() => {
     liveCandleRef.current = candles?.[candles.length - 1] || null;

@@ -62,6 +62,10 @@ const DUKASCOPY_RANGE_TIMEFRAMES = new Set(['1W', '1M']);
 const DUKASCOPY_RECENT_ENABLED = process.env.AUTO_CATCHUP_DUKASCOPY_ENABLED === 'true';
 const DUKASCOPY_TIMEOUT_MS = Number(process.env.AUTO_CATCHUP_DUKASCOPY_TIMEOUT_MS || 15000);
 const DUKASCOPY_RETRIES = Number(process.env.AUTO_CATCHUP_DUKASCOPY_RETRIES || 2);
+const DUKASCOPY_LOGS_ENABLED = process.env.AUTO_CATCHUP_LOGS_ENABLED === 'true';
+const DUKASCOPY_HOUR_CACHE_MS = Math.max(30000, Number(process.env.DUKASCOPY_HOUR_CACHE_MS || 5 * 60000));
+const DUKASCOPY_HOUR_ERROR_CACHE_MS = Math.max(30000, Number(process.env.DUKASCOPY_HOUR_ERROR_CACHE_MS || 2 * 60000));
+const dukascopyHourCache = new Map();
 
 const DUKASCOPY_TICKER_OVERRIDES = {
   'ASX/AUD': 'AUSIDXAUD',
@@ -108,6 +112,23 @@ const dayBounds = (date) => {
     from: Math.floor(start.getTime() / 1000),
     to: Math.floor(end.getTime() / 1000),
   };
+};
+
+const hourSlotsBetweenTimestamps = (from, to) => {
+  const slots = [];
+  const start = new Date(Math.floor(from / 3600) * 3600 * 1000);
+  const end = new Date(Math.ceil(to / 3600) * 3600 * 1000);
+  let cursor = start;
+
+  while (cursor < end) {
+    slots.push({
+      date: new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), cursor.getUTCDate())),
+      hour: cursor.getUTCHours(),
+    });
+    cursor = new Date(cursor.getTime() + 3600000);
+  }
+
+  return slots;
 };
 
 const normalizeTimestamp = (value) => {
@@ -279,7 +300,7 @@ const parseDukascopyTicks = (buffer, date, hour, symbol) => {
   return [...candles.values()].sort((a, b) => a.time - b.time);
 };
 
-async function fetchDukascopyHour(symbol, date, hour) {
+async function fetchDukascopyHourRaw(symbol, date, hour) {
   const url = dukascopyUrl(symbol, date, hour);
   let lastError = null;
 
@@ -303,6 +324,39 @@ async function fetchDukascopyHour(symbol, date, hour) {
   throw lastError;
 }
 
+async function fetchDukascopyHour(symbol, date, hour) {
+  const key = `${symbol}:${dayId(date)}:${pad2(hour)}`;
+  const cached = dukascopyHourCache.get(key);
+  if (cached && Date.now() < cached.expiresAt) {
+    if (cached.error) return [];
+    return cached.promise || cached.candles || [];
+  }
+
+  const promise = fetchDukascopyHourRaw(symbol, date, hour)
+    .then((candles) => {
+      dukascopyHourCache.set(key, {
+        candles,
+        expiresAt: Date.now() + DUKASCOPY_HOUR_CACHE_MS,
+      });
+      return candles;
+    })
+    .catch((error) => {
+      dukascopyHourCache.set(key, {
+        error: error.message,
+        candles: [],
+        expiresAt: Date.now() + DUKASCOPY_HOUR_ERROR_CACHE_MS,
+      });
+      throw error;
+    });
+
+  dukascopyHourCache.set(key, {
+    promise,
+    expiresAt: Date.now() + DUKASCOPY_HOUR_CACHE_MS,
+  });
+
+  return promise;
+}
+
 async function fetchDukascopyDay(symbol, date) {
   const candles = [];
 
@@ -310,7 +364,9 @@ async function fetchDukascopyDay(symbol, date) {
     try {
       candles.push(...await fetchDukascopyHour(symbol, date, hour));
     } catch (error) {
-      console.warn(`Auto candle catch-up ${symbol} ${dayId(date)} ${pad2(hour)}h: ${error.message}`);
+      if (DUKASCOPY_LOGS_ENABLED) {
+        console.warn(`Auto candle catch-up ${symbol} ${dayId(date)} ${pad2(hour)}h: ${error.message}`);
+      }
     }
   }
 
@@ -323,9 +379,40 @@ async function fetchDukascopyRecent(instrument, timeframe, from, to, options = {
   }
 
   const allCandles = [];
-  for (const date of daysBetweenTimestamps(from, to)) {
+  const minuteCandlesByDay = new Map();
+
+  if (DUKASCOPY_RANGE_TIMEFRAMES.has(timeframe)) {
+    for (const date of daysBetweenTimestamps(from, to)) {
+      const dayCandles = await fetchDukascopyDay(instrument.symbol, date);
+      if (dayCandles.length) minuteCandlesByDay.set(dayId(date), dayCandles);
+    }
+  } else {
+    const candles = [];
+    for (const { date, hour } of hourSlotsBetweenTimestamps(from, to)) {
+      try {
+        candles.push(...await fetchDukascopyHour(instrument.symbol, date, hour));
+      } catch (error) {
+        if (DUKASCOPY_LOGS_ENABLED) {
+          console.warn(`Auto candle catch-up ${instrument.symbol} ${dayId(date)} ${pad2(hour)}h: ${error.message}`);
+        }
+      }
+    }
+
+    candles
+      .filter((bar) => Number(bar.time) >= from && Number(bar.time) <= to)
+      .forEach((bar) => {
+        const date = startOfUtcDay(bar.time);
+        const key = dayId(date);
+        const group = minuteCandlesByDay.get(key) || [];
+        group.push(bar);
+        minuteCandlesByDay.set(key, group);
+      });
+  }
+
+  for (const [dateKey, candles] of minuteCandlesByDay.entries()) {
+    const date = new Date(`${dateKey}T00:00:00.000Z`);
     const bounds = dayBounds(date);
-    const oneMinuteCandles = await fetchDukascopyDay(instrument.symbol, date);
+    const oneMinuteCandles = candles.sort((a, b) => Number(a.time) - Number(b.time));
     if (!oneMinuteCandles.length) continue;
 
     if (options.save) {

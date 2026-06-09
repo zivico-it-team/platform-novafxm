@@ -199,6 +199,10 @@ const AUTO_CATCHUP_THROTTLE_MS = Math.max(60000, Number(process.env.AUTO_CATCHUP
 const AUTO_CATCHUP_ALWAYS_RECENT = process.env.AUTO_CATCHUP_ALWAYS_RECENT !== 'false';
 const AUTO_CATCHUP_LOGS_ENABLED = process.env.AUTO_CATCHUP_LOGS_ENABLED === 'true';
 const LIVE_CANDLE_SAVE_ENABLED = process.env.LIVE_CANDLE_SAVE_ENABLED === 'true';
+const RECENT_CANDLE_LOOKBACK_SECONDS = Math.max(
+  3600,
+  (Number(process.env.RECENT_CANDLE_LOOKBACK_MINUTES) || 60) * 60,
+);
 
 const decimalsFor = (price, group) => {
   if (group === 'FOREX') return price >= 10 ? 3 : 5;
@@ -613,8 +617,13 @@ async function fetchRecentProviderCandles(item, timeframe, stored, limit) {
     return autoCatchupLocks.get(key);
   }
 
+  const fromCandidates = [
+    now - RECENT_CANDLE_LOOKBACK_SECONDS,
+    gapFrom ? gapFrom - seconds : null,
+    latest ? latest - seconds : null,
+  ].filter((value) => Number.isFinite(value) && value > 0);
   const from = Math.max(
-    gapFrom ? gapFrom - seconds : latest ? latest - seconds : 0,
+    Math.min(...fromCandidates),
     now - AUTO_CATCHUP_DAYS * 86400
   );
   const to = now + seconds;
