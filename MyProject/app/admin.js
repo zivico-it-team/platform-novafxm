@@ -50,6 +50,7 @@ export default function AdminScreen() {
   const [walletModal, setWalletModal] = useState(null);
   const [transactionsModal, setTransactionsModal] = useState(null);
   const [verificationUser, setVerificationUser] = useState(null);
+  const [receiptModal, setReceiptModal] = useState(null);
 
   const load = useCallback(async () => {
     if (!isAdmin) return;
@@ -166,6 +167,19 @@ export default function AdminScreen() {
       () => setVerificationUser(null),
     ),
   );
+  const openDepositReceipt = (item) => {
+    if (!item.receiptImage) return;
+    setReceiptModal(item);
+  };
+  const downloadDepositReceipt = (item) => {
+    if (!item.receiptImage || Platform.OS !== 'web' || typeof document === 'undefined') return;
+    const link = document.createElement('a');
+    link.href = item.receiptImage;
+    link.download = `deposit-receipt-${item.id}.jpg`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
   const downloadVerificationImages = (user) => {
   const images = [
     user?.idProofImage,
@@ -212,11 +226,33 @@ export default function AdminScreen() {
                 <View className="mb-2 mr-4">
                   <Text className="font-semibold text-white">{item.User?.name || item.User?.email || 'User'}</Text>
                   <Text className="mt-1 text-sm text-muted">${money(item.amount)} | {item.status} | {dateTime(item.createdAt)}</Text>
+                  {type === 'deposits' && item.receiptImage ? (
+                    <View className="mt-2 flex-row flex-wrap gap-2">
+                      <Pressable onPress={() => openDepositReceipt(item)} className="rounded-lg border border-primary/40 bg-primary/10 px-3 py-2">
+                        <Text className="text-xs font-bold text-primary">View Receipt</Text>
+                      </Pressable>
+                      <Pressable onPress={() => downloadDepositReceipt(item)} className="rounded-lg border border-success/40 bg-success/10 px-3 py-2">
+                        <Text className="text-xs font-bold text-success">Download Receipt</Text>
+                      </Pressable>
+                    </View>
+                  ) : null}
                 </View>
                 {item.status === 'pending' ? (
                   <View className="flex-row">
-                    <CustomButton title="Approve" variant="success" className="mr-2" disabled={busyId === item.id} onPress={() => reviewFunding(type, item, 'approve')} />
-                    <CustomButton title="Reject" variant="danger" disabled={busyId === item.id} onPress={() => reviewFunding(type, item, 'reject')} />
+                    <Pressable
+                      disabled={busyId === item.id}
+                      onPress={() => reviewFunding(type, item, 'approve')}
+                      className={`mr-2 min-h-[38px] justify-center rounded-lg border border-border bg-surface px-4 ${busyId === item.id ? 'opacity-50' : ''}`}
+                    >
+                      <Text className="text-xs font-bold text-white">Approve</Text>
+                    </Pressable>
+                    <Pressable
+                      disabled={busyId === item.id}
+                      onPress={() => reviewFunding(type, item, 'reject')}
+                      className={`min-h-[38px] justify-center rounded-lg border border-danger/70 bg-danger/10 px-4 ${busyId === item.id ? 'opacity-50' : ''}`}
+                    >
+                      <Text className="text-xs font-bold text-danger">Reject</Text>
+                    </Pressable>
                   </View>
                 ) : null}
               </View>
@@ -318,6 +354,26 @@ export default function AdminScreen() {
       <UserSettingsModal user={settingsUser} loading={busyId === settingsUser?.id} onClose={() => setSettingsUser(null)} onSave={saveSettings} onStatus={() => setTrading(settingsUser)} onReset={() => resetDemo(settingsUser)} />
       <UserWalletDetails user={walletModal?.user} wallet={walletModal?.wallet} loading={walletModal?.loading} onClose={() => setWalletModal(null)} />
       <UserTransactionsModal user={transactionsModal?.user} transactions={transactionsModal?.transactions || []} loading={transactionsModal?.loading} onClose={() => setTransactionsModal(null)} />
+      {receiptModal ? (
+        <View className="absolute inset-0 z-50 items-center justify-center bg-black/70 p-4">
+          <View className="max-h-[92vh] w-full max-w-[760px] rounded-2xl border border-border bg-panel p-5">
+            <View className="mb-4 flex-row items-center justify-between">
+              <View>
+                <Text className="text-2xl font-bold text-white">Deposit Receipt</Text>
+                <Text className="mt-1 text-sm text-muted">${money(receiptModal.amount)} | {receiptModal.referenceNumber || 'No reference'}</Text>
+              </View>
+              <Pressable onPress={() => setReceiptModal(null)}><Text className="text-muted">Close</Text></Pressable>
+            </View>
+            <View className="rounded-2xl border border-border bg-surface p-4">
+              <Text className="mb-3 text-sm font-bold uppercase text-muted">Receipt Preview</Text>
+              <Image source={{ uri: receiptModal.receiptImage }} className="h-[520px] w-full rounded-xl bg-black" resizeMode="contain" />
+            </View>
+            <View className="mt-4 flex-row justify-end">
+              <CustomButton title="Download Receipt" variant="success" className="min-w-[170px]" onPress={() => downloadDepositReceipt(receiptModal)} />
+            </View>
+          </View>
+        </View>
+      ) : null}
       {verificationUser ? (
         <View className="absolute inset-0 z-50 items-center justify-center bg-black/70 p-4">
           <View className="max-h-[92vh] w-full max-w-[980px] rounded-2xl border border-border bg-panel p-5">

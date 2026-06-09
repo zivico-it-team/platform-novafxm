@@ -52,14 +52,14 @@ exports.deposit = async (req, res, next) => {
     if (req.user.verificationStatus !== 'approved') {
       return res.status(403).json({ message: 'Complete account verification before deposits.' });
     }
-    const { amount, paymentMethod, referenceNumber, note } = req.body;
-    if (!(Number(amount) > 0) || !paymentMethod || !referenceNumber) {
-      return res.status(400).json({ message: 'Valid amount, payment method and reference number are required.' });
+    const { amount, paymentMethod, referenceNumber, receiptImage, note } = req.body;
+    if (!(Number(amount) >= 100) || !paymentMethod || !referenceNumber) {
+      return res.status(400).json({ message: 'Minimum deposit is $100. Payment method and reference number are required.' });
     }
     let deposit;
     await sequelize.transaction(async (transaction) => {
       const wallet = await Wallet.findOne({ where: { userId: req.user.id }, transaction });
-      deposit = await Deposit.create({ userId: req.user.id, amount, paymentMethod, referenceNumber, note }, { transaction });
+      deposit = await Deposit.create({ userId: req.user.id, amount, paymentMethod, referenceNumber, receiptImage, note }, { transaction });
       await Transaction.create({
         userId: req.user.id,
         type: 'deposit',
