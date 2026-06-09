@@ -1,5 +1,5 @@
 import { Link } from 'expo-router';
-import { ArrowLeft, ShieldCheck, Wallet } from 'lucide-react-native';
+import { ArrowLeft, CheckCircle2, ShieldCheck, Wallet, XCircle } from 'lucide-react-native';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import DepositForm from '../src/components/wallet/DepositForm';
 import TransactionList from '../src/components/wallet/TransactionList';
@@ -11,6 +11,9 @@ export default function DepositScreen() {
   const { deposit, transactions, loading } = useWallet();
   const fundingLocked = Boolean(user && user.verificationStatus !== 'approved');
   const depositTransactions = transactions.filter((item) => item.type === 'deposit');
+  const latestReviewedDeposit = depositTransactions.find((item) => ['approved', 'completed', 'rejected'].includes(item.status));
+  const depositApproved = ['approved', 'completed'].includes(latestReviewedDeposit?.status);
+
   return (
     <ScrollView className="flex-1 bg-[#0B0B0B]" contentContainerClassName="mx-auto w-full max-w-[1180px] p-4 lg:p-8">
       <View className="mb-6 flex-row flex-wrap items-center justify-between gap-3">
@@ -43,6 +46,24 @@ export default function DepositScreen() {
           </View>
         </View>
       </View>
+
+      {latestReviewedDeposit ? (
+        <View className={`mb-5 flex-row items-center rounded-2xl border p-4 ${depositApproved ? 'border-success/40 bg-success/10' : 'border-danger/40 bg-danger/10'}`}>
+          <View className={`mr-3 h-10 w-10 items-center justify-center rounded-full ${depositApproved ? 'bg-success/15' : 'bg-danger/15'}`}>
+            {depositApproved ? <CheckCircle2 size={22} color="#12cf7a" /> : <XCircle size={22} color="#f24d58" />}
+          </View>
+          <View className="flex-1">
+            <Text className={`font-black ${depositApproved ? 'text-success' : 'text-danger'}`}>
+              {depositApproved ? 'Deposit Approved' : 'Deposit Rejected'}
+            </Text>
+            <Text className="mt-1 text-sm text-muted">
+              {depositApproved
+                ? `Your deposit of ${Number(latestReviewedDeposit.amount || 0).toFixed(2)} USD has been approved and added to your wallet.`
+                : `Your deposit of ${Number(latestReviewedDeposit.amount || 0).toFixed(2)} USD was rejected. Please check your receipt/reference and submit again.`}
+            </Text>
+          </View>
+        </View>
+      ) : null}
 
       <DepositForm
         onSubmit={(values) => deposit(values, Boolean(user))}

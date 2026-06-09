@@ -203,6 +203,19 @@ export default function DepositForm({ onSubmit, loading, disabled, disabledMessa
             <Text className="mt-3 text-sm leading-5 text-muted">Standard review: 5 - 30 Minutes</Text>
             <Text className="mt-1 text-sm leading-5 text-muted">Weekends and holidays: up to 24 hours</Text>
           </View>
+          <View className="flex-1 rounded-2xl border border-border bg-surface p-5">
+            <UploadCloud size={24} color="#D4AF37" />
+            <Text className="mt-3 text-base font-black text-white">Receipt Checklist</Text>
+            <Text className="mt-2 text-sm leading-5 text-muted">Before submitting, make sure your receipt clearly shows:</Text>
+            <View className="mt-4 gap-3">
+              {['Paid amount', 'Transaction reference', 'Payment date', 'Sender account details'].map((item) => (
+                <View key={item} className="flex-row items-center">
+                  <CheckCircle2 size={15} color="#12cf7a" />
+                  <Text className="ml-2 text-sm font-semibold text-white">{item}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
         </View>
       </View>
 
