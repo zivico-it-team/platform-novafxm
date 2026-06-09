@@ -1,5 +1,6 @@
 const sequelize = require('../config/db');
 const { User, Wallet, Deposit, Withdrawal, Transaction, Trade, TradingAccount } = require('../models');
+const { ensureReferralCode } = require('../services/dashboardService');
 const tradingView = require('../services/tradingViewService');
 
 const DEMO_BALANCE = 5000;
@@ -68,6 +69,7 @@ exports.users = async (req, res, next) => {
         include: [
           { model: Wallet, as: 'wallet' },
           { model: TradingAccount, as: 'tradingAccounts' },
+          { model: User, as: 'referrer', attributes: ['id', 'name', 'email', 'referralCode'] },
         ],
         order: [
           ['createdAt', 'DESC'],

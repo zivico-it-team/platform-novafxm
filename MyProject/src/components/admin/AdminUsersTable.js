@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Alert, Platform, Pressable, ScrollView, Text, View } from 'react-native';
-import { ChevronDown, Eye } from 'lucide-react-native';
+import { ChevronDown } from 'lucide-react-native';
 import { money } from '../../utils/formatters';
 
 function ask(message, onConfirm) {
@@ -25,6 +25,30 @@ function TextCell({ width, children, className = '' }) {
 
 function Header({ width, children }) {
   return <Text style={{ width }} className="px-3 py-3 text-xs font-bold uppercase text-muted">{children}</Text>;
+}
+
+function AccountsDropdown({ count, expanded, onPress }) {
+  return (
+    <Pressable onPress={onPress} className="mt-2 flex-row items-center self-start rounded-full border border-border bg-surface px-3 py-1">
+      <Text className="mr-2 text-xs font-bold text-primary">{count} account{count === 1 ? '' : 's'}</Text>
+      <ChevronDown size={13} color="#D4AF37" style={{ transform: [{ rotate: expanded ? '180deg' : '0deg' }] }} />
+    </Pressable>
+  );
+}
+
+function AccountDetails({ accounts }) {
+  if (!accounts.length) return null;
+
+  return (
+    <View className="mt-3 gap-2">
+      {accounts.map((account) => (
+        <View key={account.id} className="rounded-lg border border-border bg-surface p-2">
+          <Text className="text-xs font-bold text-white">{account.name || `${account.type || 'Trading'} account`}</Text>
+          <Text className="mt-1 text-[11px] text-muted">{account.type || '-'} | {account.status || 'active'} | ${money(account.balance)}</Text>
+        </View>
+      ))}
+    </View>
+  );
 }
 
 function BrokerReferralCell({ user }) {
@@ -52,6 +76,11 @@ function BrokerReferralCell({ user }) {
 }
 
 export default function AdminUsersTable({ users, busyId, onBalance, onStatus, onReset, onWallet, onTransactions, onSettings }) {
+  const [expandedUsers, setExpandedUsers] = useState({});
+  const toggleAccounts = (userId) => {
+    setExpandedUsers((current) => ({ ...current, [userId]: !current[userId] }));
+  };
+
   return (
     <View className="overflow-hidden rounded-2xl border border-border bg-panel">
       <ScrollView horizontal>
@@ -70,10 +99,10 @@ export default function AdminUsersTable({ users, busyId, onBalance, onStatus, on
             <Header width={570}>Actions</Header>
           </View>
           {users.map((user) => {
+            const blocked = busyId === user.id;
             const accounts = user.tradingAccounts?.length
               ? user.tradingAccounts
               : [{ id: `user-${user.id}`, name: `${user.accountType || 'Demo'} account`, type: user.accountType || 'Demo', balance: user.wallet?.balance, status: user.tradingStatus }];
-            const detailsLocked = user.verificationStatus !== 'approved';
             const expanded = Boolean(expandedUsers[user.id]);
             const visibleAccounts = expanded ? accounts : [];
 
@@ -83,6 +112,7 @@ export default function AdminUsersTable({ users, busyId, onBalance, onStatus, on
                   <Text className="font-semibold text-white">{user.name}</Text>
                   <Text className="mt-1 text-xs text-muted">{user.email}</Text>
                   <AccountsDropdown count={accounts.length} expanded={expanded} onPress={() => toggleAccounts(user.id)} />
+                  <AccountDetails accounts={visibleAccounts} />
                 </View>
                 <BrokerReferralCell user={user} />
                 <TextCell width={130}>${money(user.wallet?.balance)}</TextCell>
@@ -91,6 +121,9 @@ export default function AdminUsersTable({ users, busyId, onBalance, onStatus, on
                 <TextCell width={125}>${money(user.wallet?.freeFunds)}</TextCell>
                 <TextCell width={90}>1:{user.leverage || 100}</TextCell>
                 <TextCell width={115} className={user.tradingStatus === 'frozen' ? 'text-danger' : 'text-success'}>{user.tradingStatus === 'frozen' ? 'Frozen' : 'Active'}</TextCell>
+                <TextCell width={250} className={user.verificationStatus === 'approved' ? 'text-success' : user.verificationStatus === 'rejected' ? 'text-danger' : 'text-primary'}>
+                  {user.verificationStatus || 'unverified'}
+                </TextCell>
                 <TextCell width={220} className="text-muted">{user.adminNotes || '-'}</TextCell>
                 <View style={{ width: 570 }} className="flex-row flex-wrap px-3 py-3">
                   <Button title="Add Balance" disabled={blocked} onPress={() => onBalance(user, 'add_balance')} />

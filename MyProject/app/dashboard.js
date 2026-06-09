@@ -8,7 +8,6 @@ import {
   Clock3,
   Copy,
   Plus,
-  RefreshCcw,
   ShieldCheck,
   TrendingUp,
   UsersRound,
@@ -62,41 +61,6 @@ function RewardMetric({ label, value, caption, icon: Icon, tone = 'primary' }) {
       </View>
       <Text className="text-2xl font-black text-white">{value}</Text>
       <Text className="mt-2 text-xs text-muted">{caption}</Text>
-    </View>
-  );
-}
-
-function RewardProgress({ approved, pending }) {
-  const approvedValue = Number(approved || 0);
-  const pendingValue = Number(pending || 0);
-  const total = approvedValue + pendingValue;
-  const approvedPct = total > 0 ? Math.min(100, Math.max(0, (approvedValue / total) * 100)) : 0;
-
-  return (
-    <View className="rounded-2xl border border-border bg-panel p-5">
-      <View className="mb-3 flex-row items-center justify-between">
-        <Text className="text-base font-black text-white">Referral Deposit Progress</Text>
-        <Text className="text-sm font-bold text-muted">{total.toFixed(2)} USD</Text>
-      </View>
-      <View className="h-3 overflow-hidden rounded-full bg-surface">
-        <View className="h-full rounded-full bg-primary" style={{ width: `${approvedPct}%` }} />
-      </View>
-      <View className="mt-3 flex-row justify-between">
-        <Text className="text-xs text-muted">Approved {approvedValue.toFixed(2)} USD</Text>
-        <Text className="text-xs text-muted">Pending {pendingValue.toFixed(2)} USD</Text>
-      </View>
-    </View>
-  );
-}
-
-function ReferralStep({ number, title, description }) {
-  return (
-    <View className="flex-1 rounded-2xl border border-border bg-panel p-4">
-      <View className="mb-3 h-8 w-8 items-center justify-center rounded-full bg-primary">
-        <Text className="font-black text-black">{number}</Text>
-      </View>
-      <Text className="font-black text-white">{title}</Text>
-      <Text className="mt-2 text-sm text-muted">{description}</Text>
     </View>
   );
 }
@@ -180,7 +144,7 @@ function AccountCard({ account }) {
           {active ? <CheckCircle2 size={16} color="#12cf7a" /> : <Clock3 size={16} color="#D4AF37" />}
           <Text className="ml-2 text-xs font-semibold text-muted">{active ? 'Ready for trading' : 'Waiting for activation'}</Text>
         </View>
-        <ArrowUpRight size={17} color={active ? '#D4AF37' : '#8fa0bb'} />
+        <ArrowUpRight size={17} color={active ? '#D4AF37' : '#848e9c'} />
       </Pressable>
     </View>
   );
@@ -391,13 +355,13 @@ export default function DashboardScreen() {
       {activeSection === 'rewards' ? (
         <View className="gap-4">
           <View className="overflow-hidden rounded-2xl border border-primary/40 bg-panel">
-            <View className="p-5 lg:flex-row lg:items-stretch lg:justify-between lg:gap-5">
+            <View className="p-5 lg:flex-row lg:items-center lg:justify-between lg:gap-5">
               <View className="max-w-[720px] flex-1">
                 <View className="mb-3 self-start rounded-full border border-primary/40 bg-primary/10 px-3 py-1">
                   <Text className="text-xs font-black uppercase tracking-[1px] text-primary">Broker Rewards</Text>
                 </View>
-                <Text className="text-2xl font-black text-white">Partner performance dashboard</Text>
-                <Text className="mt-2 max-w-[620px] text-muted">Share your broker link, review connected clients, and track commission progress without leaving the dashboard.</Text>
+                <Text className="text-2xl font-black text-white">Referral performance</Text>
+                <Text className="mt-2 max-w-[620px] text-muted">Track your linked clients, approved deposits, and estimated commission.</Text>
                 <View className="mt-5 flex-row flex-wrap gap-3">
                   <View className="rounded-xl border border-border bg-panel/80 px-4 py-3">
                     <Text className="text-xs font-bold uppercase text-muted">Referral Code</Text>
@@ -411,7 +375,7 @@ export default function DashboardScreen() {
               </View>
               <View className="mt-5 justify-between rounded-xl border border-primary/40 bg-primary/10 p-5 lg:mt-0 lg:min-w-[300px]">
                 <View>
-                  <Text className="text-xs font-bold uppercase tracking-[1px] text-muted">Estimated Commission</Text>
+                  <Text className="text-xs font-bold uppercase tracking-[1px] text-muted">Commission</Text>
                   <Text className="mt-3 text-3xl font-black text-primary">{estimatedReferralCommission.toFixed(2)}</Text>
                   <Text className="mt-1 text-sm font-bold text-primary">USD</Text>
                 </View>
@@ -426,31 +390,19 @@ export default function DashboardScreen() {
           <View className="gap-4 lg:flex-row">
             <View className="flex-1 gap-4">
               <View className="flex-row flex-wrap gap-3">
-                <RewardMetric label="Linked Clients" value={String(linkedClients)} caption="Accounts registered through your link" icon={UsersRound} tone="success" />
-                <RewardMetric label="Pending Deposits" value={`${pendingReferralDeposits.toFixed(2)} USD`} caption="Waiting for funding approval" icon={TrendingUp} />
-                <RewardMetric label="Approved Deposits" value={`${approvedReferralDeposits.toFixed(2)} USD`} caption="Confirmed referral volume" icon={Award} tone="success" />
+                <RewardMetric label="Clients" value={String(linkedClients)} caption="Linked through your referral link" icon={UsersRound} tone="success" />
+                <RewardMetric label="Approved" value={`${approvedReferralDeposits.toFixed(2)} USD`} caption="Confirmed referral deposits" icon={Award} tone="success" />
+                <RewardMetric label="Pending" value={`${pendingReferralDeposits.toFixed(2)} USD`} caption="Deposits waiting for approval" icon={TrendingUp} />
               </View>
-              <RewardProgress approved={approvedReferralDeposits} pending={pendingReferralDeposits} />
-              <View className="gap-3 lg:flex-row">
-                <ReferralStep number="1" title="Share link" description="Copy your referral link and send it to new clients." />
-                <ReferralStep number="2" title="Client registers" description="New accounts are linked to your broker code automatically." />
-                <ReferralStep number="3" title="Track rewards" description="Approved deposits update your estimated commission." />
-              </View>
+              <Card title="Linked Clients" subtitle="Clients registered under your referral code.">
+                <LinkedReferralList referrals={referrals} />
+              </Card>
             </View>
 
             <View className="rounded-2xl border border-border bg-panel p-5 lg:w-[360px]">
-              <View className="mb-4 flex-row items-center justify-between">
-                <View>
-                  <Text className="text-base font-black text-white">Referral Link</Text>
-                  <Text className="mt-1 text-sm text-muted">Share this link with new clients.</Text>
-                </View>
-                <Pressable
-                  onPress={() => loadDashboard().catch(() => {})}
-                  disabled={loading}
-                  className={`h-[40px] w-[40px] items-center justify-center rounded-xl border border-border bg-surface ${loading ? 'opacity-60' : ''}`}
-                >
-                  <RefreshCcw size={16} color="#D4AF37" />
-                </Pressable>
+              <View className="mb-4">
+                <Text className="text-base font-black text-white">Referral Link</Text>
+                <Text className="mt-1 text-sm text-muted">Copy and share with new clients.</Text>
               </View>
               {!referralText ? (
                 <View className="mb-3 rounded-xl border border-primary/30 bg-primary/10 p-3">
@@ -472,35 +424,7 @@ export default function DashboardScreen() {
                 {copied ? <CheckCircle2 size={16} color="#0B0B0B" /> : <Copy size={16} color="#0B0B0B" />}
                 <Text className="ml-2 font-black text-black">{copied ? 'Link Copied' : 'Copy Referral Link'}</Text>
               </Pressable>
-              <View className="mt-4 rounded-xl border border-border bg-surface p-4">
-                <Text className="text-xs font-bold uppercase text-muted">Payout Snapshot</Text>
-                <View className="mt-3 gap-2">
-                  <View className="flex-row justify-between">
-                    <Text className="text-muted">Rate</Text>
-                    <Text className="font-bold text-white">{(referralRate * 100).toFixed(2)}%</Text>
-                  </View>
-                  <View className="flex-row justify-between">
-                    <Text className="text-muted">Approved Volume</Text>
-                    <Text className="font-bold text-white">{approvedReferralDeposits.toFixed(2)} USD</Text>
-                  </View>
-                  <View className="flex-row justify-between">
-                    <Text className="text-muted">Estimated Reward</Text>
-                    <Text className="font-black text-primary">{estimatedReferralCommission.toFixed(2)} USD</Text>
-                  </View>
-                </View>
-              </View>
             </View>
-          </View>
-
-          <View className="rounded-2xl border border-border bg-panel p-5">
-            <View className="mb-4 flex-row flex-wrap items-center justify-between gap-3">
-              <View>
-                <Text className="text-lg font-black text-white">My Referrals</Text>
-                <Text className="mt-1 text-sm text-muted">Client accounts linked to your broker code.</Text>
-              </View>
-              <Text className="rounded-full bg-surface px-3 py-1 text-xs font-bold text-muted">{referrals.length} clients</Text>
-            </View>
-            <LinkedReferralList referrals={referrals} />
           </View>
         </View>
       ) : null}
