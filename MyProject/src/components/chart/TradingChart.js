@@ -771,7 +771,7 @@ export default function TradingChart() {
     grid: true,
     crosshair: true,
     priceLine: true,
-    askLine: true,
+    askLine: false,
     positionLine: false,
     takeProfitLine: false,
     stopLossLine: false,

@@ -110,6 +110,23 @@ const dayBounds = (date) => {
   };
 };
 
+const hourSlotsBetweenTimestamps = (from, to) => {
+  const slots = [];
+  const start = new Date(Math.floor(from / 3600) * 3600 * 1000);
+  const end = new Date(Math.ceil(to / 3600) * 3600 * 1000);
+  let cursor = start;
+
+  while (cursor < end) {
+    slots.push({
+      date: new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), cursor.getUTCDate())),
+      hour: cursor.getUTCHours(),
+    });
+    cursor = new Date(cursor.getTime() + 3600000);
+  }
+
+  return slots;
+};
+
 const normalizeTimestamp = (value) => {
   const timestamp = Number(value);
   if (!Number.isFinite(timestamp)) return null;
@@ -323,9 +340,38 @@ async function fetchDukascopyRecent(instrument, timeframe, from, to, options = {
   }
 
   const allCandles = [];
-  for (const date of daysBetweenTimestamps(from, to)) {
+  const rangeTimeframesNeedDailyHistory = DUKASCOPY_RANGE_TIMEFRAMES.has(timeframe);
+  const minuteCandlesByDay = new Map();
+
+  if (rangeTimeframesNeedDailyHistory) {
+    for (const date of daysBetweenTimestamps(from, to)) {
+      const dayCandles = await fetchDukascopyDay(instrument.symbol, date);
+      if (dayCandles.length) minuteCandlesByDay.set(dayId(date), dayCandles);
+    }
+  } else {
+    const candles = [];
+    for (const { date, hour } of hourSlotsBetweenTimestamps(from, to)) {
+      try {
+        candles.push(...await fetchDukascopyHour(instrument.symbol, date, hour));
+      } catch (error) {
+        console.warn(`Auto candle catch-up ${instrument.symbol} ${dayId(date)} ${pad2(hour)}h: ${error.message}`);
+      }
+    }
+    candles
+      .filter((bar) => Number(bar.time) >= from && Number(bar.time) <= to)
+      .forEach((bar) => {
+        const date = startOfUtcDay(bar.time);
+        const key = dayId(date);
+        const group = minuteCandlesByDay.get(key) || [];
+        group.push(bar);
+        minuteCandlesByDay.set(key, group);
+      });
+  }
+
+  for (const [dateKey, candles] of minuteCandlesByDay.entries()) {
+    const date = new Date(`${dateKey}T00:00:00.000Z`);
     const bounds = dayBounds(date);
-    const oneMinuteCandles = await fetchDukascopyDay(instrument.symbol, date);
+    const oneMinuteCandles = candles.sort((a, b) => Number(a.time) - Number(b.time));
     if (!oneMinuteCandles.length) continue;
 
     if (options.save) {
