@@ -1,5 +1,5 @@
 const sequelize = require('../config/db');
-const { User, Wallet, Deposit, Withdrawal, Transaction, Trade } = require('../models');
+const { User, Wallet, Deposit, Withdrawal, Transaction, Trade, TradingAccount } = require('../models');
 const tradingView = require('../services/tradingViewService');
 
 const DEMO_BALANCE = 5000;
@@ -63,7 +63,17 @@ async function storedSummary(userId, transaction) {
 exports.users = async (req, res, next) => {
   try {
     const [users, trades, livePrices] = await Promise.all([
-      User.findAll({ attributes: publicAttributes, include: [{ model: Wallet, as: 'wallet' }], order: [['createdAt', 'DESC']] }),
+      User.findAll({
+        attributes: publicAttributes,
+        include: [
+          { model: Wallet, as: 'wallet' },
+          { model: TradingAccount, as: 'tradingAccounts' },
+        ],
+        order: [
+          ['createdAt', 'DESC'],
+          [{ model: TradingAccount, as: 'tradingAccounts' }, 'createdAt', 'ASC'],
+        ],
+      }),
       Trade.findAll({ where: { status: 'open' } }),
       tradingView.getPrices(),
     ]);
@@ -200,6 +210,24 @@ exports.updateNotes = async (req, res, next) => {
     if (adminNotes.length > 5000) return res.status(400).json({ message: 'Admin notes cannot exceed 5000 characters.' });
     const user = await getUser(req.params.id);
     await user.update({ adminNotes: adminNotes || null });
+    return res.json({ user });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+exports.reviewVerification = (verificationStatus) => async (req, res, next) => {
+  try {
+    const user = await getUser(req.params.id);
+    if (!user.idProofImage || !user.addressProofImage) {
+      throw apiError('User has not uploaded both verification documents.', 400);
+    }
+    await user.update({
+      verificationStatus,
+      verificationReviewedAt: new Date(),
+      verificationReviewedBy: req.user.id,
+      tradingStatus: verificationStatus === 'approved' ? 'active' : 'frozen',
+    });
     return res.json({ user });
   } catch (error) {
     return next(error);

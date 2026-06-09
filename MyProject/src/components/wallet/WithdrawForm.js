@@ -3,12 +3,13 @@ import { Text, View } from 'react-native';
 import CustomButton from '../common/CustomButton';
 import CustomInput from '../common/CustomInput';
 
-export default function WithdrawForm({ onSubmit, loading }) {
+export default function WithdrawForm({ onSubmit, loading, disabled, disabledMessage }) {
   const [form, setForm] = useState({ amount: '', bankName: '', accountNumber: '', accountHolderName: '' });
   const [message, setMessage] = useState('');
   const update = (key) => (value) => setForm((current) => ({ ...current, [key]: value }));
   const submit = async () => {
     try {
+      if (disabled) throw new Error(disabledMessage || 'Withdrawals are unavailable.');
       if (!Number(form.amount) || !form.bankName || !form.accountNumber || !form.accountHolderName) throw new Error('Complete all withdrawal fields.');
       await onSubmit({ ...form, amount: Number(form.amount) });
       setMessage('Withdrawal request submitted for approval.');
@@ -24,7 +25,8 @@ export default function WithdrawForm({ onSubmit, loading }) {
       <CustomInput label="Bank name" value={form.bankName} onChangeText={update('bankName')} />
       <CustomInput label="Account number" value={form.accountNumber} onChangeText={update('accountNumber')} />
       <CustomInput label="Account holder name" value={form.accountHolderName} onChangeText={update('accountHolderName')} />
-      <CustomButton title="Request Withdrawal" onPress={submit} loading={loading} variant="primary" />
+      <CustomButton title="Request Withdrawal" onPress={submit} loading={loading} disabled={disabled} variant="primary" />
+      {disabled && disabledMessage ? <Text className="mt-3 text-sm text-danger">{disabledMessage}</Text> : null}
       {message ? <Text className="mt-3 text-sm text-muted">{message}</Text> : null}
     </View>
   );

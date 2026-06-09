@@ -3,12 +3,13 @@ import { Text, View } from 'react-native';
 import CustomButton from '../common/CustomButton';
 import CustomInput from '../common/CustomInput';
 
-export default function DepositForm({ onSubmit, loading }) {
+export default function DepositForm({ onSubmit, loading, disabled, disabledMessage }) {
   const [form, setForm] = useState({ amount: '', paymentMethod: 'Bank Transfer', referenceNumber: '', note: '' });
   const [message, setMessage] = useState('');
   const update = (key) => (value) => setForm((current) => ({ ...current, [key]: value }));
   const submit = async () => {
     try {
+      if (disabled) throw new Error(disabledMessage || 'Deposits are unavailable.');
       if (!Number(form.amount) || !form.referenceNumber.trim()) throw new Error('Amount and reference number are required.');
       await onSubmit({ ...form, amount: Number(form.amount) });
       setMessage('Deposit request submitted for approval.');
@@ -24,7 +25,8 @@ export default function DepositForm({ onSubmit, loading }) {
       <CustomInput label="Payment method" value={form.paymentMethod} onChangeText={update('paymentMethod')} />
       <CustomInput label="Reference number" value={form.referenceNumber} onChangeText={update('referenceNumber')} />
       <CustomInput label="Note" value={form.note} onChangeText={update('note')} />
-      <CustomButton title="Submit Deposit" onPress={submit} loading={loading} variant="success" />
+      <CustomButton title="Submit Deposit" onPress={submit} loading={loading} disabled={disabled} variant="success" />
+      {disabled && disabledMessage ? <Text className="mt-3 text-sm text-danger">{disabledMessage}</Text> : null}
       {message ? <Text className="mt-3 text-sm text-muted">{message}</Text> : null}
     </View>
   );
