@@ -32,6 +32,32 @@ async function ensureSchema() {
     allowNull: true,
     after: 'trading_status',
   });
+  await addColumnIfMissing(queryInterface, 'users', 'verification_status', {
+    type: DataTypes.ENUM('unverified', 'pending', 'approved', 'rejected'),
+    allowNull: false,
+    defaultValue: 'unverified',
+    after: 'admin_notes',
+  });
+  await addColumnIfMissing(queryInterface, 'users', 'id_proof_image', {
+    type: DataTypes.TEXT('long'),
+    allowNull: true,
+    after: 'verification_status',
+  });
+  await addColumnIfMissing(queryInterface, 'users', 'address_proof_image', {
+    type: DataTypes.TEXT('long'),
+    allowNull: true,
+    after: 'id_proof_image',
+  });
+  await addColumnIfMissing(queryInterface, 'users', 'verification_reviewed_at', {
+    type: DataTypes.DATE,
+    allowNull: true,
+    after: 'address_proof_image',
+  });
+  await addColumnIfMissing(queryInterface, 'users', 'verification_reviewed_by', {
+    type: DataTypes.INTEGER.UNSIGNED,
+    allowNull: true,
+    after: 'verification_reviewed_at',
+  });
   await addColumnIfMissing(queryInterface, 'users', 'referral_code', {
     type: DataTypes.STRING(40),
     allowNull: true,

@@ -56,6 +56,8 @@ export default function DashboardScreen() {
   }, [params.section]);
 
   const wallet = dashboard?.wallet || user?.wallet || {};
+  const fundingLocked = Boolean(user && user.verificationStatus !== 'approved');
+  const fundingLockedMessage = 'Verification approval is required before deposits and withdrawals.';
   const referral = dashboard?.referral || {};
   const accounts = dashboard?.accounts || [];
   const transactions = dashboard?.transactions || [];
@@ -63,6 +65,7 @@ export default function DashboardScreen() {
   const sections = [
     ['overview', 'Overview'],
     ['accounts', 'Accounts'],
+    ['verification', 'Verification'],
     ['deposit', 'Deposit'],
     ['withdraw', 'Withdraw'],
     ['rewards', 'Broker Rewards'],
@@ -97,7 +100,7 @@ export default function DashboardScreen() {
           <Text className="mt-1 text-muted">{user?.email || 'Manage accounts, funds, and rewards'}</Text>
         </View>
         <View className="flex-row gap-3">
-          <Link href="/trading" asChild><Pressable><Text className="text-primary">Back to Trading</Text></Pressable></Link>
+          <Link href="/trading" asChild><Pressable><Text style={{ color: '#D4AF37' }}>Back to Trading</Text></Pressable></Link>
           <Pressable onPress={signOut}><Text className="text-danger">Sign Out</Text></Pressable>
         </View>
       </View>
@@ -106,9 +109,9 @@ export default function DashboardScreen() {
         {sections.map(([key, label]) => (
           <Pressable
             key={key}
-            onPress={() => setActiveSection(key)}
+            onPress={() => (key === 'verification' ? router.push('/verification') : setActiveSection(key))}
             className="rounded-xl px-4 py-2"
-            style={{ backgroundColor: activeSection === key ? '#00B76A' : '#111827' }}
+            style={{ backgroundColor: activeSection === key ? '#D4AF37' : '#0B0B0B', borderColor: activeSection === key ? '#D4AF37' : '#014421', borderWidth: 1 }}
           >
             <Text className="font-bold" style={{ color: activeSection === key ? '#05130d' : '#9CA3AF' }}>{label}</Text>
           </Pressable>
@@ -170,13 +173,13 @@ export default function DashboardScreen() {
 
       {activeSection === 'deposit' ? (
         <Card title="Deposit Funds">
-          <DepositForm onSubmit={(values) => deposit(values, Boolean(user)).then(loadDashboard)} loading={walletLoading} />
+          <DepositForm onSubmit={(values) => deposit(values, Boolean(user)).then(loadDashboard)} loading={walletLoading} disabled={fundingLocked} disabledMessage={fundingLockedMessage} />
         </Card>
       ) : null}
 
       {activeSection === 'withdraw' ? (
         <Card title="Withdraw Funds">
-          <WithdrawForm onSubmit={(values) => withdraw(values, Boolean(user)).then(loadDashboard)} loading={walletLoading} />
+          <WithdrawForm onSubmit={(values) => withdraw(values, Boolean(user)).then(loadDashboard)} loading={walletLoading} disabled={fundingLocked} disabledMessage={fundingLockedMessage} />
         </Card>
       ) : null}
 
@@ -220,7 +223,7 @@ export default function DashboardScreen() {
                 <Text className="font-bold text-white">Sounds</Text>
                 <Text className="text-muted">Sound preference placeholder for trade alerts.</Text>
               </View>
-              <Text className="font-bold text-primary">Enabled</Text>
+              <Text className="font-bold" style={{ color: '#D4AF37' }}>Enabled</Text>
             </View>
             <View className="flex-row items-center justify-between rounded-xl border border-border bg-surface p-4">
               <View>

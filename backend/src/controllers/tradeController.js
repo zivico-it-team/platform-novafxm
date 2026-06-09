@@ -20,6 +20,9 @@ exports.open = async (req, res, next) => {
     if (req.user.tradingStatus === 'frozen') {
       return res.status(403).json({ message: 'Trading is temporarily disabled for this account.' });
     }
+    if (req.user.verificationStatus !== 'approved') {
+      return res.status(403).json({ message: 'Complete account verification before trading.' });
+    }
     const { symbol, side, lots } = req.body;
     if (!symbol || !['BUY', 'SELL'].includes(side) || !(Number(lots) > 0)) {
       return res.status(400).json({ message: 'Valid symbol, side and lots are required.' });

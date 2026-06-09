@@ -206,6 +206,24 @@ exports.updateNotes = async (req, res, next) => {
   }
 };
 
+exports.reviewVerification = (verificationStatus) => async (req, res, next) => {
+  try {
+    const user = await getUser(req.params.id);
+    if (!user.idProofImage || !user.addressProofImage) {
+      throw apiError('User has not uploaded both verification documents.', 400);
+    }
+    await user.update({
+      verificationStatus,
+      verificationReviewedAt: new Date(),
+      verificationReviewedBy: req.user.id,
+      tradingStatus: verificationStatus === 'approved' ? 'active' : 'frozen',
+    });
+    return res.json({ user });
+  } catch (error) {
+    return next(error);
+  }
+};
+
 exports.resetDemo = async (req, res, next) => {
   try {
     let output;
