@@ -23,7 +23,13 @@ export const apiBaseUrl = () => {
   const configured = normalizeApiUrl(process.env.EXPO_PUBLIC_API_URL);
   if (configured) return configured;
 
-  if (Platform.OS === 'web') return `http://localhost:${API_PORT}/api`;
+  if (Platform.OS === 'web') {
+    const browserHost = typeof window !== 'undefined' ? window.location?.hostname : null;
+    const host = browserHost && browserHost !== 'localhost' && browserHost !== '127.0.0.1'
+      ? browserHost
+      : 'localhost';
+    return `http://${host}:${API_PORT}/api`;
+  }
 
   const host = expoHost();
   if (host) return `http://${host}:${API_PORT}/api`;

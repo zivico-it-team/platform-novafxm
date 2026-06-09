@@ -238,7 +238,7 @@ export default function AdminScreen() {
             <Text className="mt-2 text-muted">Manage client balances, trading access and financial operations.</Text>
           </View>
           <Pressable onPress={load} className="rounded-xl border border-border bg-panel p-3">
-            <RefreshCw size={20} color={loading ? '#27a8e9' : '#8fa0bb'} />
+            <RefreshCw size={20} color={loading ? '#D4AF37' : '#848e9c'} />
           </Pressable>
         </View>
         {message ? <Text className="mb-5 rounded-xl border border-success/40 bg-success/10 p-4 text-success">{message}</Text> : null}

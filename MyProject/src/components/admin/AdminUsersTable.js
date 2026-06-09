@@ -25,13 +25,38 @@ function Header({ width, children }) {
   return <Text style={{ width }} className="px-3 py-3 text-xs font-bold uppercase text-muted">{children}</Text>;
 }
 
+function BrokerReferralCell({ user }) {
+  const summary = user.referralSummary || {};
+  const broker = summary.broker;
+
+  return (
+    <View style={{ width: 260 }} className="px-3 py-4">
+      <Text className="text-xs font-bold uppercase text-muted">Broker Code</Text>
+      <Text className="mt-1 font-semibold text-primary">{summary.code || user.referralCode || '-'}</Text>
+      <Text className="mt-2 text-xs text-muted">Linked clients: {summary.linkedClients || 0}</Text>
+      <View className="mt-3 rounded-lg border border-border bg-surface p-2">
+        <Text className="text-[10px] font-bold uppercase text-muted">Registered under</Text>
+        {broker ? (
+          <>
+            <Text className="mt-1 text-xs font-semibold text-white">{broker.name || broker.email}</Text>
+            <Text className="mt-1 text-[11px] text-muted">{broker.code || '-'}</Text>
+          </>
+        ) : (
+          <Text className="mt-1 text-xs text-muted">Direct / no broker</Text>
+        )}
+      </View>
+    </View>
+  );
+}
+
 export default function AdminUsersTable({ users, busyId, onBalance, onStatus, onReset, onWallet, onTransactions, onSettings }) {
   return (
     <View className="overflow-hidden rounded-2xl border border-border bg-panel">
       <ScrollView horizontal>
-        <View style={{ minWidth: 1700 }}>
+        <View style={{ minWidth: 1960 }}>
           <View className="flex-row border-b border-border bg-surface">
             <Header width={220}>Client Account</Header>
+            <Header width={260}>Broker Referral</Header>
             <Header width={130}>Wallet Balance</Header>
             <Header width={120}>Equity</Header>
             <Header width={110}>Margin</Header>
@@ -50,6 +75,7 @@ export default function AdminUsersTable({ users, busyId, onBalance, onStatus, on
                   <Text className="mt-1 text-xs text-muted">{user.email}</Text>
                   <Text className="mt-1 text-xs text-primary">{user.accountType} Account</Text>
                 </View>
+                <BrokerReferralCell user={user} />
                 <TextCell width={130}>${money(user.wallet?.balance)}</TextCell>
                 <TextCell width={120}>${money(user.wallet?.equity)}</TextCell>
                 <TextCell width={110}>${money(user.wallet?.margin)}</TextCell>

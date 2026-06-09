@@ -1,15 +1,28 @@
-import { useState } from 'react';
-import { Link, router } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { Link, router, useLocalSearchParams } from 'expo-router';
 import { Pressable, Text, View } from 'react-native';
 import CustomButton from '../src/components/common/CustomButton';
 import CustomInput from '../src/components/common/CustomInput';
 import { useAuth } from '../src/hooks/useAuth';
 
 export default function LoginScreen() {
-  const { login } = useAuth();
-  const [form, setForm] = useState({ email: '', password: '' });
+  const { claimReferral, login, user } = useAuth();
+  const params = useLocalSearchParams();
+  const [form, setForm] = useState({ email: '', password: '', referralCode: String(params.ref || '') });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const referralCode = String(params.ref || '').trim().toUpperCase();
+    if (!referralCode) return;
+    setForm((current) => ({ ...current, referralCode }));
+    if (user) {
+      claimReferral(referralCode)
+        .then(() => router.replace('/dashboard?section=rewards'))
+        .catch((requestError) => setError(requestError.response?.data?.message || 'Unable to link referral.'));
+    }
+  }, [claimReferral, params.ref, user]);
+
   const submit = async () => {
     setLoading(true);
     setError('');
@@ -31,7 +44,7 @@ export default function LoginScreen() {
         <CustomInput label="Password" secureTextEntry value={form.password} onChangeText={(password) => setForm((value) => ({ ...value, password }))} />
         {error ? <Text className="mb-4 text-danger">{error}</Text> : null}
         <CustomButton title="Login" onPress={submit} loading={loading} />
-        <Link href="/register" asChild>
+        <Link href={form.referralCode ? `/register?ref=${encodeURIComponent(form.referralCode)}` : '/register'} asChild>
           <Pressable className="mt-5"><Text className="text-center text-muted">No account? <Text className="text-primary">Register</Text></Text></Pressable>
         </Link>
         <Link href="/trading" asChild>

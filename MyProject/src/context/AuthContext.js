@@ -35,6 +35,13 @@ export function AuthProvider({ children }) {
   const login = useCallback(async (values) => storeSession(await authService.login(values)), [storeSession]);
   const register = useCallback(async (values) => storeSession(await authService.register(values)), [storeSession]);
 
+  const claimReferral = useCallback(async (referralCode) => {
+    const result = await authService.claimReferral(referralCode);
+    setUser(result.user);
+    await storage.set('user', result.user);
+    return result.user;
+  }, []);
+
   const logout = useCallback(async () => {
     await storage.clearSession();
     setUser(null);
@@ -48,8 +55,8 @@ export function AuthProvider({ children }) {
   }, []);
 
   const value = useMemo(
-    () => ({ user, loading, login, register, logout, updateProfile, isAdmin: user?.role === 'admin' }),
-    [user, loading, login, register, logout, updateProfile],
+    () => ({ user, loading, login, register, claimReferral, logout, updateProfile, isAdmin: user?.role === 'admin' }),
+    [user, loading, login, register, claimReferral, logout, updateProfile],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

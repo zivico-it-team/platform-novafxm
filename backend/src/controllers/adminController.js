@@ -1,5 +1,6 @@
 const sequelize = require('../config/db');
 const { User, Wallet, Deposit, Withdrawal, Transaction, Trade } = require('../models');
+const { ensureReferralCode } = require('../services/dashboardService');
 const tradingView = require('../services/tradingViewService');
 
 const DEMO_BALANCE = 5000;
@@ -63,13 +64,26 @@ async function storedSummary(userId, transaction) {
 exports.users = async (req, res, next) => {
   try {
     const [users, trades, livePrices] = await Promise.all([
-      User.findAll({ attributes: publicAttributes, include: [{ model: Wallet, as: 'wallet' }], order: [['createdAt', 'DESC']] }),
+      User.findAll({
+        attributes: publicAttributes,
+        include: [
+          { model: Wallet, as: 'wallet' },
+          { model: User, as: 'referrer', attributes: ['id', 'name', 'email', 'referralCode'] },
+        ],
+        order: [['createdAt', 'DESC']],
+      }),
       Trade.findAll({ where: { status: 'open' } }),
       tradingView.getPrices(),
     ]);
     const byUser = new Map();
     trades.forEach((trade) => byUser.set(trade.userId, [...(byUser.get(trade.userId) || []), trade]));
     const prices = new Map(livePrices.map((item) => [item.symbol, item]));
+    await Promise.all(users.map((user) => ensureReferralCode(user)));
+    const referralCounts = users.reduce((map, user) => {
+      if (user.referredById) map.set(user.referredById, (map.get(user.referredById) || 0) + 1);
+      return map;
+    }, new Map());
+    const referralCodeById = users.reduce((map, user) => map.set(user.id, user.referralCode), new Map());
     let totalWalletFunds = 0;
     const result = users.map((user) => {
       const values = user.toJSON();
@@ -77,7 +91,22 @@ exports.users = async (req, res, next) => {
         ? buildSummary(values.wallet, byUser.get(user.id) || [], prices)
         : { balance: 0, equity: 0, margin: 0, freeFunds: 0, openProfit: 0 };
       totalWalletFunds += summary.balance;
-      return { ...values, wallet: values.wallet ? { ...values.wallet, ...summary } : null };
+      return {
+        ...values,
+        wallet: values.wallet ? { ...values.wallet, ...summary } : null,
+        referralSummary: {
+          code: values.referralCode,
+          linkedClients: referralCounts.get(user.id) || 0,
+          broker: values.referrer
+            ? {
+              id: values.referrer.id,
+              name: values.referrer.name,
+              email: values.referrer.email,
+              code: values.referrer.referralCode || referralCodeById.get(values.referrer.id),
+            }
+            : null,
+        },
+      };
     });
     await Promise.all(users.map((user, index) => (
       user.wallet ? updateSnapshot(user.wallet, result[index].wallet) : Promise.resolve()
