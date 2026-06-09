@@ -14,6 +14,8 @@ router.put('/users/:id/unfreeze', controller.setTradingStatus('active'));
 router.put('/users/:id/leverage', controller.updateLeverage);
 router.put('/users/:id/reset-demo', controller.resetDemo);
 router.put('/users/:id/notes', controller.updateNotes);
+router.put('/users/:id/verification/approve', controller.reviewVerification('approved'));
+router.put('/users/:id/verification/reject', controller.reviewVerification('rejected'));
 router.get('/deposits', controller.deposits);
 router.put('/deposits/:id/approve', controller.reviewDeposit('approved'));
 router.put('/deposits/:id/reject', controller.reviewDeposit('rejected'));

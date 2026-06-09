@@ -49,6 +49,9 @@ exports.transactions = async (req, res, next) => {
 
 exports.deposit = async (req, res, next) => {
   try {
+    if (req.user.verificationStatus !== 'approved') {
+      return res.status(403).json({ message: 'Complete account verification before deposits.' });
+    }
     const { amount, paymentMethod, referenceNumber, note } = req.body;
     if (!(Number(amount) > 0) || !paymentMethod || !referenceNumber) {
       return res.status(400).json({ message: 'Valid amount, payment method and reference number are required.' });
@@ -78,6 +81,9 @@ exports.deposit = async (req, res, next) => {
 
 exports.withdraw = async (req, res, next) => {
   try {
+    if (req.user.verificationStatus !== 'approved') {
+      return res.status(403).json({ message: 'Complete account verification before withdrawals.' });
+    }
     const { amount, bankName, accountNumber, accountHolderName } = req.body;
     if (!(Number(amount) > 0) || !bankName || !accountNumber || !accountHolderName) {
       return res.status(400).json({ message: 'All withdrawal details are required.' });

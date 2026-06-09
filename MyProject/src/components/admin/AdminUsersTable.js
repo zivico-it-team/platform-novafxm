@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { Alert, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { ChevronDown, Eye } from 'lucide-react-native';
 import { money } from '../../utils/formatters';
 
 function ask(message, onConfirm) {
@@ -9,10 +11,10 @@ function ask(message, onConfirm) {
   Alert.alert('Confirm action', message, [{ text: 'Cancel', style: 'cancel' }, { text: 'Confirm', style: 'destructive', onPress: onConfirm }]);
 }
 
-function Button({ title, onPress, danger, disabled }) {
+function Button({ title, icon: Icon, onPress, danger, disabled }) {
   return (
     <Pressable onPress={onPress} disabled={disabled} className={`mb-2 mr-2 rounded-lg border px-3 py-2 ${danger ? 'border-danger/60 bg-danger/10' : 'border-border bg-surface'} ${disabled ? 'opacity-40' : ''}`}>
-      <Text className={`text-xs font-semibold ${danger ? 'text-danger' : 'text-white'}`}>{title}</Text>
+      {Icon ? <Icon size={15} color={danger ? '#f24d58' : '#f3f7ff'} /> : <Text className={`text-xs font-semibold ${danger ? 'text-danger' : 'text-white'}`}>{title}</Text>}
     </Pressable>
   );
 }
@@ -63,17 +65,24 @@ export default function AdminUsersTable({ users, busyId, onBalance, onStatus, on
             <Header width={125}>Free Funds</Header>
             <Header width={90}>Leverage</Header>
             <Header width={115}>Status</Header>
+            <Header width={250}>Verification</Header>
             <Header width={220}>Admin Notes</Header>
             <Header width={570}>Actions</Header>
           </View>
           {users.map((user) => {
-            const blocked = busyId === user.id;
+            const accounts = user.tradingAccounts?.length
+              ? user.tradingAccounts
+              : [{ id: `user-${user.id}`, name: `${user.accountType || 'Demo'} account`, type: user.accountType || 'Demo', balance: user.wallet?.balance, status: user.tradingStatus }];
+            const detailsLocked = user.verificationStatus !== 'approved';
+            const expanded = Boolean(expandedUsers[user.id]);
+            const visibleAccounts = expanded ? accounts : [];
+
             return (
               <View key={user.id} className="flex-row border-b border-border/60">
                 <View style={{ width: 220 }} className="px-3 py-4">
                   <Text className="font-semibold text-white">{user.name}</Text>
                   <Text className="mt-1 text-xs text-muted">{user.email}</Text>
-                  <Text className="mt-1 text-xs text-primary">{user.accountType} Account</Text>
+                  <AccountsDropdown count={accounts.length} expanded={expanded} onPress={() => toggleAccounts(user.id)} />
                 </View>
                 <BrokerReferralCell user={user} />
                 <TextCell width={130}>${money(user.wallet?.balance)}</TextCell>

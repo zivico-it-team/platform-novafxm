@@ -54,9 +54,23 @@ export function AuthProvider({ children }) {
     return result.user;
   }, []);
 
+  const refreshUser = useCallback(async () => {
+    const current = await authService.me();
+    setUser(current.user);
+    await storage.set('user', current.user);
+    return current.user;
+  }, []);
+
+  const submitVerification = useCallback(async (values) => {
+    const result = await authService.submitVerification(values);
+    setUser(result.user);
+    await storage.set('user', result.user);
+    return result.user;
+  }, []);
+
   const value = useMemo(
-    () => ({ user, loading, login, register, claimReferral, logout, updateProfile, isAdmin: user?.role === 'admin' }),
-    [user, loading, login, register, claimReferral, logout, updateProfile],
+    () => ({ user, loading, login, register, logout, updateProfile, submitVerification, refreshUser, isAdmin: user?.role === 'admin' }),
+    [user, loading, login, register, logout, updateProfile, submitVerification, refreshUser],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

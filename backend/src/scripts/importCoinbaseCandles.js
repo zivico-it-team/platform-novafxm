@@ -9,6 +9,12 @@ const tradingView = require('../services/tradingViewService');
 const COINBASE_API = 'https://api.exchange.coinbase.com/products';
 const DEFAULT_TIMEFRAMES = '1m,3m,5m,15m,1H,4H,1D,1W,1M';
 const MAX_CANDLES_PER_REQUEST = 300;
+const LOG_EMPTY_CHUNKS = process.env.COINBASE_IMPORT_LOG_EMPTY === 'true';
+
+const PRODUCT_IMPORT_START = {
+  'BCH-EUR': '2017-12-20',
+  'BCH-GBP': '2017-12-20',
+};
 
 const TIMEFRAME_TO_COINBASE = {
   '1m': 60,
@@ -34,9 +40,13 @@ const dayId = (date) => (
   `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`
 );
 
+const timestampId = (date) => `${dayId(date)} ${String(date.getUTCHours()).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')}`;
+
 const addSeconds = (date, seconds) => new Date(date.getTime() + seconds * 1000);
 
 const unix = (date) => Math.floor(new Date(`${date}T00:00:00.000Z`).getTime() / 1000);
+
+const laterDate = (left, right) => (new Date(`${left}T00:00:00.000Z`) > new Date(`${right}T00:00:00.000Z`) ? left : right);
 
 const appCoinbaseProducts = () => tradingView.instruments
   .filter((item) => item.group === 'CRYPTO CFD' && item.ticker.startsWith('COINBASE:'))
@@ -107,16 +117,22 @@ const importNativeTimeframe = async (product, symbol, timeframe, from, to) => {
   if (!granularity) return null;
 
   let total = 0;
+  let emptyChunks = 0;
   for (const [chunkFrom, chunkTo] of dateChunks(from, to, granularity)) {
     try {
       const candles = await fetchCoinbaseCandles(product, granularity, chunkFrom, chunkTo);
       const saved = await saveCandles(symbol, timeframe, candles);
       total += saved;
-      console.log(`${product} ${timeframe} ${dayId(chunkFrom)}..${dayId(chunkTo)}: rows=${candles.length} saved=${saved}`);
+      if (candles.length || LOG_EMPTY_CHUNKS) {
+        console.log(`${product} ${timeframe} ${timestampId(chunkFrom)}..${timestampId(chunkTo)}: rows=${candles.length} saved=${saved}`);
+      } else {
+        emptyChunks += 1;
+      }
     } catch (error) {
-      console.warn(`${product} ${timeframe} ${dayId(chunkFrom)}..${dayId(chunkTo)}: ${error.message}`);
+      console.warn(`${product} ${timeframe} ${timestampId(chunkFrom)}..${timestampId(chunkTo)}: ${error.message}`);
     }
   }
+  if (emptyChunks) console.log(`${product} ${timeframe}: skipped ${emptyChunks} empty chunks`);
 
   return total;
 };
@@ -149,11 +165,20 @@ const run = async () => {
   console.log(`Importing Coinbase candles: products=${products.map((item) => item.product).join(',')} timeframes=${timeframes.join(',')} days=${from}..${to}`);
 
   for (const { product, symbol } of products) {
+    const effectiveFrom = PRODUCT_IMPORT_START[product] ? laterDate(from, PRODUCT_IMPORT_START[product]) : from;
+    if (effectiveFrom !== from) {
+      console.log(`${product}: clamped import start ${from} -> ${effectiveFrom}`);
+    }
+    if (new Date(`${effectiveFrom}T00:00:00.000Z`) > new Date(`${to}T23:59:59.999Z`)) {
+      console.log(`${product}: skipped, requested range ends before product start`);
+      continue;
+    }
+
     for (const timeframe of timeframes) {
-      const derived = await importDerivedTimeframe(symbol, timeframe, from, to);
+      const derived = await importDerivedTimeframe(symbol, timeframe, effectiveFrom, to);
       if (derived != null) continue;
 
-      const native = await importNativeTimeframe(product, symbol, timeframe, from, to);
+      const native = await importNativeTimeframe(product, symbol, timeframe, effectiveFrom, to);
       if (native == null) {
         console.log(`${product} ${timeframe}: no Coinbase granularity`);
       }

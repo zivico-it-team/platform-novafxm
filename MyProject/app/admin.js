@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useRouter } from 'expo-router';
-import { Alert, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, Image, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { RefreshCw } from 'lucide-react-native';
 import api from '../src/services/api';
 import CustomButton from '../src/components/common/CustomButton';
@@ -49,6 +49,7 @@ export default function AdminScreen() {
   const [settingsUser, setSettingsUser] = useState(null);
   const [walletModal, setWalletModal] = useState(null);
   const [transactionsModal, setTransactionsModal] = useState(null);
+  const [verificationUser, setVerificationUser] = useState(null);
 
   const load = useCallback(async () => {
     if (!isAdmin) return;
@@ -156,6 +157,31 @@ export default function AdminScreen() {
     () => action(item.id, () => api.put(`/admin/${type}/${item.id}/${decision}`), `${type === 'deposits' ? 'Deposit' : 'Withdrawal'} ${decision}d.`),
   );
 
+  const reviewVerification = (user, decision) => ask(
+    `${decision === 'approve' ? 'Verify' : 'Unverify'} this account?`,
+    () => action(
+      user.id,
+      () => api.put(`/admin/users/${user.id}/verification/${decision}`),
+      decision === 'approve' ? 'Verification approved.' : 'Verification rejected.',
+      () => setVerificationUser(null),
+    ),
+  );
+  const downloadVerificationImages = (user) => {
+  const images = [
+    user?.idProofImage,
+    user?.addressProofImage,
+  ].filter(Boolean);
+
+  images.forEach((url, index) => {
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `verification-${user.id}-${index + 1}.jpg`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  });
+};
+
   if (!isAdmin) {
     return (
       <View className="flex-1 items-center justify-center bg-[#0B0B0B] px-6">
@@ -201,6 +227,7 @@ export default function AdminScreen() {
       ))}
     </View>
   );
+  
 
   const renderTrades = () => (
     <View className="overflow-hidden rounded-2xl border border-border bg-panel">
@@ -278,6 +305,8 @@ export default function AdminScreen() {
               onReset={resetDemo}
               onWallet={openWallet}
               onTransactions={openTransactions}
+              onVerification={setVerificationUser}
+              onVerificationDecision={reviewVerification}
               onSettings={setSettingsUser}
             />
           </View>
@@ -289,6 +318,45 @@ export default function AdminScreen() {
       <UserSettingsModal user={settingsUser} loading={busyId === settingsUser?.id} onClose={() => setSettingsUser(null)} onSave={saveSettings} onStatus={() => setTrading(settingsUser)} onReset={() => resetDemo(settingsUser)} />
       <UserWalletDetails user={walletModal?.user} wallet={walletModal?.wallet} loading={walletModal?.loading} onClose={() => setWalletModal(null)} />
       <UserTransactionsModal user={transactionsModal?.user} transactions={transactionsModal?.transactions || []} loading={transactionsModal?.loading} onClose={() => setTransactionsModal(null)} />
+      {verificationUser ? (
+        <View className="absolute inset-0 z-50 items-center justify-center bg-black/70 p-4">
+          <View className="max-h-[92vh] w-full max-w-[980px] rounded-2xl border border-border bg-panel p-5">
+            <View className="mb-4 flex-row items-center justify-between">
+              <View>
+                <Text className="text-2xl font-bold text-white">Verification Documents</Text>
+              </View>
+              <Pressable onPress={() => setVerificationUser(null)}><Text className="text-muted">Close</Text></Pressable>
+            </View>
+            <ScrollView>
+              
+              <View className="gap-4 lg:flex-row">
+                {[
+                  ['ID Proof', verificationUser.idProofImage],
+                  ['Address Proof', verificationUser.addressProofImage],
+                ].map(([title, source]) => (
+                  <View key={title} className="flex-1 rounded-xl border border-border bg-surface p-4">
+                    <Text className="mb-3 font-bold text-white">{title}</Text>
+                    {source ? (
+                      <Image source={{ uri: source }} className="h-[320px] w-full rounded-lg bg-black" resizeMode="contain" />
+                    ) : (
+                      <Text className="rounded-lg bg-black p-6 text-muted">No image uploaded.</Text>
+                    )}
+                  </View>
+                ))}
+              </View>
+              <View className="mt-5 flex-row justify-end">
+                
+                <CustomButton
+  title="Download"
+  variant="success"
+  className="min-w-[130px]"
+  onPress={() => downloadVerificationImages(verificationUser)}
+/>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 }

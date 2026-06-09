@@ -4,6 +4,7 @@ const { User, Wallet, Deposit, Transaction, TradingAccount } = require('../model
 const money = (value) => Number(Number(value || 0).toFixed(2));
 
 const referralCodeFor = (user) => `NVX${String(user.id).padStart(6, '0')}`;
+const MAX_ACCOUNTS_PER_TYPE = 2;
 
 async function ensureReferralCode(user) {
   if (user.referralCode) return user.referralCode;
@@ -31,7 +32,7 @@ async function ensureDefaultAccounts(user, wallet) {
       type: 'Live',
       name: 'Live account 1',
       balance: user.accountType === 'Live' ? money(wallet?.balance || 0) : 0,
-      status: user.accountType === 'Live' ? 'active' : 'pending',
+      status: 'active',
       isPrimary: user.accountType === 'Live',
     },
   ]);
@@ -46,6 +47,7 @@ async function dashboardForUser(userId, origin = '') {
 
   const referralCode = await ensureReferralCode(user);
   await ensureDefaultAccounts(user, user.wallet);
+  await TradingAccount.update({ status: 'active' }, { where: { userId, type: 'Live', status: 'pending' } });
 
   const [accounts, transactions, referrals] = await Promise.all([
     TradingAccount.findAll({ where: { userId }, order: [['createdAt', 'ASC']] }),
@@ -112,13 +114,16 @@ async function dashboardForUser(userId, origin = '') {
 async function createTradingAccount(userId, type) {
   const accountType = type === 'Live' ? 'Live' : 'Demo';
   const existingCount = await TradingAccount.count({ where: { userId, type: accountType } });
+  if (existingCount >= MAX_ACCOUNTS_PER_TYPE) {
+    throw Object.assign(new Error(`You can create only ${MAX_ACCOUNTS_PER_TYPE} ${accountType.toLowerCase()} accounts.`), { status: 400 });
+  }
   const balance = accountType === 'Demo' ? 5000 : 0;
   const account = await TradingAccount.create({
     userId,
     type: accountType,
     name: `${accountType} account ${existingCount + 1}`,
     balance,
-    status: accountType === 'Live' ? 'pending' : 'active',
+    status: 'active',
     isPrimary: false,
   });
   return account;
