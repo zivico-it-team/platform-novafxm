@@ -1,7 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, router, useLocalSearchParams } from 'expo-router';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
-import { ArrowUpRight, CheckCircle2, Clock3, Plus, ShieldCheck, Wallet } from 'lucide-react-native';
+import {
+  ArrowUpRight,
+  CheckCircle2,
+  Clock3,
+  Plus,
+  ShieldCheck,
+  Wallet,
+} from 'lucide-react-native';
 import CustomButton from '../src/components/common/CustomButton';
 import DepositForm from '../src/components/wallet/DepositForm';
 import WithdrawForm from '../src/components/wallet/WithdrawForm';
@@ -9,7 +16,6 @@ import TransactionList from '../src/components/wallet/TransactionList';
 import { dashboardService } from '../src/services/dashboardService';
 import { useAuth } from '../src/hooks/useAuth';
 import { useWallet } from '../src/hooks/useWallet';
-import { useAppTheme } from '../src/context/ThemeContext';
 
 function Card({ title, subtitle, children }) {
   return (
@@ -90,7 +96,6 @@ function AccountCard({ account }) {
 export default function DashboardScreen() {
   const params = useLocalSearchParams();
   const { user, logout } = useAuth();
-  const { darkMode, toggleTheme } = useAppTheme();
   const { deposit, withdraw, loading: walletLoading } = useWallet();
   const [activeSection, setActiveSection] = useState(String(params.section || 'overview'));
   const [dashboard, setDashboard] = useState(null);
@@ -187,6 +192,10 @@ export default function DashboardScreen() {
                 router.push('/broker-rewards');
                 return;
               }
+              if (key === 'settings') {
+                router.push('/settings');
+                return;
+              }
               setActiveSection(key);
             }}
             className="rounded-xl px-4 py-3"
@@ -273,33 +282,6 @@ export default function DashboardScreen() {
         </Card>
       ) : null}
 
-      {activeSection === 'settings' ? (
-        <Card title="Mode, Sounds, and Session">
-          <View className="gap-3">
-            <View className="flex-row items-center justify-between rounded-xl border border-border bg-surface p-4">
-              <View>
-                <Text className="font-bold text-white">Mode</Text>
-                <Text className="text-muted">{darkMode ? 'Dark mode enabled' : 'Light mode enabled'}</Text>
-              </View>
-              <CustomButton title={darkMode ? 'Switch Light' : 'Switch Dark'} onPress={toggleTheme} className="min-w-[150px]" />
-            </View>
-            <View className="flex-row items-center justify-between rounded-xl border border-border bg-surface p-4">
-              <View>
-                <Text className="font-bold text-white">Sounds</Text>
-                <Text className="text-muted">Sound preference placeholder for trade alerts.</Text>
-              </View>
-              <Text className="font-bold" style={{ color: '#D4AF37' }}>Enabled</Text>
-            </View>
-            <View className="flex-row items-center justify-between rounded-xl border border-border bg-surface p-4">
-              <View>
-                <Text className="font-bold text-white">Sign Out</Text>
-                <Text className="text-muted">End this account session.</Text>
-              </View>
-              <CustomButton title="Sign Out" variant="secondary" onPress={signOut} className="min-w-[150px]" />
-            </View>
-          </View>
-        </Card>
-      ) : null}
     </ScrollView>
   );
 }

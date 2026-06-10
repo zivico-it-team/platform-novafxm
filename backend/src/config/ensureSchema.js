@@ -27,6 +27,21 @@ async function ensureSchema() {
     defaultValue: 'active',
     after: 'leverage',
   });
+  await addColumnIfMissing(queryInterface, 'users', 'country', {
+    type: DataTypes.STRING(80),
+    allowNull: true,
+    after: 'phone',
+  });
+  await addColumnIfMissing(queryInterface, 'users', 'date_of_birth', {
+    type: DataTypes.STRING(20),
+    allowNull: true,
+    after: 'country',
+  });
+  await addColumnIfMissing(queryInterface, 'users', 'profile_image', {
+    type: DataTypes.TEXT('long'),
+    allowNull: true,
+    after: 'date_of_birth',
+  });
   await addColumnIfMissing(queryInterface, 'users', 'admin_notes', {
     type: DataTypes.TEXT,
     allowNull: true,
