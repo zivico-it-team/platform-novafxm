@@ -49,7 +49,7 @@ async function dashboardForUser(userId, origin = '') {
   await ensureDefaultAccounts(user, user.wallet);
   await TradingAccount.update({ status: 'active' }, { where: { userId, type: 'Live', status: 'pending' } });
 
-  const [accounts, transactions, referrals] = await Promise.all([
+  const [accounts, transactions, referrals, referrer] = await Promise.all([
     TradingAccount.findAll({ where: { userId }, order: [['createdAt', 'ASC']] }),
     Transaction.findAll({ where: { userId }, order: [['createdAt', 'DESC']], limit: 25 }),
     User.findAll({
@@ -57,14 +57,22 @@ async function dashboardForUser(userId, origin = '') {
       attributes: ['id', 'name', 'email', 'accountType', 'createdAt'],
       order: [['createdAt', 'DESC']],
     }),
+    user.referredById
+      ? User.findByPk(user.referredById, { attributes: ['id', 'name', 'email', 'referralCode'] })
+      : null,
   ]);
 
   const referralIds = referrals.map((item) => item.id);
-  const approvedDeposits = referralIds.length
-    ? await Transaction.sum('amount', {
-      where: { userId: { [Op.in]: referralIds }, type: 'deposit', status: { [Op.in]: ['approved', 'completed'] } },
-    })
-    : 0;
+  const [approvedDeposits, pendingDeposits] = referralIds.length
+    ? await Promise.all([
+      Transaction.sum('amount', {
+        where: { userId: { [Op.in]: referralIds }, type: 'deposit', status: { [Op.in]: ['approved', 'completed'] } },
+      }),
+      Transaction.sum('amount', {
+        where: { userId: { [Op.in]: referralIds }, type: 'deposit', status: 'pending' },
+      }),
+    ])
+    : [0, 0];
   const referralCommissionRate = Number(process.env.REFERRAL_COMMISSION_RATE || 0.05);
   const referralCommission = money(Number(approvedDeposits || 0) * referralCommissionRate);
   const baseUrl = origin || process.env.FRONTEND_URL || 'http://localhost:8081';
@@ -79,6 +87,10 @@ async function dashboardForUser(userId, origin = '') {
       url: `${baseUrl.replace(/\/$/, '')}/register?ref=${encodeURIComponent(referralCode)}`,
       commissionRate: referralCommissionRate,
       commission: referralCommission,
+      approvedDeposits: money(approvedDeposits),
+      pendingDeposits: money(pendingDeposits),
+      referralCount: referrals.length,
+      referrer,
       referrals,
     },
   };

@@ -57,7 +57,7 @@ export default function ProfileMenu({ onClose }) {
       <View className="py-3">
         <Action icon={ReceiptText} title="Withdraw" onPress={() => navigate('/dashboard?section=withdraw')} colors={colors} />
         <Action icon={TrendingUp} title="Deposit" onPress={() => navigate('/dashboard?section=deposit')} colors={colors} />
-        <Action icon={Award} title="My Rewards" onPress={() => navigate('/dashboard?section=rewards')} colors={colors} />
+        <Action icon={Award} title="My Rewards" onPress={() => navigate('/broker-rewards')} colors={colors} />
         <Pressable onPress={() => navigate('/dashboard?section=settings')} className="flex-row items-center justify-between px-5 py-4">
           <View className="flex-row items-center">
             <Moon size={21} color={colors.text} />

@@ -178,7 +178,17 @@ export default function DashboardScreen() {
         {sections.map(([key, label]) => (
           <Pressable
             key={key}
-            onPress={() => (key === 'verification' ? router.push('/verification') : setActiveSection(key))}
+            onPress={() => {
+              if (key === 'verification') {
+                router.push('/verification');
+                return;
+              }
+              if (key === 'rewards') {
+                router.push('/broker-rewards');
+                return;
+              }
+              setActiveSection(key);
+            }}
             className="rounded-xl px-4 py-3"
             style={{ backgroundColor: activeSection === key ? '#D4AF37' : 'transparent', borderColor: activeSection === key ? '#D4AF37' : '#243142', borderWidth: 1 }}
           >
@@ -260,31 +270,6 @@ export default function DashboardScreen() {
       {activeSection === 'withdraw' ? (
         <Card title="Withdraw Funds">
           <WithdrawForm onSubmit={(values) => withdraw(values, Boolean(user)).then(loadDashboard)} loading={walletLoading} disabled={fundingLocked} disabledMessage={fundingLockedMessage} />
-        </Card>
-      ) : null}
-
-      {activeSection === 'rewards' ? (
-        <Card title="Referral Commission and My Referrals">
-          <Text className="text-white">Referral Code: {referral.code || '-'}</Text>
-          <Text className="mt-2 text-white">Commission Rate: {Number(referral.commissionRate || 0) * 100}%</Text>
-          <Text className="mt-2 text-white">Estimated Commission: {Number(referral.commission || 0).toFixed(2)} USD</Text>
-          <TextInput
-            editable={false}
-            value={referralText}
-            className="mt-4 rounded-xl border border-border bg-surface p-3 text-white"
-          />
-          <CustomButton title={copied ? 'Copied' : 'Copy Referral URL'} onPress={copyReferral} className="mt-4 max-w-[260px]" />
-          <Text className="mb-3 mt-6 text-lg font-bold text-white">My Referrals</Text>
-          <View className="gap-2">
-            {referrals.map((item) => (
-              <View key={item.id} className="rounded-xl border border-border bg-surface p-3">
-                <Text className="font-bold text-white">{item.name}</Text>
-                <Text className="text-muted">{item.email}</Text>
-                <Text className="text-muted">{item.accountType} | Joined {new Date(item.createdAt).toLocaleDateString()}</Text>
-              </View>
-            ))}
-            {!referrals.length ? <Text className="text-muted">No referrals yet.</Text> : null}
-          </View>
         </Card>
       ) : null}
 

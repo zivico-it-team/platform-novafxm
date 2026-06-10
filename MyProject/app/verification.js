@@ -14,7 +14,7 @@ const sections = [
   ['Verification', '/verification'],
   ['Deposit', '/dashboard?section=deposit'],
   ['Withdraw', '/dashboard?section=withdraw'],
-  ['Broker Rewards', '/dashboard?section=rewards'],
+  ['Broker Rewards', '/broker-rewards'],
   ['Settings', '/dashboard?section=settings'],
 ];
 

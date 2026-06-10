@@ -46,11 +46,58 @@ function AccountsDropdown({ count, expanded, onPress }) {
   );
 }
 
+function ReferralsDropdown({ count, expanded, onPress }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      className={`mt-2 rounded-xl border px-3 py-2 ${expanded ? 'border-primary/50 bg-primary/10' : 'border-border bg-surface'}`}
+    >
+      <View className="flex-row items-center justify-between">
+        <View>
+          <Text className="text-xs font-semibold text-white">{expanded ? 'Hide referrals' : 'Show referrals'}</Text>
+          <Text className="mt-1 text-[11px] text-muted">{count} linked client{count === 1 ? '' : 's'}</Text>
+        </View>
+        <View className="ml-3 h-7 w-7 items-center justify-center rounded-full bg-panel">
+          <ChevronDown size={16} color="#D4AF37" style={{ transform: [{ rotate: expanded ? '180deg' : '0deg' }] }} />
+        </View>
+      </View>
+    </Pressable>
+  );
+}
+
+function ReferralList({ referrals }) {
+  if (!referrals?.length) {
+    return <Text className="mt-2 rounded-lg border border-dashed border-border bg-panel p-2 text-xs text-muted">No referrals linked.</Text>;
+  }
+
+  return (
+    <View className="mt-2 gap-2">
+      {referrals.map((referral) => (
+        <View key={referral.id} className="rounded-lg border border-border bg-panel p-2">
+          <Text className="text-xs font-bold text-white" numberOfLines={1}>{referral.name || 'Client'}</Text>
+          <Text className="mt-1 text-[11px] text-muted" numberOfLines={1}>{referral.email || '-'}</Text>
+          <Text className="mt-1 text-[11px] text-muted">
+            {referral.accountType || 'Demo'} | {referral.verificationStatus || 'pending'}
+          </Text>
+          <Text className="mt-1 text-[11px] text-primary">
+            Wallet ${money(referral.wallet?.balance || 0)}
+          </Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 export default function AdminUsersTable({ users, busyId, onBalance, onStatus, onReset, onWallet, onTransactions, onSettings, onVerification, onVerificationDecision }) {
   const [expandedUsers, setExpandedUsers] = useState({});
+  const [expandedReferrals, setExpandedReferrals] = useState({});
 
   const toggleAccounts = (userId) => {
     setExpandedUsers((current) => ({ ...current, [userId]: !current[userId] }));
+  };
+
+  const toggleReferrals = (userId) => {
+    setExpandedReferrals((current) => ({ ...current, [userId]: !current[userId] }));
   };
 
   return (
@@ -76,6 +123,8 @@ export default function AdminUsersTable({ users, busyId, onBalance, onStatus, on
               : [{ id: `user-${user.id}`, name: `${user.accountType || 'Demo'} account`, type: user.accountType || 'Demo', balance: user.wallet?.balance, status: user.tradingStatus }];
             const detailsLocked = user.verificationStatus !== 'approved';
             const expanded = Boolean(expandedUsers[user.id]);
+            const referralsExpanded = Boolean(expandedReferrals[user.id]);
+            const referrals = user.referrals || [];
             const visibleAccounts = expanded ? accounts : [];
 
             return (
@@ -83,7 +132,13 @@ export default function AdminUsersTable({ users, busyId, onBalance, onStatus, on
                 <View style={{ width: 220 }} className="px-3 py-4">
                   <Text className="font-semibold text-white">{user.name}</Text>
                   <Text className="mt-1 text-xs text-muted">{user.email}</Text>
+                  <Text className="mt-2 text-[11px] text-muted">Referral Code: {user.referralCode || '-'}</Text>
+                  <Text className="mt-1 text-[11px] text-primary">
+                    Referred by: {user.referrer?.name || user.referrer?.email || 'Direct signup'}
+                  </Text>
                   <AccountsDropdown count={accounts.length} expanded={expanded} onPress={() => toggleAccounts(user.id)} />
+                  <ReferralsDropdown count={referrals.length} expanded={referralsExpanded} onPress={() => toggleReferrals(user.id)} />
+                  {referralsExpanded ? <ReferralList referrals={referrals} /> : null}
                 </View>
                 <View>
                   {visibleAccounts.map((account, accountIndex) => {

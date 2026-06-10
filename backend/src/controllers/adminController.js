@@ -1,4 +1,5 @@
 const sequelize = require('../config/db');
+const { Op } = require('sequelize');
 const { User, Wallet, Deposit, Withdrawal, Transaction, Trade, TradingAccount } = require('../models');
 const tradingView = require('../services/tradingViewService');
 
@@ -68,10 +69,18 @@ exports.users = async (req, res, next) => {
         include: [
           { model: Wallet, as: 'wallet' },
           { model: TradingAccount, as: 'tradingAccounts' },
+          { model: User, as: 'referrer', attributes: ['id', 'name', 'email', 'referralCode'] },
+          {
+            model: User,
+            as: 'referrals',
+            attributes: ['id', 'name', 'email', 'accountType', 'verificationStatus', 'createdAt'],
+            include: [{ model: Wallet, as: 'wallet' }],
+          },
         ],
         order: [
           ['createdAt', 'DESC'],
           [{ model: TradingAccount, as: 'tradingAccounts' }, 'createdAt', 'ASC'],
+          [{ model: User, as: 'referrals' }, 'createdAt', 'DESC'],
         ],
       }),
       Trade.findAll({ where: { status: 'open' } }),
@@ -81,14 +90,33 @@ exports.users = async (req, res, next) => {
     trades.forEach((trade) => byUser.set(trade.userId, [...(byUser.get(trade.userId) || []), trade]));
     const prices = new Map(livePrices.map((item) => [item.symbol, item]));
     let totalWalletFunds = 0;
-    const result = users.map((user) => {
+    const result = await Promise.all(users.map(async (user) => {
       const values = user.toJSON();
       const summary = values.wallet
         ? buildSummary(values.wallet, byUser.get(user.id) || [], prices)
         : { balance: 0, equity: 0, margin: 0, freeFunds: 0, openProfit: 0 };
       totalWalletFunds += summary.balance;
-      return { ...values, wallet: values.wallet ? { ...values.wallet, ...summary } : null };
-    });
+      const referralIds = (values.referrals || []).map((referral) => referral.id);
+      const [approvedDeposits, pendingDeposits] = referralIds.length
+        ? await Promise.all([
+          Transaction.sum('amount', {
+            where: { userId: { [Op.in]: referralIds }, type: 'deposit', status: { [Op.in]: ['approved', 'completed'] } },
+          }),
+          Transaction.sum('amount', {
+            where: { userId: { [Op.in]: referralIds }, type: 'deposit', status: 'pending' },
+          }),
+        ])
+        : [0, 0];
+      return {
+        ...values,
+        wallet: values.wallet ? { ...values.wallet, ...summary } : null,
+        referralStats: {
+          count: referralIds.length,
+          approvedDeposits: money(approvedDeposits),
+          pendingDeposits: money(pendingDeposits),
+        },
+      };
+    }));
     await Promise.all(users.map((user, index) => (
       user.wallet ? updateSnapshot(user.wallet, result[index].wallet) : Promise.resolve()
     )));
