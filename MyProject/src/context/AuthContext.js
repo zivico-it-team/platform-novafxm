@@ -4,6 +4,14 @@ import { storage } from '../utils/storage';
 
 export const AuthContext = createContext(null);
 
+const mergeUser = (incoming, fallback = null) => {
+  if (!incoming && !fallback) return null;
+  const merged = { ...(fallback || {}), ...(incoming || {}) };
+  if (incoming && !Object.prototype.hasOwnProperty.call(incoming, 'dateOfBirth')) merged.dateOfBirth = fallback?.dateOfBirth || '';
+  if (incoming && !Object.prototype.hasOwnProperty.call(incoming, 'profileImage')) merged.profileImage = fallback?.profileImage || null;
+  return merged;
+};
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -15,8 +23,9 @@ export function AuthProvider({ children }) {
         setUser(savedUser);
         try {
           const current = await authService.me();
-          setUser(current.user);
-          await storage.set('user', current.user);
+          const restoredUser = mergeUser(current.user, savedUser);
+          setUser(restoredUser);
+          await storage.set('user', restoredUser);
         } catch {
           setUser(savedUser);
         }
@@ -42,17 +51,19 @@ export function AuthProvider({ children }) {
 
   const updateProfile = useCallback(async (values) => {
     const result = await authService.updateProfile(values);
-    setUser(result.user);
-    await storage.set('user', result.user);
-    return result.user;
-  }, []);
+    const nextUser = mergeUser({ ...result.user, ...values }, user);
+    setUser(nextUser);
+    await storage.set('user', nextUser);
+    return nextUser;
+  }, [user]);
 
   const refreshUser = useCallback(async () => {
     const current = await authService.me();
-    setUser(current.user);
-    await storage.set('user', current.user);
-    return current.user;
-  }, []);
+    const nextUser = mergeUser(current.user, user);
+    setUser(nextUser);
+    await storage.set('user', nextUser);
+    return nextUser;
+  }, [user]);
 
   const submitVerification = useCallback(async (values) => {
     const result = await authService.submitVerification(values);
