@@ -95,7 +95,11 @@ exports.users = async (req, res, next) => {
       const summary = values.wallet
         ? buildSummary(values.wallet, byUser.get(user.id) || [], prices)
         : { balance: 0, equity: 0, margin: 0, freeFunds: 0, openProfit: 0 };
-      totalWalletFunds += summary.balance;
+      const extraAccountFunds = (values.tradingAccounts || []).reduce((sum, account) => {
+        if (account.isPrimary) return sum;
+        return sum + Number(account.balance || 0);
+      }, 0);
+      totalWalletFunds += summary.balance + extraAccountFunds;
       const referralIds = (values.referrals || []).map((referral) => referral.id);
       const [approvedDeposits, pendingDeposits] = referralIds.length
         ? await Promise.all([
@@ -180,15 +184,34 @@ exports.updateBalance = (type) => async (req, res, next) => {
   try {
     const amount = money(req.body.amount);
     const note = String(req.body.note || '').trim();
+    const tradingAccountId = Number(req.body.tradingAccountId || 0);
     if (!(amount > 0)) return res.status(400).json({ message: 'Amount must be a positive value.' });
     let output;
     await sequelize.transaction(async (transaction) => {
       const user = await getUser(req.params.id, transaction);
       const { wallet } = await storedSummary(user.id, transaction);
-      const before = money(wallet.balance);
-      if (type === 'admin_deduct_balance' && amount > before) throw apiError('Deduct amount cannot exceed wallet balance.');
+      const requestedAccount = tradingAccountId
+        ? await TradingAccount.findOne({
+          where: { id: tradingAccountId, userId: user.id },
+          transaction,
+          lock: transaction.LOCK.UPDATE,
+        })
+        : null;
+      if (tradingAccountId && !requestedAccount) throw apiError('Trading account not found.', 404);
+
+      const primaryAccount = await TradingAccount.findOne({ where: { userId: user.id, isPrimary: true }, transaction, lock: transaction.LOCK.UPDATE });
+      const fallbackAccount = primaryAccount || await TradingAccount.findOne({ where: { userId: user.id }, order: [['createdAt', 'ASC']], transaction, lock: transaction.LOCK.UPDATE });
+      const targetAccount = requestedAccount || fallbackAccount;
+      const before = money(requestedAccount ? requestedAccount.balance : wallet.balance);
+      if (type === 'admin_deduct_balance' && amount > before) throw apiError('Deduct amount cannot exceed available balance.');
       const after = money(before + (type === 'admin_add_balance' ? amount : -amount));
-      await wallet.update({ balance: after }, { transaction });
+
+      if (targetAccount) {
+        await targetAccount.update({ balance: after }, { transaction });
+      }
+      if (!requestedAccount || requestedAccount.isPrimary) {
+        await wallet.update({ balance: after }, { transaction });
+      }
       const { summary } = await storedSummary(user.id, transaction);
       const ledger = await Transaction.create({
         userId: user.id,
@@ -198,6 +221,8 @@ exports.updateBalance = (type) => async (req, res, next) => {
         balanceBefore: before,
         balanceAfter: after,
         note,
+        referenceType: targetAccount ? 'trading_account' : null,
+        referenceId: targetAccount?.id || null,
         description: type === 'admin_add_balance' ? 'Balance added by administrator' : 'Balance deducted by administrator',
       }, { transaction });
       output = { user, wallet: { ...wallet.toJSON(), ...summary }, transaction: ledger };

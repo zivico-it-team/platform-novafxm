@@ -126,7 +126,11 @@ export default function AdminScreen() {
     const endpoint = operation === 'add_balance' ? 'add-balance' : 'deduct-balance';
     return action(
       balanceModal.user.id,
-      () => api.put(`/admin/users/${balanceModal.user.id}/${endpoint}`, { amount, note }),
+      () => api.put(`/admin/users/${balanceModal.user.id}/${endpoint}`, {
+        amount,
+        note,
+        tradingAccountId: balanceModal.account?.id || null,
+      }),
       operation === 'add_balance' ? 'Balance added successfully.' : 'Balance deducted successfully.',
       () => setBalanceModal(null),
     );
@@ -343,7 +347,7 @@ export default function AdminScreen() {
             <AdminUsersTable
               users={data.users}
               busyId={busyId}
-              onBalance={(user, operation) => setBalanceModal({ user, operation })}
+              onBalance={(user, operation, account = null) => setBalanceModal({ user, operation, account })}
               onStatus={setTrading}
               onReset={resetDemo}
               onWallet={openWallet}
@@ -357,7 +361,7 @@ export default function AdminScreen() {
         {section === 'funding' ? renderFunding() : null}
         {section === 'trades' ? renderTrades() : null}
       </ScrollView>
-      <UpdateBalanceModal user={balanceModal?.user} initialOperation={balanceModal?.operation} loading={busyId === balanceModal?.user?.id} onClose={() => setBalanceModal(null)} onConfirm={updateBalance} />
+      <UpdateBalanceModal user={balanceModal?.user} account={balanceModal?.account} initialOperation={balanceModal?.operation} loading={busyId === balanceModal?.user?.id} onClose={() => setBalanceModal(null)} onConfirm={updateBalance} />
       <UserSettingsModal user={settingsUser} loading={busyId === settingsUser?.id} onClose={() => setSettingsUser(null)} onSave={saveSettings} onStatus={() => setTrading(settingsUser)} onReset={() => resetDemo(settingsUser)} />
       <UserWalletDetails user={walletModal?.user} wallet={walletModal?.wallet} loading={walletModal?.loading} onClose={() => setWalletModal(null)} />
       <UserTransactionsModal user={transactionsModal?.user} transactions={transactionsModal?.transactions || []} loading={transactionsModal?.loading} onClose={() => setTransactionsModal(null)} />
