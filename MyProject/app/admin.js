@@ -233,6 +233,15 @@ export default function AdminScreen() {
                 <View className="mb-2 mr-4">
                   <Text className="font-semibold text-white">{item.User?.name || item.User?.email || 'User'}</Text>
                   <Text className="mt-1 text-sm text-muted">${money(item.amount)} | {item.status} | {dateTime(item.createdAt)}</Text>
+                  {type === 'withdrawals' ? (
+                    <View className="mt-3 rounded-xl border border-border bg-panel p-3">
+                      <Text className="text-xs font-bold uppercase text-muted">Withdrawal Details</Text>
+                      <Text className="mt-2 text-sm text-white">Method: {item.withdrawalMethod || 'Bank'}</Text>
+                      <Text className="mt-1 text-sm text-white">{item.withdrawalMethod === 'Crypto' ? 'Crypto provider / network' : 'Bank name'}: {item.bankName || '-'}</Text>
+                      <Text className="mt-1 text-sm text-white">{item.withdrawalMethod === 'Crypto' ? 'Wallet address' : 'Account number'}: {item.accountNumber || '-'}</Text>
+                      <Text className="mt-1 text-sm text-white">{item.withdrawalMethod === 'Crypto' ? 'Wallet holder name' : 'Account holder name'}: {item.accountHolderName || '-'}</Text>
+                    </View>
+                  ) : null}
                 </View>
                 <View className="flex-row flex-wrap items-center">
                   {type === 'deposits' ? (

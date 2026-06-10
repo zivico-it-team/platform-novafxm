@@ -111,6 +111,13 @@ async function ensureSchema() {
     after: 'reference_number',
   });
 
+  await addColumnIfMissing(queryInterface, 'withdrawals', 'withdrawal_method', {
+    type: DataTypes.ENUM('Bank', 'Crypto'),
+    allowNull: false,
+    defaultValue: 'Bank',
+    after: 'amount',
+  });
+
   await addColumnIfMissing(queryInterface, 'trades', 'trading_account_id', {
     type: DataTypes.INTEGER.UNSIGNED,
     allowNull: true,

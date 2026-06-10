@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS withdrawals (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   user_id INT UNSIGNED NOT NULL,
   amount DECIMAL(15,2) NOT NULL,
+  withdrawal_method ENUM('Bank', 'Crypto') NOT NULL DEFAULT 'Bank',
   bank_name VARCHAR(120) NOT NULL,
   account_number VARCHAR(80) NOT NULL,
   account_holder_name VARCHAR(120) NOT NULL,
@@ -128,6 +129,9 @@ BEGIN
   END IF;
   IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'transactions' AND COLUMN_NAME = 'note') THEN
     ALTER TABLE transactions ADD COLUMN note TEXT NULL AFTER balance_after;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'withdrawals' AND COLUMN_NAME = 'withdrawal_method') THEN
+    ALTER TABLE withdrawals ADD COLUMN withdrawal_method ENUM('Bank', 'Crypto') NOT NULL DEFAULT 'Bank' AFTER amount;
   END IF;
   ALTER TABLE transactions MODIFY COLUMN type ENUM('deposit', 'withdrawal', 'admin_add_balance', 'admin_deduct_balance', 'trade_profit', 'trade_loss', 'reset_demo') NOT NULL;
 END$$

@@ -5,6 +5,7 @@ const Withdrawal = sequelize.define('Withdrawal', {
   id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
   userId: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, field: 'user_id' },
   amount: { type: DataTypes.DECIMAL(15, 2), allowNull: false },
+  withdrawalMethod: { type: DataTypes.ENUM('Bank', 'Crypto'), allowNull: false, defaultValue: 'Bank', field: 'withdrawal_method' },
   bankName: { type: DataTypes.STRING(120), allowNull: false, field: 'bank_name' },
   accountNumber: { type: DataTypes.STRING(80), allowNull: false, field: 'account_number' },
   accountHolderName: { type: DataTypes.STRING(120), allowNull: false, field: 'account_holder_name' },

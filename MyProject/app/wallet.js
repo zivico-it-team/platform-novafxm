@@ -21,7 +21,14 @@ export default function WalletScreen() {
       <WalletCard summary={summary} transactions={transactions} user={user} />
       <View className="gap-4 lg:flex-row">
         <DepositForm onSubmit={(values) => deposit(values, Boolean(user))} loading={loading} disabled={fundingLocked} disabledMessage={fundingLockedMessage} />
-        <WithdrawForm onSubmit={(values) => withdraw(values, Boolean(user))} loading={loading} disabled={fundingLocked} disabledMessage={fundingLockedMessage} />
+        <WithdrawForm
+          onSubmit={(values) => withdraw(values, Boolean(user))}
+          loading={loading}
+          disabled={fundingLocked}
+          disabledMessage={fundingLockedMessage}
+          summary={summary}
+          transactions={transactions}
+        />
       </View>
       <TransactionList transactions={transactions} />
     </ScrollView>
