@@ -4,7 +4,10 @@ const { User, Wallet, Transaction, TradingAccount } = require('../models');
 const money = (value) => Number(Number(value || 0).toFixed(2));
 
 const referralCodeFor = (user) => `NVX${String(user.id).padStart(6, '0')}`;
-const MAX_ACCOUNTS_PER_TYPE = 2;
+const ACCOUNT_LIMITS = {
+  Demo: 2,
+  Live: 3,
+};
 
 async function ensureReferralCode(user) {
   if (user.referralCode) return user.referralCode;
@@ -98,9 +101,10 @@ async function dashboardForUser(userId, origin = '') {
 
 async function createTradingAccount(userId, type) {
   const accountType = type === 'Live' ? 'Live' : 'Demo';
+  const maxAccounts = ACCOUNT_LIMITS[accountType];
   const existingCount = await TradingAccount.count({ where: { userId, type: accountType } });
-  if (existingCount >= MAX_ACCOUNTS_PER_TYPE) {
-    throw Object.assign(new Error(`You can create only ${MAX_ACCOUNTS_PER_TYPE} ${accountType.toLowerCase()} accounts.`), { status: 400 });
+  if (existingCount >= maxAccounts) {
+    throw Object.assign(new Error(`You can create only ${maxAccounts} ${accountType.toLowerCase()} accounts.`), { status: 400 });
   }
   const balance = accountType === 'Demo' ? 5000 : 0;
   const account = await TradingAccount.create({

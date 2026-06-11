@@ -38,24 +38,35 @@ function ReferralCard({ referral, colors }) {
 }
 
 export default function BrokerRewardsScreen() {
-  const { user } = useAuth();
+  const { user, logout, loading: authLoading } = useAuth();
   const { colors } = useAppTheme();
   const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const loadDashboard = async () => {
+    if (!user) return;
     setLoading(true);
     try {
       setDashboard(await dashboardService.getDashboard());
+    } catch (requestError) {
+      if (requestError.response?.status === 401) {
+        await logout();
+        router.replace('/login');
+      }
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
+    if (authLoading) return;
+    if (!user) {
+      router.replace('/login');
+      return;
+    }
     loadDashboard().catch(() => {});
-  }, []);
+  }, [authLoading, user]);
 
   const referral = dashboard?.referral || {};
   const referrals = referral.referrals || [];
@@ -73,6 +84,10 @@ export default function BrokerRewardsScreen() {
       setTimeout(() => setCopied(false), 1500);
     }
   };
+
+  if (authLoading || !user) {
+    return <View className="flex-1" style={{ backgroundColor: colors.background }} />;
+  }
 
   return (
     <ScrollView className="flex-1" style={{ backgroundColor: colors.background }} contentContainerClassName="p-4 lg:p-8">

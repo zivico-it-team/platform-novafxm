@@ -19,6 +19,9 @@ import { useAuth } from '../src/hooks/useAuth';
 import { useWallet } from '../src/hooks/useWallet';
 import { useAppTheme } from '../src/context/ThemeContext';
 
+const DEMO_ACCOUNT_LIMIT = 2;
+const LIVE_ACCOUNT_LIMIT = 3;
+
 function Card({ title, subtitle, children, colors }) {
   return (
     <View className="rounded-2xl border p-5" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
@@ -98,7 +101,7 @@ function AccountCard({ account, colors }) {
 
 export default function DashboardScreen() {
   const params = useLocalSearchParams();
-  const { user, logout } = useAuth();
+  const { user, logout, loading: authLoading } = useAuth();
   const { colors } = useAppTheme();
   const { deposit, withdraw, loading: walletLoading } = useWallet();
   const [activeSection, setActiveSection] = useState(String(params.section || 'overview'));
@@ -108,17 +111,31 @@ export default function DashboardScreen() {
   const [accountError, setAccountError] = useState('');
 
   const loadDashboard = async () => {
+    if (!user) return;
     setLoading(true);
     try {
       setDashboard(await dashboardService.getDashboard());
+      setAccountError('');
+    } catch (requestError) {
+      if (requestError.response?.status === 401) {
+        await logout();
+        router.replace('/login');
+        return;
+      }
+      setAccountError(requestError.response?.data?.message || 'Dashboard could not be loaded.');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
+    if (authLoading) return;
+    if (!user) {
+      router.replace('/login');
+      return;
+    }
     loadDashboard().catch(() => {});
-  }, []);
+  }, [authLoading, user]);
 
   useEffect(() => {
     if (params.section) setActiveSection(String(params.section));
@@ -138,10 +155,19 @@ export default function DashboardScreen() {
 
   const createAccount = async (type) => {
     setAccountError('');
+    if (!user) {
+      router.replace('/login');
+      return;
+    }
     try {
       await dashboardService.createAccount(type);
       await loadDashboard();
     } catch (requestError) {
+      if (requestError.response?.status === 401) {
+        await logout();
+        router.replace('/login');
+        return;
+      }
       setAccountError(requestError.response?.data?.message || 'Account could not be created.');
     }
   };
@@ -158,6 +184,10 @@ export default function DashboardScreen() {
     await logout();
     router.replace('/login');
   };
+
+  if (authLoading || !user) {
+    return <View className="flex-1" style={{ backgroundColor: colors.background }} />;
+  }
 
   return (
     <ScrollView className="flex-1" style={{ backgroundColor: colors.background }} contentContainerClassName="p-4 lg:p-8">
@@ -216,11 +246,11 @@ export default function DashboardScreen() {
           <View className="mb-5 flex-row flex-wrap items-center justify-between gap-3 rounded-2xl border p-4" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
             <View>
               <Text className="text-sm font-bold" style={{ color: colors.text }}>Account slots</Text>
-              <Text className="mt-1 text-xs" style={{ color: colors.muted }}>Demo {demoAccountCount}/2 | Live {liveAccountCount}/2</Text>
+              <Text className="mt-1 text-xs" style={{ color: colors.muted }}>Demo {demoAccountCount}/{DEMO_ACCOUNT_LIMIT} | Live {liveAccountCount}/{LIVE_ACCOUNT_LIMIT}</Text>
             </View>
             <View className="flex-row flex-wrap gap-3">
-              <CustomButton title="Create Demo Account" onPress={() => createAccount('Demo')} disabled={demoAccountCount >= 2} className="min-w-[210px]" />
-              <CustomButton title="Create Live Account" onPress={() => createAccount('Live')} disabled={liveAccountCount >= 2} variant="secondary" className="min-w-[210px]" />
+              <CustomButton title="Create Demo Account" onPress={() => createAccount('Demo')} disabled={demoAccountCount >= DEMO_ACCOUNT_LIMIT} className="min-w-[210px]" />
+              <CustomButton title="Create Live Account" onPress={() => createAccount('Live')} disabled={liveAccountCount >= LIVE_ACCOUNT_LIMIT} variant="secondary" className="min-w-[210px]" />
             </View>
           </View>
           {accountError ? <Text className="mb-4 rounded-xl border border-danger/40 bg-danger/10 p-3 text-danger">{accountError}</Text> : null}
