@@ -1,4 +1,7 @@
-import { createContext, useContext, useMemo, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+
+const THEME_STORAGE_KEY = 'novafxm.theme';
 
 const palettes = {
   light: {
@@ -39,17 +42,55 @@ const ThemeContext = createContext({
   darkMode: true,
   colors: palettes.dark,
   toggleTheme: () => {},
+  setThemeMode: () => {},
 });
 
 export function ThemeProvider({ children }) {
   const [darkMode, setDarkMode] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    AsyncStorage.getItem(THEME_STORAGE_KEY)
+      .then((storedTheme) => {
+        if (!mounted || !storedTheme) return;
+        setDarkMode(storedTheme !== 'light');
+      })
+      .catch(() => {});
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.classList.toggle('dark', darkMode);
+      document.body.style.backgroundColor = darkMode ? palettes.dark.background : palettes.light.background;
+    }
+  }, [darkMode]);
+
+  const setThemeMode = useCallback((mode) => {
+    const nextDarkMode = mode === 'dark';
+    setDarkMode(nextDarkMode);
+    AsyncStorage.setItem(THEME_STORAGE_KEY, nextDarkMode ? 'dark' : 'light').catch(() => {});
+  }, []);
+
+  const toggleTheme = useCallback(() => {
+    setDarkMode((enabled) => {
+      const nextDarkMode = !enabled;
+      AsyncStorage.setItem(THEME_STORAGE_KEY, nextDarkMode ? 'dark' : 'light').catch(() => {});
+      return nextDarkMode;
+    });
+  }, []);
+
   const value = useMemo(
     () => ({
       darkMode,
       colors: darkMode ? palettes.dark : palettes.light,
-      toggleTheme: () => setDarkMode((enabled) => !enabled),
+      setThemeMode,
+      toggleTheme,
     }),
-    [darkMode],
+    [darkMode, setThemeMode, toggleTheme],
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

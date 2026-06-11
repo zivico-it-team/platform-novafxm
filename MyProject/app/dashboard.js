@@ -16,6 +16,7 @@ import TransactionList from '../src/components/wallet/TransactionList';
 import { dashboardService } from '../src/services/dashboardService';
 import { useAuth } from '../src/hooks/useAuth';
 import { useWallet } from '../src/hooks/useWallet';
+import { useAppTheme } from '../src/context/ThemeContext';
 
 function Card({ title, subtitle, children }) {
   return (
@@ -96,6 +97,7 @@ function AccountCard({ account }) {
 export default function DashboardScreen() {
   const params = useLocalSearchParams();
   const { user, logout } = useAuth();
+  const { colors } = useAppTheme();
   const { deposit, withdraw, loading: walletLoading } = useWallet();
   const [activeSection, setActiveSection] = useState(String(params.section || 'overview'));
   const [dashboard, setDashboard] = useState(null);
@@ -166,10 +168,10 @@ export default function DashboardScreen() {
   };
 
   return (
-    <ScrollView className="flex-1 bg-[#0B0B0B]" contentContainerClassName="p-4 lg:p-8">
+    <ScrollView className="flex-1" style={{ backgroundColor: colors.background }} contentContainerClassName="p-4 lg:p-8">
       <View className="mb-6 flex-row flex-wrap items-center justify-between gap-3">
         <View>
-          <Text className="text-3xl font-extrabold text-white">Account Dashboard</Text>
+          <Text className="text-3xl font-extrabold" style={{ color: colors.text }}>Account Dashboard</Text>
           <Text className="mt-1 text-muted">{user?.email || 'Manage accounts, funds, and rewards'}</Text>
         </View>
         <View className="flex-row gap-3">

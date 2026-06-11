@@ -5,9 +5,11 @@ import DepositForm from '../src/components/wallet/DepositForm';
 import TransactionList from '../src/components/wallet/TransactionList';
 import { useWallet } from '../src/hooks/useWallet';
 import { useAuth } from '../src/hooks/useAuth';
+import { useAppTheme } from '../src/context/ThemeContext';
 
 export default function DepositScreen() {
   const { user } = useAuth();
+  const { colors } = useAppTheme();
   const { deposit, transactions, loading } = useWallet();
   const fundingLocked = Boolean(user && user.verificationStatus !== 'approved');
   const depositTransactions = transactions.filter((item) => item.type === 'deposit');
@@ -15,10 +17,10 @@ export default function DepositScreen() {
   const depositApproved = ['approved', 'completed'].includes(latestReviewedDeposit?.status);
 
   return (
-    <ScrollView className="flex-1 bg-[#0B0B0B]" contentContainerClassName="mx-auto w-full max-w-[1180px] p-4 lg:p-8">
+    <ScrollView className="flex-1" style={{ backgroundColor: colors.background }} contentContainerClassName="mx-auto w-full max-w-[1180px] p-4 lg:p-8">
       <View className="mb-6 flex-row flex-wrap items-center justify-between gap-3">
         <View>
-          <Text className="text-3xl font-black text-white">Deposit Center</Text>
+          <Text className="text-3xl font-black" style={{ color: colors.text }}>Deposit Center</Text>
           <Text className="mt-1 text-muted">Fund your trading account with a reviewed deposit request.</Text>
         </View>
         <Link href="/trading" asChild>

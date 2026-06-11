@@ -11,6 +11,7 @@ import UserWalletDetails from '../src/components/admin/UserWalletDetails';
 import UserTransactionsModal from '../src/components/admin/UserTransactionsModal';
 import UserSettingsModal from '../src/components/admin/UserSettingsModal';
 import { useAuth } from '../src/hooks/useAuth';
+import { useAppTheme } from '../src/context/ThemeContext';
 import { dateTime, money } from '../src/utils/formatters';
 
 const empty = { users: [], deposits: [], withdrawals: [], trades: [], stats: {} };
@@ -38,6 +39,7 @@ function EmptyRow({ children }) {
 
 export default function AdminScreen() {
   const { isAdmin, logout } = useAuth();
+  const { colors } = useAppTheme();
   const router = useRouter();
   const [section, setSection] = useState('overview');
   const [data, setData] = useState(empty);
@@ -209,8 +211,8 @@ export default function AdminScreen() {
 
   if (!isAdmin) {
     return (
-      <View className="flex-1 items-center justify-center bg-[#0B0B0B] px-6">
-        <Text className="mb-3 text-2xl font-bold text-white">Administrator Access</Text>
+      <View className="flex-1 items-center justify-center px-6" style={{ backgroundColor: colors.background }}>
+        <Text className="mb-3 text-2xl font-bold" style={{ color: colors.text }}>Administrator Access</Text>
         <Text className="mb-6 text-center text-muted">Please login with an administrator account.</Text>
         <Link href="/login" asChild><Pressable className="rounded-xl bg-primary px-8 py-4"><Text className="font-bold text-black">Login</Text></Pressable></Link>
       </View>
@@ -312,12 +314,12 @@ export default function AdminScreen() {
   );
 
   return (
-    <View className="flex-1 bg-[#0B0B0B] md:flex-row">
+    <View className="flex-1 md:flex-row" style={{ backgroundColor: colors.background }}>
       <AdminSidebar section={section} onChange={setSection} stats={data.stats} pendingCount={pendingCount} onSignOut={signOut} />
       <ScrollView className="flex-1" contentContainerClassName="p-5 md:p-8">
         <View className="mb-7 flex-row items-center justify-between">
           <View>
-            <Text className="text-3xl font-bold text-white">{section === 'overview' ? 'Dashboard' : section === 'users' ? 'User Wallet Management' : section === 'funding' ? 'Funding Requests' : 'Trade Monitor'}</Text>
+            <Text className="text-3xl font-bold" style={{ color: colors.text }}>{section === 'overview' ? 'Dashboard' : section === 'users' ? 'User Wallet Management' : section === 'funding' ? 'Funding Requests' : 'Trade Monitor'}</Text>
             <Text className="mt-2 text-muted">Manage client balances, trading access and financial operations.</Text>
           </View>
           <Pressable onPress={load} className="rounded-xl border border-border bg-panel p-3">

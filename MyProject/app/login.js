@@ -13,6 +13,7 @@ import { Eye, EyeOff, X } from 'lucide-react-native';
 import { useAuth } from '../src/hooks/useAuth';
 import NovaLogo from '../src/components/brand/NovaLogo';
 import Svg, { Path } from 'react-native-svg';
+import { useAppTheme } from '../src/context/ThemeContext';
 
 const GoogleIcon = () => (
   <Svg width={22} height={22} viewBox="0 0 24 24">
@@ -37,6 +38,7 @@ const XIcon = () => (
 
 export default function LoginScreen() {
   const { login } = useAuth();
+  const { darkMode, colors } = useAppTheme();
 
   const [form, setForm] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
@@ -123,21 +125,29 @@ export default function LoginScreen() {
     setForgotLoading(false);
   };
 
+  const inputStyle = {
+    backgroundColor: darkMode ? colors.surface : '#ffffff',
+    borderColor: colors.border,
+    color: colors.text,
+  };
+  const labelStyle = { color: colors.muted };
+  const linkColor = darkMode ? colors.primary : '#014421';
+
   return (
-    <View className="flex-1 items-center justify-center bg-gray-100 px-5">
-      <View className="relative w-full max-w-md rounded-2xl bg-white px-6 py-8 shadow-xl">
+    <View className="flex-1 items-center justify-center px-5" style={{ backgroundColor: colors.background }}>
+      <View className="relative w-full max-w-md rounded-2xl px-6 py-8 shadow-xl" style={{ backgroundColor: colors.panel, borderColor: colors.border, borderWidth: 1 }}>
 
         {/* Logo Badge */}
-        <View className="absolute -top-7 left-1/2 z-10 -translate-x-1/2 rounded-xl bg-white px-3 py-2 shadow-md">
-          <NovaLogo dark={false} width={120} height={36} />
+        <View className="absolute -top-7 left-1/2 z-10 -translate-x-1/2 rounded-xl px-3 py-2 shadow-md" style={{ backgroundColor: colors.panel, borderColor: colors.border, borderWidth: 1 }}>
+          <NovaLogo dark={darkMode} width={120} height={36} />
         </View>
 
         {/* Header */}
         <View className="mt-5">
-          <Text className="text-center text-2xl font-semibold text-gray-900">
+          <Text className="text-center text-2xl font-semibold" style={{ color: colors.text }}>
             Hello,{"\n"}Welcome Back
           </Text>
-          <Text className="mt-2 text-center text-sm text-gray-500">
+          <Text className="mt-2 text-center text-sm" style={labelStyle}>
             Login to continue to your account
           </Text>
         </View>
@@ -146,9 +156,10 @@ export default function LoginScreen() {
 
           {/* Email Field */}
           <View className="mb-4">
-            <Text className="mb-1.5 text-xs font-medium text-gray-600">Email</Text>
+            <Text className="mb-1.5 text-xs font-medium" style={labelStyle}>Email</Text>
             <TextInput
-              className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-700"
+              className="w-full rounded-lg border px-4 py-2.5 text-sm"
+              style={inputStyle}
               placeholder="example@gmail.com"
               placeholderTextColor="#9CA3AF"
               autoCapitalize="none"
@@ -161,10 +172,11 @@ export default function LoginScreen() {
 
           {/* Password Field */}
           <View className="mb-4">
-            <Text className="mb-1.5 text-xs font-medium text-gray-600">Password</Text>
-            <View className="flex-row items-center rounded-lg border border-gray-300 bg-white">
+            <Text className="mb-1.5 text-xs font-medium" style={labelStyle}>Password</Text>
+            <View className="flex-row items-center rounded-lg border" style={{ backgroundColor: inputStyle.backgroundColor, borderColor: inputStyle.borderColor }}>
               <TextInput
-                className="flex-1 px-4 py-2.5 text-sm text-gray-700"
+                className="flex-1 px-4 py-2.5 text-sm"
+                style={{ color: colors.text }}
                 placeholder="****"
                 placeholderTextColor="#9CA3AF"
                 secureTextEntry={!showPassword}
@@ -182,9 +194,9 @@ export default function LoginScreen() {
                 accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
               >
                 {showPassword ? (
-                  <Eye size={18} color="#6B7280" />
+                  <Eye size={18} color={colors.muted} />
                 ) : (
-                  <EyeOff size={18} color="#6B7280" />
+                  <EyeOff size={18} color={colors.muted} />
                 )}
               </TouchableOpacity>
             </View>
@@ -197,20 +209,19 @@ export default function LoginScreen() {
               className="flex-row items-center gap-2"
             >
               <View
-                className={`h-4 w-4 items-center justify-center rounded border ${
-                  rememberMe ? 'border-green-700 bg-green-700' : 'border-gray-300 bg-white'
-                }`}
+                className="h-4 w-4 items-center justify-center rounded border"
+                style={{ borderColor: rememberMe ? linkColor : colors.border, backgroundColor: rememberMe ? linkColor : inputStyle.backgroundColor }}
               >
                 {rememberMe ? (
                   <Text className="text-[10px] font-bold text-white">✓</Text>
                 ) : null}
               </View>
-              <Text className="text-sm text-gray-600">Remember me</Text>
+              <Text className="text-sm" style={labelStyle}>Remember me</Text>
             </TouchableOpacity>
 
             {/* Forgot Password Button */}
             <TouchableOpacity onPress={() => setForgotModalVisible(true)}>
-              <Text className="text-sm font-medium text-green-700">
+              <Text className="text-sm font-medium" style={{ color: linkColor }}>
                 Forgot password?
               </Text>
             </TouchableOpacity>
@@ -236,17 +247,17 @@ export default function LoginScreen() {
 
         {/* Divider */}
         <View className="my-6 flex-row items-center gap-3">
-          <View className="h-px flex-1 bg-gray-300" />
-          <Text className="text-xs font-medium text-gray-500">or</Text>
-          <View className="h-px flex-1 bg-gray-300" />
+          <View className="h-px flex-1" style={{ backgroundColor: colors.border }} />
+          <Text className="text-xs font-medium" style={labelStyle}>or</Text>
+          <View className="h-px flex-1" style={{ backgroundColor: colors.border }} />
         </View>
 
         {/* Social Login Buttons */}
         <View className="flex-row justify-center gap-5">
           <TouchableOpacity
             onPress={() => Linking.openURL('https://google.com')}
-            className="rounded-full bg-white border border-gray-300 shadow-md items-center justify-center"
-            style={{ height: 42, width: 42 }}
+            className="rounded-full border shadow-md items-center justify-center"
+            style={{ height: 42, width: 42, backgroundColor: '#ffffff', borderColor: colors.border }}
           >
             <GoogleIcon />
           </TouchableOpacity>
@@ -271,16 +282,16 @@ export default function LoginScreen() {
         {/* Footer Links */}
         <Link href="/register" asChild>
           <Pressable className="mt-6">
-            <Text className="text-center text-sm text-gray-600">
+            <Text className="text-center text-sm" style={labelStyle}>
               Don&apos;t have an account?{' '}
-              <Text className="font-semibold text-[#014421]">Sign up</Text>
+              <Text className="font-semibold" style={{ color: linkColor }}>Sign up</Text>
             </Text>
           </Pressable>
         </Link>
 
         <Link href="/trading" asChild>
           <Pressable className="mt-3">
-            <Text className="text-center text-sm font-semibold text-[#014421]">
+            <Text className="text-center text-sm font-semibold" style={{ color: linkColor }}>
               Continue with demo trading
             </Text>
           </Pressable>
@@ -296,21 +307,22 @@ export default function LoginScreen() {
         onRequestClose={closeForgotModal}
       >
         <View className="flex-1 items-center justify-center bg-black/50 px-5">
-          <View className="w-full max-w-sm rounded-2xl bg-white px-6 py-6 shadow-xl">
+          <View className="w-full max-w-sm rounded-2xl px-6 py-6 shadow-xl" style={{ backgroundColor: colors.panel, borderColor: colors.border, borderWidth: 1 }}>
 
             {/* Modal Header */}
             <View className="mb-5 flex-row items-center justify-between">
               <View>
-                <Text className="text-lg font-semibold text-gray-900">Forgot Password</Text>
-                <Text className="mt-0.5 text-xs text-gray-500">
+                <Text className="text-lg font-semibold" style={{ color: colors.text }}>Forgot Password</Text>
+                <Text className="mt-0.5 text-xs" style={labelStyle}>
                   Enter your email to receive a reset link
                 </Text>
               </View>
               <TouchableOpacity
                 onPress={closeForgotModal}
-                className="rounded-full bg-gray-100 p-1.5"
+                className="rounded-full p-1.5"
+                style={{ backgroundColor: colors.surface }}
               >
-                <X size={16} color="#6B7280" />
+                <X size={16} color={colors.muted} />
               </TouchableOpacity>
             </View>
 
@@ -320,12 +332,12 @@ export default function LoginScreen() {
                 <View className="mb-3 h-14 w-14 items-center justify-center rounded-full bg-green-100">
                   <Text className="text-2xl">✓</Text>
                 </View>
-                <Text className="text-center text-sm font-medium text-gray-900">
+                <Text className="text-center text-sm font-medium" style={{ color: colors.text }}>
                   Reset link sent!
                 </Text>
-                <Text className="mt-1 text-center text-xs text-gray-500">
+                <Text className="mt-1 text-center text-xs" style={labelStyle}>
                   Check your inbox at{' '}
-                  <Text className="font-medium text-green-700">{forgotEmail}</Text>
+                  <Text className="font-medium" style={{ color: linkColor }}>{forgotEmail}</Text>
                 </Text>
                 <TouchableOpacity
                   onPress={closeForgotModal}
@@ -338,11 +350,12 @@ export default function LoginScreen() {
               /* Form State */
               <>
                 <View className="mb-4">
-                  <Text className="mb-1.5 text-xs font-medium text-gray-600">
+                  <Text className="mb-1.5 text-xs font-medium" style={labelStyle}>
                     Email Address
                   </Text>
                   <TextInput
-                    className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-700"
+                    className="w-full rounded-lg border px-4 py-2.5 text-sm"
+                    style={inputStyle}
                     placeholder="example@gmail.com"
                     placeholderTextColor="#9CA3AF"
                     autoCapitalize="none"
@@ -360,9 +373,10 @@ export default function LoginScreen() {
                 <View className="flex-row gap-3">
                   <TouchableOpacity
                     onPress={closeForgotModal}
-                    className="flex-1 items-center rounded-lg border border-gray-300 py-2.5"
+                    className="flex-1 items-center rounded-lg border py-2.5"
+                    style={{ borderColor: colors.border }}
                   >
-                    <Text className="text-sm font-medium text-gray-600">Cancel</Text>
+                    <Text className="text-sm font-medium" style={labelStyle}>Cancel</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
