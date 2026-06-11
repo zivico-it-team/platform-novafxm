@@ -9,7 +9,13 @@ CREATE TABLE IF NOT EXISTS users (
   country VARCHAR(80) NULL,
   date_of_birth VARCHAR(20) NULL,
   profile_image LONGTEXT NULL,
+  bank_account_holder VARCHAR(120) NULL,
+  bank_name VARCHAR(120) NULL,
+  bank_branch VARCHAR(120) NULL,
+  bank_account_number VARCHAR(80) NULL,
   password VARCHAR(255) NOT NULL,
+  reset_password_token VARCHAR(64) NULL,
+  reset_password_expires DATETIME NULL,
   role ENUM('user', 'admin') NOT NULL DEFAULT 'user',
   account_type ENUM('Demo', 'Live') NOT NULL DEFAULT 'Demo',
   leverage INT UNSIGNED NOT NULL DEFAULT 100,
@@ -64,6 +70,21 @@ CREATE TABLE IF NOT EXISTS withdrawals (
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_withdrawal_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   CONSTRAINT fk_withdrawal_reviewer FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS bank_accounts (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id INT UNSIGNED NOT NULL,
+  account_holder_name VARCHAR(120) NOT NULL,
+  bank_name VARCHAR(120) NOT NULL,
+  branch_name VARCHAR(120) NULL,
+  account_number VARCHAR(80) NOT NULL,
+  status ENUM('pending', 'approved', 'rejected', 'delete_pending') NOT NULL DEFAULT 'pending',
+  reviewed_at DATETIME NULL,
+  reviewed_by INT UNSIGNED NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_bank_account_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS transactions (
@@ -123,6 +144,24 @@ BEGIN
   END IF;
   IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'profile_image') THEN
     ALTER TABLE users ADD COLUMN profile_image LONGTEXT NULL AFTER date_of_birth;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'bank_account_holder') THEN
+    ALTER TABLE users ADD COLUMN bank_account_holder VARCHAR(120) NULL AFTER profile_image;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'bank_name') THEN
+    ALTER TABLE users ADD COLUMN bank_name VARCHAR(120) NULL AFTER bank_account_holder;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'bank_branch') THEN
+    ALTER TABLE users ADD COLUMN bank_branch VARCHAR(120) NULL AFTER bank_name;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'bank_account_number') THEN
+    ALTER TABLE users ADD COLUMN bank_account_number VARCHAR(80) NULL AFTER bank_branch;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'reset_password_token') THEN
+    ALTER TABLE users ADD COLUMN reset_password_token VARCHAR(64) NULL AFTER password;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'reset_password_expires') THEN
+    ALTER TABLE users ADD COLUMN reset_password_expires DATETIME NULL AFTER reset_password_token;
   END IF;
   IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'wallets' AND COLUMN_NAME = 'equity') THEN
     ALTER TABLE wallets ADD COLUMN equity DECIMAL(15,2) NOT NULL DEFAULT 5000.00 AFTER balance;

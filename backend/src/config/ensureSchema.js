@@ -42,6 +42,36 @@ async function ensureSchema() {
     allowNull: true,
     after: 'date_of_birth',
   });
+  await addColumnIfMissing(queryInterface, 'users', 'bank_account_holder', {
+    type: DataTypes.STRING(120),
+    allowNull: true,
+    after: 'profile_image',
+  });
+  await addColumnIfMissing(queryInterface, 'users', 'bank_name', {
+    type: DataTypes.STRING(120),
+    allowNull: true,
+    after: 'bank_account_holder',
+  });
+  await addColumnIfMissing(queryInterface, 'users', 'bank_branch', {
+    type: DataTypes.STRING(120),
+    allowNull: true,
+    after: 'bank_name',
+  });
+  await addColumnIfMissing(queryInterface, 'users', 'bank_account_number', {
+    type: DataTypes.STRING(80),
+    allowNull: true,
+    after: 'bank_branch',
+  });
+  await addColumnIfMissing(queryInterface, 'users', 'reset_password_token', {
+    type: DataTypes.STRING(64),
+    allowNull: true,
+    after: 'password',
+  });
+  await addColumnIfMissing(queryInterface, 'users', 'reset_password_expires', {
+    type: DataTypes.DATE,
+    allowNull: true,
+    after: 'reset_password_token',
+  });
   await addColumnIfMissing(queryInterface, 'users', 'admin_notes', {
     type: DataTypes.TEXT,
     allowNull: true,
@@ -137,6 +167,48 @@ async function ensureSchema() {
     type: DataTypes.INTEGER.UNSIGNED,
     allowNull: true,
     after: 'user_id',
+  });
+
+  await queryInterface.createTable('bank_accounts', {
+    id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
+    user_id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      allowNull: false,
+      references: { model: 'users', key: 'id' },
+      onDelete: 'CASCADE',
+    },
+    account_holder_name: { type: DataTypes.STRING(120), allowNull: false },
+    bank_name: { type: DataTypes.STRING(120), allowNull: false },
+    branch_name: { type: DataTypes.STRING(120), allowNull: true },
+    account_number: { type: DataTypes.STRING(80), allowNull: false },
+    status: { type: DataTypes.ENUM('pending', 'approved', 'rejected', 'delete_pending'), allowNull: false, defaultValue: 'pending' },
+    reviewed_at: { type: DataTypes.DATE, allowNull: true },
+    reviewed_by: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
+    created_at: { type: DataTypes.DATE, allowNull: false },
+    updated_at: { type: DataTypes.DATE, allowNull: false },
+  }).catch((error) => {
+    if (!['ER_TABLE_EXISTS_ERROR', 'SQLITE_ERROR'].includes(error?.parent?.code) && !String(error?.message || '').includes('already exists')) throw error;
+  });
+  await addColumnIfMissing(queryInterface, 'bank_accounts', 'status', {
+    type: DataTypes.ENUM('pending', 'approved', 'rejected', 'delete_pending'),
+    allowNull: false,
+    defaultValue: 'pending',
+    after: 'account_number',
+  });
+  await queryInterface.changeColumn('bank_accounts', 'status', {
+    type: DataTypes.ENUM('pending', 'approved', 'rejected', 'delete_pending'),
+    allowNull: false,
+    defaultValue: 'pending',
+  });
+  await addColumnIfMissing(queryInterface, 'bank_accounts', 'reviewed_at', {
+    type: DataTypes.DATE,
+    allowNull: true,
+    after: 'status',
+  });
+  await addColumnIfMissing(queryInterface, 'bank_accounts', 'reviewed_by', {
+    type: DataTypes.INTEGER.UNSIGNED,
+    allowNull: true,
+    after: 'reviewed_at',
   });
 }
 

@@ -1,6 +1,6 @@
 const sequelize = require('../config/db');
 const { Op } = require('sequelize');
-const { User, Wallet, Deposit, Withdrawal, Transaction, Trade, TradingAccount } = require('../models');
+const { User, Wallet, Deposit, Withdrawal, Transaction, Trade, TradingAccount, BankAccount } = require('../models');
 const tradingView = require('../services/tradingViewService');
 
 const DEMO_BALANCE = 5000;
@@ -335,6 +335,51 @@ exports.withdrawals = async (req, res, next) => {
 exports.trades = async (req, res, next) => {
   try {
     return res.json({ trades: await Trade.findAll({ include: [{ model: User, attributes: publicAttributes }], order: [['createdAt', 'DESC']] }) });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+exports.bankAccounts = async (req, res, next) => {
+  try {
+    const accounts = await BankAccount.findAll({
+      include: [{ model: User, attributes: publicAttributes }],
+      order: [['createdAt', 'DESC']],
+    });
+    return res.json({ accounts });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+exports.reviewBankAccount = (status) => async (req, res, next) => {
+  try {
+    const account = await BankAccount.findByPk(req.params.id);
+    if (!account) throw apiError('Bank account details not found.', 404);
+    if (account.status === 'delete_pending' && status === 'approved') {
+      await User.update({
+        bankAccountHolder: null,
+        bankName: null,
+        bankBranch: null,
+        bankAccountNumber: null,
+      }, { where: { id: account.userId } });
+      await account.destroy();
+      return res.json({ deleted: true });
+    }
+    if (account.status === 'delete_pending' && status === 'rejected') {
+      await account.update({
+        status: 'approved',
+        reviewedAt: new Date(),
+        reviewedBy: req.user.id,
+      });
+      return res.json({ account });
+    }
+    await account.update({
+      status,
+      reviewedAt: new Date(),
+      reviewedBy: req.user.id,
+    });
+    return res.json({ account });
   } catch (error) {
     return next(error);
   }
