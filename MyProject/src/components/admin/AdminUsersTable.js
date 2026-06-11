@@ -125,7 +125,7 @@ export default function AdminUsersTable({ users, busyId, onBalance, onStatus, on
             const expanded = Boolean(expandedUsers[user.id]);
             const referralsExpanded = Boolean(expandedReferrals[user.id]);
             const referrals = user.referrals || [];
-            const visibleAccounts = expanded ? accounts : [];
+            const visibleAccounts = expanded ? accounts : accounts.slice(0, 1);
 
             return (
               <View key={user.id} className="flex-row border-b border-border/60">
@@ -155,12 +155,12 @@ export default function AdminUsersTable({ users, busyId, onBalance, onStatus, on
                           <Text className="text-sm font-semibold text-white">{account.name}</Text>
                           <Text className="mt-1 text-xs text-muted">{account.type} Account</Text>
                         </View>
-                        <TextCell width={130} className={detailsLocked ? 'text-muted' : ''}>{detailsLocked ? '-' : `$${money(accountBalance)}`}</TextCell>
-                        <TextCell width={120} className={detailsLocked ? 'text-muted' : ''}>{detailsLocked ? '-' : `$${money(equity)}`}</TextCell>
-                        <TextCell width={110} className={detailsLocked ? 'text-muted' : ''}>{detailsLocked ? '-' : `$${money(margin)}`}</TextCell>
-                        <TextCell width={125} className={detailsLocked ? 'text-muted' : ''}>{detailsLocked ? '-' : `$${money(freeFunds)}`}</TextCell>
-                        <TextCell width={90} className={detailsLocked ? 'text-muted' : ''}>{detailsLocked ? '-' : `1:${user.leverage || 100}`}</TextCell>
-                        <TextCell width={115} className={detailsLocked ? 'text-muted' : status === 'active' ? 'text-success' : 'text-danger'}>{detailsLocked ? '-' : status === 'active' ? 'Active' : status === 'pending' ? 'Pending' : 'Frozen'}</TextCell>
+                        <TextCell width={130}>{`$${money(accountBalance)}`}</TextCell>
+                        <TextCell width={120}>{`$${money(equity)}`}</TextCell>
+                        <TextCell width={110}>{`$${money(margin)}`}</TextCell>
+                        <TextCell width={125}>{`$${money(freeFunds)}`}</TextCell>
+                        <TextCell width={90}>{`1:${user.leverage || 100}`}</TextCell>
+                        <TextCell width={115} className={status === 'active' ? 'text-success' : status === 'pending' ? 'text-primary' : 'text-danger'}>{status === 'active' ? 'Active' : status === 'pending' ? 'Pending' : 'Frozen'}</TextCell>
                         <View style={{ width: 250 }} className="flex-row flex-wrap px-3 py-3">
                           {accountIndex === 0 ? (
                             <>
@@ -170,20 +170,16 @@ export default function AdminUsersTable({ users, busyId, onBalance, onStatus, on
                             </>
                           ) : <Text className="text-sm text-muted">-</Text>}
                         </View>
-                        <TextCell width={220} className="text-muted">{detailsLocked ? '-' : user.adminNotes || '-'}</TextCell>
-                        {detailsLocked ? (
-                          <TextCell width={570} className="text-muted">-</TextCell>
-                        ) : (
-                          <View style={{ width: 570 }} className="flex-row flex-wrap px-3 py-3">
-                            <Button title="Add Balance" disabled={blocked} onPress={() => onBalance(user, 'add_balance')} />
-                            <Button title="Deduct Balance" danger disabled={blocked} onPress={() => onBalance(user, 'deduct_balance')} />
-                            <Button title={user.tradingStatus === 'frozen' ? 'Unfreeze Trading' : 'Freeze Trading'} danger={user.tradingStatus !== 'frozen'} disabled={blocked} onPress={() => ask(`${user.tradingStatus === 'frozen' ? 'Unfreeze' : 'Freeze'} trading for ${user.name}?`, () => onStatus(user))} />
-                            <Button title="Reset Demo" disabled={blocked || account.type !== 'Demo'} onPress={() => ask(`Reset ${user.name}'s demo account to $5,000 and clear open positions?`, () => onReset(user))} />
-                            <Button title="View Wallet" disabled={blocked} onPress={() => onWallet(user)} />
-                            <Button title="View Transactions" disabled={blocked} onPress={() => onTransactions(user)} />
-                            <Button title="Settings" disabled={blocked} onPress={() => onSettings(user)} />
-                          </View>
-                        )}
+                        <TextCell width={220} className="text-muted">{user.adminNotes || '-'}</TextCell>
+                        <View style={{ width: 570 }} className="flex-row flex-wrap px-3 py-3">
+                          <Button title="Add Balance" disabled={blocked} onPress={() => onBalance(user, 'add_balance')} />
+                          <Button title="Deduct Balance" danger disabled={blocked} onPress={() => onBalance(user, 'deduct_balance')} />
+                          <Button title={user.tradingStatus === 'frozen' ? 'Unfreeze Trading' : 'Freeze Trading'} danger={user.tradingStatus !== 'frozen'} disabled={blocked} onPress={() => ask(`${user.tradingStatus === 'frozen' ? 'Unfreeze' : 'Freeze'} trading for ${user.name}?`, () => onStatus(user))} />
+                          <Button title="Reset Demo" disabled={blocked || account.type !== 'Demo'} onPress={() => ask(`Reset ${user.name}'s demo account to $5,000 and clear open positions?`, () => onReset(user))} />
+                          <Button title="View Wallet" disabled={blocked} onPress={() => onWallet(user)} />
+                          <Button title="View Transactions" disabled={blocked} onPress={() => onTransactions(user)} />
+                          <Button title="Settings" disabled={blocked} onPress={() => onSettings(user)} />
+                        </View>
                       </View>
                     );
                   })}
