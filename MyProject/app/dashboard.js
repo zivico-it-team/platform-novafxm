@@ -278,7 +278,14 @@ export default function DashboardScreen() {
 
       {activeSection === 'withdraw' ? (
         <Card title="Withdraw Funds">
-          <WithdrawForm onSubmit={(values) => withdraw(values, Boolean(user)).then(loadDashboard)} loading={walletLoading} disabled={fundingLocked} disabledMessage={fundingLockedMessage} />
+          <WithdrawForm
+            onSubmit={(values) => withdraw(values, Boolean(user)).then(loadDashboard)}
+            loading={walletLoading}
+            disabled={fundingLocked}
+            disabledMessage={fundingLockedMessage}
+            summary={wallet}
+            transactions={transactions}
+          />
         </Card>
       ) : null}
 

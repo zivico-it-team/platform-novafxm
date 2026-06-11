@@ -84,7 +84,8 @@ exports.withdraw = async (req, res, next) => {
     if (req.user.verificationStatus !== 'approved') {
       return res.status(403).json({ message: 'Complete account verification before withdrawals.' });
     }
-    const { amount, bankName, accountNumber, accountHolderName } = req.body;
+    const { amount, withdrawalMethod = 'Bank', bankName, accountNumber, accountHolderName } = req.body;
+    const method = withdrawalMethod === 'Crypto' ? 'Crypto' : 'Bank';
     if (!(Number(amount) > 0) || !bankName || !accountNumber || !accountHolderName) {
       return res.status(400).json({ message: 'All withdrawal details are required.' });
     }
@@ -95,7 +96,14 @@ exports.withdraw = async (req, res, next) => {
       if (Number(amount) > Number(wallet.balance) - Number(pending || 0)) {
         throw Object.assign(new Error('Insufficient withdrawable balance.'), { status: 400 });
       }
-      withdrawal = await Withdrawal.create({ userId: req.user.id, amount, bankName, accountNumber, accountHolderName }, { transaction });
+      withdrawal = await Withdrawal.create({
+        userId: req.user.id,
+        amount,
+        withdrawalMethod: method,
+        bankName,
+        accountNumber,
+        accountHolderName,
+      }, { transaction });
       await Transaction.create({
         userId: req.user.id,
         type: 'withdrawal',
@@ -105,7 +113,7 @@ exports.withdraw = async (req, res, next) => {
         balanceAfter: wallet.balance,
         referenceType: 'withdrawal',
         referenceId: withdrawal.id,
-        description: `Withdrawal to ${bankName}`,
+        description: method === 'Bank' ? `Withdrawal to ${bankName}` : `Crypto withdrawal to ${bankName}`,
       }, { transaction });
     });
     return res.status(201).json({ withdrawal });

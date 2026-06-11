@@ -125,7 +125,26 @@ export default function AdminUsersTable({ users, busyId, onBalance, onStatus, on
             const expanded = Boolean(expandedUsers[user.id]);
             const referralsExpanded = Boolean(expandedReferrals[user.id]);
             const referrals = user.referrals || [];
-            const visibleAccounts = expanded ? accounts : accounts.slice(0, 1);
+            const demoCount = accounts.filter((account) => account.type === 'Demo').length;
+            const liveCount = accounts.filter((account) => account.type === 'Live').length;
+            const extraAccountBalance = accounts.reduce((sum, account) => (
+              account.isPrimary ? sum : sum + Number(account.balance || 0)
+            ), 0);
+            const totalBalance = Number(user.wallet?.balance || 0) + extraAccountBalance;
+            const totalEquity = Number(user.wallet?.equity ?? user.wallet?.balance ?? 0) + extraAccountBalance;
+            const totalFreeFunds = Number(user.wallet?.freeFunds ?? user.wallet?.balance ?? 0) + extraAccountBalance;
+            const summaryAccount = {
+              id: `summary-${user.id}`,
+              name: 'Wallet summary',
+              type: `${demoCount} Demo / ${liveCount} Live`,
+              balance: totalBalance,
+              equity: totalEquity,
+              margin: user.wallet?.margin,
+              freeFunds: totalFreeFunds,
+              status: user.tradingStatus,
+              isSummary: true,
+            };
+            const visibleAccounts = expanded ? accounts : [summaryAccount];
 
             return (
               <View key={user.id} className="flex-row border-b border-border/60">
@@ -143,17 +162,17 @@ export default function AdminUsersTable({ users, busyId, onBalance, onStatus, on
                 <View>
                   {visibleAccounts.map((account, accountIndex) => {
                     const blocked = busyId === user.id;
-                    const accountBalance = account.isPrimary ? user.wallet?.balance : account.balance;
-                    const equity = account.isPrimary ? user.wallet?.equity : accountBalance;
-                    const margin = account.isPrimary ? user.wallet?.margin : 0;
-                    const freeFunds = account.isPrimary ? user.wallet?.freeFunds : accountBalance;
+                    const accountBalance = account.isSummary ? account.balance : account.isPrimary ? user.wallet?.balance : account.balance;
+                    const equity = account.isSummary ? account.equity : account.isPrimary ? user.wallet?.equity : accountBalance;
+                    const margin = account.isSummary ? account.margin : account.isPrimary ? user.wallet?.margin : 0;
+                    const freeFunds = account.isSummary ? account.freeFunds : account.isPrimary ? user.wallet?.freeFunds : accountBalance;
                     const status = account.status || user.tradingStatus;
 
                     return (
                       <View key={account.id} className={`flex-row ${accountIndex > 0 ? 'border-t border-border/60' : ''}`}>
                         <View style={{ width: 150 }} className="px-3 py-4">
                           <Text className="text-sm font-semibold text-white">{account.name}</Text>
-                          <Text className="mt-1 text-xs text-muted">{account.type} Account</Text>
+                          <Text className="mt-1 text-xs text-muted">{account.isSummary ? account.type : `${account.type} Account`}</Text>
                         </View>
                         <TextCell width={130}>{`$${money(accountBalance)}`}</TextCell>
                         <TextCell width={120}>{`$${money(equity)}`}</TextCell>
@@ -172,13 +191,19 @@ export default function AdminUsersTable({ users, busyId, onBalance, onStatus, on
                         </View>
                         <TextCell width={220} className="text-muted">{user.adminNotes || '-'}</TextCell>
                         <View style={{ width: 570 }} className="flex-row flex-wrap px-3 py-3">
-                          <Button title="Add Balance" disabled={blocked} onPress={() => onBalance(user, 'add_balance')} />
-                          <Button title="Deduct Balance" danger disabled={blocked} onPress={() => onBalance(user, 'deduct_balance')} />
-                          <Button title={user.tradingStatus === 'frozen' ? 'Unfreeze Trading' : 'Freeze Trading'} danger={user.tradingStatus !== 'frozen'} disabled={blocked} onPress={() => ask(`${user.tradingStatus === 'frozen' ? 'Unfreeze' : 'Freeze'} trading for ${user.name}?`, () => onStatus(user))} />
-                          <Button title="Reset Demo" disabled={blocked || account.type !== 'Demo'} onPress={() => ask(`Reset ${user.name}'s demo account to $5,000 and clear open positions?`, () => onReset(user))} />
-                          <Button title="View Wallet" disabled={blocked} onPress={() => onWallet(user)} />
-                          <Button title="View Transactions" disabled={blocked} onPress={() => onTransactions(user)} />
-                          <Button title="Settings" disabled={blocked} onPress={() => onSettings(user)} />
+                          {account.isSummary ? (
+                            <Text className="text-sm text-muted">Expand account details to manage accounts.</Text>
+                          ) : (
+                            <>
+                              <Button title="Add Balance" disabled={blocked} onPress={() => onBalance(user, 'add_balance', account)} />
+                              <Button title="Deduct Balance" danger disabled={blocked} onPress={() => onBalance(user, 'deduct_balance', account)} />
+                              <Button title={user.tradingStatus === 'frozen' ? 'Unfreeze Trading' : 'Freeze Trading'} danger={user.tradingStatus !== 'frozen'} disabled={blocked} onPress={() => ask(`${user.tradingStatus === 'frozen' ? 'Unfreeze' : 'Freeze'} trading for ${user.name}?`, () => onStatus(user))} />
+                              <Button title="Reset Demo" disabled={blocked || account.type !== 'Demo'} onPress={() => ask(`Reset ${user.name}'s demo account to $5,000 and clear open positions?`, () => onReset(user))} />
+                              <Button title="View Wallet" disabled={blocked} onPress={() => onWallet(user)} />
+                              <Button title="View Transactions" disabled={blocked} onPress={() => onTransactions(user)} />
+                              <Button title="Settings" disabled={blocked} onPress={() => onSettings(user)} />
+                            </>
+                          )}
                         </View>
                       </View>
                     );

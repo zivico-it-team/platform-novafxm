@@ -12,7 +12,7 @@ function ask(message, onConfirm) {
   Alert.alert('Confirm balance update', message, [{ text: 'Cancel', style: 'cancel' }, { text: 'Confirm', onPress: onConfirm }]);
 }
 
-export default function UpdateBalanceModal({ user, initialOperation, loading, onClose, onConfirm }) {
+export default function UpdateBalanceModal({ user, account, initialOperation, loading, onClose, onConfirm }) {
   const [operation, setOperation] = useState(initialOperation || 'add_balance');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
@@ -33,8 +33,9 @@ export default function UpdateBalanceModal({ user, initialOperation, loading, on
       setError('Amount must be positive.');
       return;
     }
-    if (operation === 'deduct_balance' && numeric > Number(user.wallet?.balance || 0)) {
-      setError('Deduct cannot exceed wallet balance.');
+    const availableBalance = Number(account?.balance ?? user.wallet?.balance ?? 0);
+    if (operation === 'deduct_balance' && numeric > availableBalance) {
+      setError('Deduct cannot exceed available balance.');
       return;
     }
     setError('');
@@ -48,7 +49,10 @@ export default function UpdateBalanceModal({ user, initialOperation, loading, on
           <Text className="text-xl font-bold text-white">Update Balance</Text>
           <Pressable onPress={onClose}><Text className="text-xl text-muted">x</Text></Pressable>
         </View>
-        <Text className="mb-5 text-sm text-muted">{user.name} | Available ${money(user.wallet?.balance)}</Text>
+        <Text className="mb-1 text-sm text-muted">{user.name} | Wallet ${money(user.wallet?.balance)}</Text>
+        <Text className="mb-5 text-sm text-primary">
+          Target: {account?.name || 'Wallet / primary account'} | Available ${money(account?.balance ?? user.wallet?.balance)}
+        </Text>
         <View className="mb-5 flex-row">
           {[
             ['add_balance', 'Add Balance'],
