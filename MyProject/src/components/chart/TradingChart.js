@@ -26,6 +26,7 @@ const TIMEFRAMES = [
   '1H', '4H',
   '1D', '1W', '1M',
 ];
+const VIEW_RANGES = ['Full', 'Recent'];
 const TIMEFRAME_SECONDS = {
   '1m': 60,
   '3m': 180,
@@ -48,6 +49,17 @@ const HISTORY_LIMITS = {
   '1D': 50000,
   '1W': 50000,
   '1M': 50000,
+};
+const FULL_HISTORY_LIMITS = {
+  '1m': 200000,
+  '3m': 200000,
+  '5m': 200000,
+  '15m': 200000,
+  '1H': 200000,
+  '4H': 200000,
+  '1D': 200000,
+  '1W': 200000,
+  '1M': 200000,
 };
 const INITIAL_VISIBLE_BARS = {
   '1m': 240,
@@ -118,7 +130,7 @@ const latestContinuousCandles = (candles, timeframe) => {
   return recentCandles.length >= Math.min(80, candles.length) ? recentCandles : candles;
 };
 
-const normalizeCandles = (candles, timeframe) => {
+const normalizeCandles = (candles, timeframe, viewRange) => {
   const byTime = new Map();
   (candles || []).forEach((bar) => {
     const candle = {
@@ -134,7 +146,7 @@ const normalizeCandles = (candles, timeframe) => {
   });
 
   const sorted = [...byTime.values()].sort((a, b) => a.time - b.time);
-  return latestContinuousCandles(sorted, timeframe);
+  return viewRange === 'Recent' ? latestContinuousCandles(sorted, timeframe) : sorted;
 };
 
 const applyLivePriceToCandles = (candles, currentSymbol, timeframe) => {
@@ -262,9 +274,10 @@ function LineWidthSelect({ value, onPress, ui }) {
   );
 }
 
-function chartHtml(candles, decimals, timeframe, chartType, tools, drawings, activeDrawingTool, ui) {
+function chartHtml(candles, decimals, timeframe, chartType, tools, drawings, activeDrawingTool, ui, viewRange) {
   const safeDecimals = Math.max(0, Math.min(Number(decimals) || 2, 8));
   const visibleBars = INITIAL_VISIBLE_BARS[timeframe] || 300;
+  const showFullRange = viewRange === 'Full';
   const chartColors = {
     background: ui.background,
     text: ui.text,
@@ -671,10 +684,14 @@ if (data.length) {
   renderGraphSettings();
   chart.subscribeClick(handleChartClick);
   document.body.style.cursor = activeDrawingTool ? 'crosshair' : 'default';
-  chart.timeScale().setVisibleLogicalRange({
-    from: Math.max(0, data.length - ${visibleBars}),
-    to: data.length + 4
-  });
+  if (${showFullRange}) {
+    chart.timeScale().fitContent();
+  } else {
+    chart.timeScale().setVisibleLogicalRange({
+      from: Math.max(0, data.length - ${visibleBars}),
+      to: data.length + 4
+    });
+  }
   requestAnimationFrame(renderDrawings);
   if (chart.timeScale().subscribeVisibleLogicalRangeChange) {
     chart.timeScale().subscribeVisibleLogicalRangeChange(renderDrawings);
@@ -797,6 +814,7 @@ export default function TradingChart() {
     customBidAsk: false,
   });
   const [history, setHistory] = useState([]);
+  const [viewRange, setViewRange] = useState('Full');
   const [reloadKey, setReloadKey] = useState(0);
   const [priceDirection, setPriceDirection] = useState(0);
   const iframeRef = useRef(null);
@@ -810,10 +828,13 @@ export default function TradingChart() {
     setHistory([]);
     previousPriceRef.current = null;
     setPriceDirection(0);
-    marketService.getCandles(currentSymbol.symbol, timeframe, HISTORY_LIMITS[timeframe])
+    const limit = viewRange === 'Full'
+      ? FULL_HISTORY_LIMITS[timeframe]
+      : HISTORY_LIMITS[timeframe];
+    marketService.getCandles(currentSymbol.symbol, timeframe, limit)
       .then((candles) => {
         if (active) {
-          const normalizedCandles = normalizeCandles(candles, timeframe);
+          const normalizedCandles = normalizeCandles(candles, timeframe, viewRange);
           setHistory(normalizedCandles);
           liveCandleRef.current = normalizedCandles?.[normalizedCandles.length - 1] || null;
         }
@@ -827,7 +848,7 @@ export default function TradingChart() {
     return () => {
       active = false;
     };
-  }, [currentSymbol.symbol, timeframe, reloadKey]);
+  }, [currentSymbol.symbol, timeframe, viewRange, reloadKey]);
 
   useEffect(() => {
     const price = Number(currentSymbol.price);
@@ -897,12 +918,13 @@ export default function TradingChart() {
   }, [candles]);
   const ui = useMemo(() => chartUiFromTheme(colors), [colors]);
   const html = useMemo(
-    () => chartHtml(candles, currentSymbol.decimals, timeframe, chartType, tools, drawings, activeDrawingTool, ui),
-    [candles, currentSymbol.decimals, timeframe, chartType, tools, drawings, activeDrawingTool, ui],
+    () => chartHtml(candles, currentSymbol.decimals, timeframe, chartType, tools, drawings, activeDrawingTool, ui, viewRange),
+    [candles, currentSymbol.decimals, timeframe, chartType, tools, drawings, activeDrawingTool, ui, viewRange],
   );
   const chartRenderKey = JSON.stringify({
     symbol: currentSymbol.symbol,
     timeframe,
+    viewRange,
     chartType,
     drawings: drawings.length,
     activeDrawingTool,
@@ -985,8 +1007,13 @@ export default function TradingChart() {
     setIndicatorOpen(false);
     setSettingsOpen(false);
   };
+  const selectTimeframe = (entry) => {
+    setTimeframe(entry);
+    setViewRange('Full');
+  };
   const selectSymbol = (symbol) => {
     setSelectedSymbol(symbol);
+    setViewRange('Full');
     setSymbolMenuOpen(false);
   };
   const applyDrawingTool = (key) => {
@@ -1102,11 +1129,22 @@ export default function TradingChart() {
               {TIMEFRAMES.map((entry) => (
                 <Pressable
                   key={entry}
-                  onPress={() => setTimeframe(entry)}
+                  onPress={() => selectTimeframe(entry)}
                   className="items-center justify-center border-b-2"
                   style={{ height: 26, minWidth: 32, paddingHorizontal: 7, backgroundColor: 'transparent', borderColor: entry === timeframe ? ui.controlActive : 'transparent' }}
                 >
                   <Text className="font-extrabold" style={{ color: entry === timeframe ? ui.text : ui.muted, fontSize: 11 }}>{entry}</Text>
+                </Pressable>
+              ))}
+              <View className="mx-1 h-5 w-px" style={{ backgroundColor: ui.border }} />
+              {VIEW_RANGES.map((entry) => (
+                <Pressable
+                  key={entry}
+                  onPress={() => setViewRange(entry)}
+                  className="items-center justify-center rounded"
+                  style={{ height: 26, minWidth: 54, paddingHorizontal: 8, backgroundColor: entry === viewRange ? ui.controlActive : 'transparent' }}
+                >
+                  <Text className="font-extrabold" style={{ color: entry === viewRange ? ui.activeText : ui.muted, fontSize: 11 }}>{entry}</Text>
                 </Pressable>
               ))}
             </ScrollView>
@@ -1140,11 +1178,22 @@ export default function TradingChart() {
                 {TIMEFRAMES.map((entry) => (
                   <Pressable
                     key={entry}
-                    onPress={() => setTimeframe(entry)}
+                    onPress={() => selectTimeframe(entry)}
                     className="items-center justify-center rounded"
                     style={{ height: timeframeHeight, minWidth: timeframeMinWidth, paddingHorizontal: compactToolbar ? 5 : 8, backgroundColor: entry === timeframe ? ui.controlActive : 'transparent' }}
                   >
                     <Text className="font-bold" style={{ color: entry === timeframe ? ui.activeText : ui.muted, fontSize: compactToolbar ? 10 : 12 }}>{entry}</Text>
+                  </Pressable>
+                ))}
+                <View className="mx-2 h-5 w-px" style={{ backgroundColor: ui.border }} />
+                {VIEW_RANGES.map((entry) => (
+                  <Pressable
+                    key={entry}
+                    onPress={() => setViewRange(entry)}
+                    className="items-center justify-center rounded"
+                    style={{ height: timeframeHeight, minWidth: compactToolbar ? 48 : 58, paddingHorizontal: compactToolbar ? 6 : 9, backgroundColor: entry === viewRange ? ui.controlActive : 'transparent' }}
+                  >
+                    <Text className="font-bold" style={{ color: entry === viewRange ? ui.activeText : ui.muted, fontSize: compactToolbar ? 10 : 12 }}>{entry}</Text>
                   </Pressable>
                 ))}
               </View>

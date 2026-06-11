@@ -245,15 +245,18 @@ const unpackMessages = (raw) => {
 };
 
 const quoteFromTradingView = (instrument, values) => {
-  const price = Number(values.lp || values.bid || values.ask || 0);
+  const rawBid = Number(values.bid);
+  const rawAsk = Number(values.ask);
+  const hasBidAsk = Number.isFinite(rawBid) && rawBid > 0 && Number.isFinite(rawAsk) && rawAsk > 0;
+  const price = hasBidAsk ? (rawBid + rawAsk) / 2 : Number(values.lp || values.bid || values.ask || 0);
   if (!price) return fallbackPrice(instrument);
   const decimals = decimalsFor(price, instrument.group);
-  const bid = Number(values.bid || price);
-  const ask = Number(values.ask || price);
+  const bid = Number((hasBidAsk ? rawBid : Number(values.bid || price)).toFixed(decimals));
+  const ask = Number((hasBidAsk ? rawAsk : Number(values.ask || price)).toFixed(decimals));
   const spread = Number(Math.max(0, ask - bid).toFixed(decimals));
   const spreadPoints = spread ? Number((spread * (10 ** decimals)).toFixed(1)) : 0;
   return visibleInstrument(instrument, {
-    price,
+    price: Number(price.toFixed(decimals)),
     bid,
     ask,
     decimals,
