@@ -5,7 +5,7 @@ const { Op } = require('sequelize');
 const sequelize = require('../config/db');
 const { User, Wallet, TradingAccount } = require('../models');
 const { ensureReferralCode } = require('../services/dashboardService');
-const { sendPasswordResetCode } = require('../services/mailService');
+const { sendPasswordResetCode } = require('../services/mailSevice');
 
 const publicUser = (user) => {
   const values = user.toJSON ? user.toJSON() : user;
