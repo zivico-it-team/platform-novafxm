@@ -7,7 +7,7 @@ import { useDemoTrading } from '../../hooks/useDemoTrading';
 import { quote } from '../../utils/formatters';
 import NewOrderModal from './NewOrderModal';
 
-export default function OrderPanel() {
+export default function OrderPanel({ showAvailableMargin = true }) {
   const { width } = useWindowDimensions();
   const { currentSymbol, openPosition, summary } = useDemoTrading();
   const { darkMode, colors } = useAppTheme();
@@ -88,10 +88,12 @@ export default function OrderPanel() {
         <CustomButton title="BUY" variant="success" className="flex-1" onPress={() => open('BUY')} loading={loading} />
       </View>
       {message ? <Text className="mt-3 text-xs" style={{ color: colors.muted }}>{message}</Text> : null}
-      <View className="mt-6 border-t pt-4" style={{ borderColor: colors.border }}>
-        <Text className="mb-2 text-sm" style={{ color: colors.muted }}>Available Margin</Text>
-        <Text className="font-semibold" style={{ color: colors.text }}>{quote(summary.freeFunds, 2)} USD</Text>
-      </View>
+      {showAvailableMargin ? (
+        <View className="mt-6 border-t pt-4" style={{ borderColor: colors.border }}>
+          <Text className="mb-2 text-sm" style={{ color: colors.muted }}>Available Margin</Text>
+          <Text className="font-semibold" style={{ color: colors.text }}>{quote(summary.freeFunds, 2)} USD</Text>
+        </View>
+      ) : null}
     </View>
   );
 }

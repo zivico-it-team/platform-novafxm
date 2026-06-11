@@ -20,12 +20,12 @@ const baseColumns = [
 
 export default function OpenPositions() {
   const { width } = useWindowDimensions();
-  const { positions, closedPositions, closePosition } = useDemoTrading();
+  const { positions, closedPositions, pendingOrders, closePosition } = useDemoTrading();
   const { darkMode, colors } = useAppTheme();
   const [tab, setTab] = useState('open');
   const [error, setError] = useState('');
   const [selectedPosition, setSelectedPosition] = useState(null);
-  const items = tab === 'open' ? positions : tab === 'closed' ? closedPositions : [];
+  const items = tab === 'open' ? positions : tab === 'closed' ? closedPositions : pendingOrders || [];
   const panelBackground = darkMode ? colors.panel : '#e8f8ee';
   const headerBackground = darkMode ? colors.surface : colors.primarySoft;
   const tableBackground = darkMode ? '#11161c' : '#f6fff9';
@@ -56,10 +56,10 @@ export default function OpenPositions() {
                 <View className="mb-3 flex-row items-center justify-between">
                   <View>
                     <Text className="text-sm font-bold" style={{ color: colors.text }}>{position.symbol}</Text>
-                    <Text className="mt-0.5 text-[10px]" style={{ color: colors.muted }}>#{position.id}  {dateTime(position.openedAt)}</Text>
+                    <Text className="mt-0.5 text-[10px]" style={{ color: colors.muted }}>#{position.id}  {dateTime(position.openedAt || position.createdAt)}</Text>
                   </View>
                   <View className="flex-row items-center gap-2">
-                    {tab !== 'closed' ? (
+                    {tab === 'open' ? (
                       <Pressable onPress={() => close(position.id)} className="h-8 w-8 items-center justify-center rounded-md border" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
                         <X size={15} color={colors.danger} />
                       </Pressable>
@@ -79,12 +79,12 @@ export default function OpenPositions() {
                     <Text className="mt-0.5 text-xs font-bold" style={{ color: profit >= 0 ? colors.success : colors.danger }}>{money(profit)}</Text>
                   </View>
                   <View className="w-1/2">
-                    <Text className="text-[10px]" style={{ color: colors.muted }}>Open Price</Text>
-                    <Text className="mt-0.5 text-xs font-semibold" style={{ color: colors.text }}>{quote(position.openPrice, 5)}</Text>
+                    <Text className="text-[10px]" style={{ color: colors.muted }}>{tab === 'pending' ? 'Entry Price' : 'Open Price'}</Text>
+                    <Text className="mt-0.5 text-xs font-semibold" style={{ color: colors.text }}>{quote(position.openPrice || position.entryPrice, 5)}</Text>
                   </View>
                   <View className="w-1/2 items-end">
-                    <Text className="text-[10px]" style={{ color: colors.muted }}>Current Price</Text>
-                    <Text className="mt-0.5 text-xs font-semibold" style={{ color: colors.text }}>{quote(position.currentPrice || position.closePrice, 5)}</Text>
+                    <Text className="text-[10px]" style={{ color: colors.muted }}>{tab === 'pending' ? 'Order Type' : 'Current Price'}</Text>
+                    <Text className="mt-0.5 text-xs font-semibold" style={{ color: colors.text }}>{tab === 'pending' ? position.orderType : quote(position.currentPrice || position.closePrice, 5)}</Text>
                   </View>
                 </View>
               </View>
@@ -102,7 +102,7 @@ export default function OpenPositions() {
               ))}
             </View>
             {error ? <Text className="p-4" style={{ color: colors.danger }}>{error}</Text> : null}
-            {items.length ? items.map((position, index) => <PositionCard key={position.id} position={position} index={index} columnWidths={columnWidths} tableWidth={tableWidth} onView={setSelectedPosition} onClose={close} closed={tab === 'closed'} />) : (
+            {items.length ? items.map((position, index) => <PositionCard key={position.id} position={position} index={index} columnWidths={columnWidths} tableWidth={tableWidth} onView={setSelectedPosition} onClose={close} closed={tab !== 'open'} pending={tab === 'pending'} />) : (
               <Text className="p-6" style={{ color: colors.muted }}>No {tab} positions.</Text>
             )}
           </View>

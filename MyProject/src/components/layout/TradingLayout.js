@@ -9,11 +9,11 @@ import { useAppTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../hooks/useAuth';
 import { useDemoTrading } from '../../hooks/useDemoTrading';
 
-function OrderRail({ summary, user }) {
+function OrderRail({ summary, user, showSummary = true, showAvailableMargin = true }) {
   return (
     <View className="w-[270px] gap-3">
-      <OrderPanel />
-      <AccountSummary summary={summary} user={user} />
+      <OrderPanel showAvailableMargin={showAvailableMargin} />
+      {showSummary ? <AccountSummary summary={summary} user={user} /> : null}
     </View>
   );
 }
@@ -39,7 +39,7 @@ export default function TradingLayout() {
             <>
               <SymbolPanel />
               <TradingChart />
-              <OrderRail summary={summary} user={user} />
+              <OrderRail summary={summary} user={user} showSummary={false} showAvailableMargin={false} />
             </>
           ) : (
             <>
