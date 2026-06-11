@@ -13,7 +13,7 @@ import UserSettingsModal from '../src/components/admin/UserSettingsModal';
 import { useAuth } from '../src/hooks/useAuth';
 import { dateTime, money } from '../src/utils/formatters';
 
-const empty = { users: [], deposits: [], withdrawals: [], trades: [], stats: {} };
+const empty = { users: [], deposits: [], withdrawals: [], bankAccounts: [], trades: [], stats: {} };
 
 function ask(message, onConfirm) {
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
@@ -57,10 +57,11 @@ export default function AdminScreen() {
     if (!isAdmin) return;
     setLoading(true);
     try {
-      const [users, deposits, withdrawals, trades] = await Promise.all([
+      const [users, deposits, withdrawals, bankAccounts, trades] = await Promise.all([
         api.get('/admin/users'),
         api.get('/admin/deposits'),
         api.get('/admin/withdrawals'),
+        api.get('/admin/bank-accounts'),
         api.get('/admin/trades'),
       ]);
       setData({
@@ -68,6 +69,7 @@ export default function AdminScreen() {
         stats: users.data.stats || {},
         deposits: deposits.data.deposits,
         withdrawals: withdrawals.data.withdrawals,
+        bankAccounts: bankAccounts.data.accounts,
         trades: trades.data.trades,
       });
       setError('');
@@ -83,6 +85,9 @@ export default function AdminScreen() {
   const pendingCount = useMemo(() => (
     [...data.deposits, ...data.withdrawals].filter((item) => item.status === 'pending').length
   ), [data.deposits, data.withdrawals]);
+  const bankPendingCount = useMemo(() => (
+    data.bankAccounts.filter((item) => ['pending', 'delete_pending'].includes(item.status)).length
+  ), [data.bankAccounts]);
 
   const action = async (id, request, success, closeModal) => {
     setBusyId(id);
@@ -171,6 +176,16 @@ export default function AdminScreen() {
       () => api.put(`/admin/users/${user.id}/verification/${decision}`),
       decision === 'approve' ? 'Verification approved.' : 'Verification rejected.',
       () => setVerificationUser(null),
+    ),
+  );
+  const reviewBankAccount = (item, decision) => ask(
+    `${decision === 'approve' ? 'Approve' : 'Reject'} ${item.status === 'delete_pending' ? 'this delete request' : 'bank account details'} for ${item.User?.name || item.User?.email || 'this user'}?`,
+    () => action(
+      item.id,
+      () => api.put(`/admin/bank-accounts/${item.id}/${decision}`),
+      item.status === 'delete_pending'
+        ? `Bank account delete request ${decision === 'approve' ? 'approved' : 'rejected'}.`
+        : `Bank account details ${decision}d.`,
     ),
   );
   const openDepositReceipt = (item) => {
@@ -271,6 +286,56 @@ export default function AdminScreen() {
     </View>
   );
   
+  const renderBankAccounts = () => (
+    <View className="rounded-2xl border border-border bg-panel p-4">
+      {data.bankAccounts.map((item) => (
+        <View key={item.id} className="mb-3 rounded-xl border border-border bg-surface p-4">
+          <View className="flex-row flex-wrap items-start justify-between gap-3">
+            <View className="flex-1">
+              <Text className="font-semibold text-white">{item.User?.name || item.User?.email || 'User'}</Text>
+              <Text className="mt-1 text-sm text-muted">{item.User?.email || '-'} | {item.status} | {dateTime(item.createdAt)}</Text>
+              {item.status === 'delete_pending' ? (
+                <Text className="mt-2 rounded-lg border border-danger/40 bg-danger/10 p-3 text-sm font-bold text-danger">User requested deletion for this bank account.</Text>
+              ) : null}
+              <View className="mt-4 flex-row flex-wrap gap-3">
+                {[
+                  ['Account Holder', item.accountHolderName],
+                  ['Bank Name', item.bankName],
+                  ['Branch', item.branchName || '-'],
+                  ['Account Number', item.accountNumber],
+                ].map(([label, value]) => (
+                  <View key={label} className="min-w-[180px] flex-1 rounded-xl border border-border bg-panel p-3">
+                    <Text className="text-xs font-bold uppercase text-muted">{label}</Text>
+                    <Text className="mt-1 text-sm font-semibold text-white">{value || '-'}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+            {['pending', 'delete_pending'].includes(item.status) ? (
+              <View className="flex-row">
+                <Pressable
+                  disabled={busyId === item.id}
+                  onPress={() => reviewBankAccount(item, 'approve')}
+                  className={`mr-2 min-h-[38px] justify-center rounded-lg border border-border bg-surface px-4 ${busyId === item.id ? 'opacity-50' : ''}`}
+                >
+                  <Text className="text-xs font-bold text-white">{item.status === 'delete_pending' ? 'Approve Delete' : 'Approve'}</Text>
+                </Pressable>
+                <Pressable
+                  disabled={busyId === item.id}
+                  onPress={() => reviewBankAccount(item, 'reject')}
+                  className={`min-h-[38px] justify-center rounded-lg border border-danger/70 bg-danger/10 px-4 ${busyId === item.id ? 'opacity-50' : ''}`}
+                >
+                  <Text className="text-xs font-bold text-danger">{item.status === 'delete_pending' ? 'Reject Delete' : 'Reject'}</Text>
+                </Pressable>
+              </View>
+            ) : null}
+          </View>
+        </View>
+      ))}
+      {!data.bankAccounts.length ? <EmptyRow>No bank account details submitted.</EmptyRow> : null}
+    </View>
+  );
+
 
   const renderTrades = () => (
     <View className="overflow-hidden rounded-2xl border border-border bg-panel">
@@ -300,11 +365,11 @@ export default function AdminScreen() {
 
   return (
     <View className="flex-1 bg-[#0B0B0B] md:flex-row">
-      <AdminSidebar section={section} onChange={setSection} stats={data.stats} pendingCount={pendingCount} onSignOut={signOut} />
+      <AdminSidebar section={section} onChange={setSection} stats={data.stats} pendingCount={pendingCount} bankPendingCount={bankPendingCount} onSignOut={signOut} />
       <ScrollView className="flex-1" contentContainerClassName="p-5 md:p-8">
         <View className="mb-7 flex-row items-center justify-between">
           <View>
-            <Text className="text-3xl font-bold text-white">{section === 'overview' ? 'Dashboard' : section === 'users' ? 'User Wallet Management' : section === 'funding' ? 'Funding Requests' : 'Trade Monitor'}</Text>
+            <Text className="text-3xl font-bold text-white">{section === 'overview' ? 'Dashboard' : section === 'users' ? 'User Wallet Management' : section === 'funding' ? 'Funding Requests' : section === 'bankAccounts' ? 'Bank Account Approvals' : 'Trade Monitor'}</Text>
             <Text className="mt-2 text-muted">Manage client balances, trading access and financial operations.</Text>
           </View>
           <Pressable onPress={load} className="rounded-xl border border-border bg-panel p-3">
@@ -355,6 +420,7 @@ export default function AdminScreen() {
           </View>
         ) : null}
         {section === 'funding' ? renderFunding() : null}
+        {section === 'bankAccounts' ? renderBankAccounts() : null}
         {section === 'trades' ? renderTrades() : null}
       </ScrollView>
       <UpdateBalanceModal user={balanceModal?.user} initialOperation={balanceModal?.operation} loading={busyId === balanceModal?.user?.id} onClose={() => setBalanceModal(null)} onConfirm={updateBalance} />

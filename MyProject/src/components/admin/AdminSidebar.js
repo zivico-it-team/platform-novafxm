@@ -1,15 +1,16 @@
 import { Link } from 'expo-router';
-import { BarChart3, BriefcaseBusiness, LayoutDashboard, LogOut, ReceiptText, UsersRound } from 'lucide-react-native';
+import { BarChart3, BriefcaseBusiness, CreditCard, LayoutDashboard, LogOut, ReceiptText, UsersRound } from 'lucide-react-native';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 
 const navigation = [
   { id: 'overview', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'users', label: 'User Wallets', icon: UsersRound },
   { id: 'funding', label: 'Deposits & Withdrawals', icon: ReceiptText },
+  { id: 'bankAccounts', label: 'Bank Accounts', icon: CreditCard },
   { id: 'trades', label: 'All Trades', icon: BarChart3 },
 ];
 
-export default function AdminSidebar({ section, onChange, stats, pendingCount, onSignOut }) {
+export default function AdminSidebar({ section, onChange, stats, pendingCount, bankPendingCount, onSignOut }) {
   return (
     <View className="w-full border-b border-border bg-panel md:min-h-screen md:w-[270px] md:border-b-0 md:border-r">
       <View className="border-b border-border p-6">
@@ -35,6 +36,9 @@ export default function AdminSidebar({ section, onChange, stats, pendingCount, o
             <Text className={`ml-3 font-semibold ${section === id ? 'text-black' : 'text-muted'}`}>{label}</Text>
             {id === 'funding' && pendingCount ? (
               <Text className="ml-auto rounded-full bg-danger px-2 py-1 text-xs font-bold text-white">{pendingCount}</Text>
+            ) : null}
+            {id === 'bankAccounts' && bankPendingCount ? (
+              <Text className="ml-auto rounded-full bg-danger px-2 py-1 text-xs font-bold text-white">{bankPendingCount}</Text>
             ) : null}
           </Pressable>
         ))}

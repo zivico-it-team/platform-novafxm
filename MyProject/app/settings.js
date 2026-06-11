@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { router } from 'expo-router';
 import { Image, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import {
@@ -8,21 +8,16 @@ import {
   CheckCircle2,
   Copy,
   CreditCard,
-  Headphones,
   Info,
   LockKeyhole,
   LogOut,
-  Palette,
   Save,
-  Settings2,
   Shield,
-  SlidersHorizontal,
   UserRound,
-  Volume2,
 } from 'lucide-react-native';
 import CustomButton from '../src/components/common/CustomButton';
 import { useAuth } from '../src/hooks/useAuth';
-import { useAppTheme } from '../src/context/ThemeContext';
+import { authService } from '../src/services/authService';
 
 const countries = [
   { name: 'Afghanistan', code: '+93' },
@@ -253,9 +248,17 @@ function readFileDataUrl(file) {
   });
 }
 
-function SettingsMenuItem({ icon: Icon, title, subtitle, active }) {
+const settingsSections = [
+  { key: 'profile', icon: UserRound, title: 'Profile', subtitle: 'Edit your profile details' },
+  { key: 'security', icon: Shield, title: 'Security', subtitle: 'Password and 2FA' },
+  { key: 'notifications', icon: Bell, title: 'Notifications', subtitle: 'Manage your alerts' },
+  { key: 'payments', icon: CreditCard, title: 'Payments', subtitle: 'Payment methods' },
+  { key: 'session', icon: LogOut, title: 'Session', subtitle: 'Sign out and sessions' },
+];
+
+function SettingsMenuItem({ icon: Icon, title, subtitle, active, onPress }) {
   return (
-    <View className={`flex-row items-center rounded-xl p-4 ${active ? 'border-l-4 border-primary bg-primary/10' : ''}`}>
+    <Pressable onPress={onPress} className={`flex-row items-center rounded-xl p-4 ${active ? 'border-l-4 border-primary bg-primary/10' : ''}`}>
       <View className={`mr-3 h-10 w-10 items-center justify-center rounded-xl ${active ? 'bg-primary/20' : 'bg-surface'}`}>
         <Icon size={19} color={active ? '#D4AF37' : '#9CA3AF'} />
       </View>
@@ -263,7 +266,7 @@ function SettingsMenuItem({ icon: Icon, title, subtitle, active }) {
         <Text className={`font-bold ${active ? 'text-primary' : 'text-white'}`}>{title}</Text>
         <Text className="mt-1 text-xs text-muted">{subtitle}</Text>
       </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -322,12 +325,12 @@ function CountrySelect({ value, onChange, editable, error }) {
   );
 }
 
-function PasswordInput({ label, placeholder }) {
+function PasswordInput({ label, placeholder, value, onChangeText }) {
   return (
     <View className="mb-4">
       <Text className="mb-2 text-sm font-bold text-white">{label}</Text>
       <View className="flex-row items-center rounded-xl border border-border bg-panel px-4">
-        <TextInput secureTextEntry placeholder={placeholder} placeholderTextColor="#8fa0bb" className="flex-1 py-3 text-white" />
+        <TextInput secureTextEntry value={value} onChangeText={onChangeText} placeholder={placeholder} placeholderTextColor="#8fa0bb" className="flex-1 py-3 text-white" />
         <Shield size={17} color="#8fa0bb" />
       </View>
     </View>
@@ -364,14 +367,68 @@ function AccountInfoTile({ label, value, badge, tone = 'success' }) {
   );
 }
 
+function SettingsPanel({ icon: Icon, title, subtitle, children }) {
+  return (
+    <View className="rounded-2xl border border-border bg-surface p-5 lg:p-7">
+      <View className="mb-6 flex-row items-center">
+        <View className="mr-4 h-12 w-12 items-center justify-center rounded-xl bg-primary/15">
+          <Icon size={20} color="#D4AF37" />
+        </View>
+        <View className="flex-1">
+          <Text className="text-2xl font-extrabold text-white">{title}</Text>
+          {subtitle ? <Text className="mt-1 text-muted">{subtitle}</Text> : null}
+        </View>
+      </View>
+      {children}
+    </View>
+  );
+}
+
+function ToggleRow({ title, subtitle, enabled = false }) {
+  return (
+    <View className="mb-3 flex-row items-center justify-between rounded-xl border border-border bg-panel p-4">
+      <View className="flex-1 pr-4">
+        <Text className="font-bold text-white">{title}</Text>
+        <Text className="mt-1 text-sm text-muted">{subtitle}</Text>
+      </View>
+      <View className={`h-7 w-12 justify-center rounded-full px-1 ${enabled ? 'items-end bg-primary' : 'items-start bg-surface'}`}>
+        <View className="h-5 w-5 rounded-full bg-white" />
+      </View>
+    </View>
+  );
+}
+
+const normalizeBankAccount = (account) => ({
+  id: account.id,
+  bankAccountHolder: account.bankAccountHolder || account.accountHolderName || '',
+  bankName: account.bankName || '',
+  bankBranch: account.bankBranch || account.branchName || '',
+  bankAccountNumber: account.bankAccountNumber || account.accountNumber || '',
+  status: account.status || 'pending',
+});
+
 export default function SettingsScreen() {
   const { user, logout, updateProfile } = useAuth();
-  const { darkMode, toggleTheme } = useAppTheme();
   const profileImageInputRef = useRef(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [activeSection, setActiveSection] = useState('profile');
   const [editingProfile, setEditingProfile] = useState(false);
   const [profileErrors, setProfileErrors] = useState({});
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotMessage, setForgotMessage] = useState('');
+  const [forgotToken, setForgotToken] = useState('');
+  const [forgotPassword, setForgotPassword] = useState('');
+  const [forgotConfirmPassword, setForgotConfirmPassword] = useState('');
+  const [forgotBusy, setForgotBusy] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [passwordMessage, setPasswordMessage] = useState('');
+  const [passwordBusy, setPasswordBusy] = useState(false);
+  const [bankForm, setBankForm] = useState({ bankAccountHolder: '', bankName: '', bankBranch: '', bankAccountNumber: '' });
+  const [bankAccounts, setBankAccounts] = useState([]);
+  const [editingBankAccountId, setEditingBankAccountId] = useState(null);
+  const [bankMessage, setBankMessage] = useState('');
+  const [bankBusy, setBankBusy] = useState(false);
   const [profileForm, setProfileForm] = useState({
     name: '',
     email: '',
@@ -380,6 +437,20 @@ export default function SettingsScreen() {
     dateOfBirth: '',
     profileImage: null,
   });
+
+  const loadBankAccounts = useCallback(async ({ silent = false } = {}) => {
+    if (!user) {
+      setBankAccounts([]);
+      return;
+    }
+    try {
+      const result = await authService.listBankAccounts();
+      setBankAccounts((result.accounts || []).map(normalizeBankAccount));
+      if (!silent) setBankMessage('');
+    } catch {
+      if (!silent) setBankMessage('Bank account details could not be loaded.');
+    }
+  }, [user]);
 
   useEffect(() => {
     const country = user?.country || 'Sri Lanka';
@@ -391,9 +462,29 @@ export default function SettingsScreen() {
       dateOfBirth: user?.dateOfBirth || '',
       profileImage: user?.profileImage || null,
     });
+    setForgotEmail(user?.email || '');
+    setForgotMessage('');
+    setForgotToken('');
+    setForgotPassword('');
+    setForgotConfirmPassword('');
+    setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    setPasswordMessage('');
+    setBankForm({ bankAccountHolder: '', bankName: '', bankBranch: '', bankAccountNumber: '' });
+    setEditingBankAccountId(null);
+    setBankMessage('');
     setProfileErrors({});
     setEditingProfile(false);
   }, [user]);
+
+  useEffect(() => {
+    loadBankAccounts();
+  }, [loadBankAccounts]);
+
+  useEffect(() => {
+    if (!user || activeSection !== 'payments') return undefined;
+    const timer = setInterval(() => loadBankAccounts({ silent: true }), 5000);
+    return () => clearInterval(timer);
+  }, [activeSection, loadBankAccounts, user]);
 
   const signOut = async () => {
     await logout();
@@ -491,12 +582,152 @@ export default function SettingsScreen() {
     setEditingProfile(true);
   };
 
+  const submitForgotPassword = async () => {
+    const email = forgotEmail.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setForgotMessage('Enter a valid email address.');
+      return;
+    }
+    setForgotBusy(true);
+    setForgotMessage('');
+    try {
+      const result = await authService.forgotPassword({ email });
+      setForgotToken('');
+      setForgotPassword('');
+      setForgotConfirmPassword('');
+      setForgotMessage(result.message || 'Password reset code sent to your email.');
+    } catch (requestError) {
+      setForgotMessage(requestError.response?.data?.message || 'Password reset request failed.');
+    } finally {
+      setForgotBusy(false);
+    }
+  };
+
+  const submitChangePassword = async () => {
+    setPasswordMessage('');
+    if (!passwordForm.currentPassword) {
+      setPasswordMessage('Current password is required.');
+      return;
+    }
+    if (passwordForm.newPassword.length < 8) {
+      setPasswordMessage('New password must be at least 8 characters.');
+      return;
+    }
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordMessage('New password and confirmation do not match.');
+      return;
+    }
+    setPasswordBusy(true);
+    try {
+      const result = await authService.changePassword(passwordForm);
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      setPasswordMessage(result.message || 'Password updated successfully.');
+    } catch (requestError) {
+      setPasswordMessage(requestError.response?.data?.message || 'Password update failed.');
+    } finally {
+      setPasswordBusy(false);
+    }
+  };
+
+  const submitResetPassword = async () => {
+    if (!forgotToken.trim()) {
+      setForgotMessage('Reset code is required.');
+      return;
+    }
+    if (forgotPassword.length < 8) {
+      setForgotMessage('New password must be at least 8 characters.');
+      return;
+    }
+    if (forgotPassword !== forgotConfirmPassword) {
+      setForgotMessage('New password and confirmation do not match.');
+      return;
+    }
+    setForgotBusy(true);
+    setForgotMessage('');
+    try {
+      const result = await authService.resetPassword({ resetToken: forgotToken.trim(), password: forgotPassword });
+      setForgotToken('');
+      setForgotPassword('');
+      setForgotConfirmPassword('');
+      setForgotMessage(result.message || 'Password updated successfully.');
+    } catch (requestError) {
+      setForgotMessage(requestError.response?.data?.message || 'Password reset failed.');
+    } finally {
+      setForgotBusy(false);
+    }
+  };
+
+  const saveBankDetails = async () => {
+    setBankMessage('');
+    if (!bankForm.bankAccountHolder.trim() || !bankForm.bankName.trim() || !bankForm.bankAccountNumber.trim()) {
+      setBankMessage('Account holder, bank name and account number are required.');
+      return;
+    }
+    setBankBusy(true);
+    try {
+      const nextBankDetails = {
+        bankAccountHolder: bankForm.bankAccountHolder.trim(),
+        bankName: bankForm.bankName.trim(),
+        bankBranch: bankForm.bankBranch.trim(),
+        bankAccountNumber: bankForm.bankAccountNumber.trim(),
+      };
+      const result = editingBankAccountId
+        ? await authService.updateBankAccount(editingBankAccountId, nextBankDetails)
+        : await authService.createBankAccount(nextBankDetails);
+  const savedAccount = normalizeBankAccount(result.account || { ...nextBankDetails, id: editingBankAccountId });
+      setBankAccounts((current) => (
+        editingBankAccountId
+          ? current.map((account) => (String(account.id) === String(editingBankAccountId) ? savedAccount : account))
+          : [savedAccount, ...current]
+      ));
+      setBankForm({ bankAccountHolder: '', bankName: '', bankBranch: '', bankAccountNumber: '' });
+      setEditingBankAccountId(null);
+      setBankMessage(result.message || (editingBankAccountId ? 'Bank account details updated successfully.' : 'Bank account details saved successfully.'));
+    } catch (requestError) {
+      setBankMessage(requestError.response?.data?.message || 'Bank account details could not be saved.');
+    } finally {
+      setBankBusy(false);
+    }
+  };
+
+  const editBankDetails = (account) => {
+    setBankForm({
+      bankAccountHolder: account.bankAccountHolder || '',
+      bankName: account.bankName || '',
+      bankBranch: account.bankBranch || '',
+      bankAccountNumber: account.bankAccountNumber || '',
+    });
+    setEditingBankAccountId(account.id);
+    setBankMessage('Edit the details above, then click Save Bank Details.');
+  };
+
+  const deleteBankDetails = async (accountId) => {
+    setBankBusy(true);
+    setBankMessage('');
+    try {
+      const result = await authService.deleteBankAccount(accountId);
+      setBankAccounts((current) => current.map((account) => (
+        String(account.id) === String(accountId) ? { ...account, status: 'delete_pending' } : account
+      )));
+      if (String(editingBankAccountId) === String(accountId)) {
+        setEditingBankAccountId(null);
+        setBankForm({ bankAccountHolder: '', bankName: '', bankBranch: '', bankAccountNumber: '' });
+      }
+      setBankMessage(result.message || 'Bank account deletion request submitted for admin approval.');
+    } catch (requestError) {
+      setBankMessage(requestError.response?.data?.message || 'Bank account details could not be deleted.');
+    } finally {
+      setBankBusy(false);
+    }
+  };
+
   const initials = (profileForm.name || profileForm.email || 'N')
     .split(/\s+/)
     .filter(Boolean)
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase())
     .join('');
+  const activeSettings = settingsSections.find((section) => section.key === activeSection) || settingsSections[0];
 
   return (
     <ScrollView className="flex-1 bg-[#0B0B0B]" contentContainerClassName="p-4 lg:p-8">
@@ -512,64 +743,54 @@ export default function SettingsScreen() {
 
       <View className="overflow-hidden rounded-2xl border border-border bg-panel lg:flex-row">
         <View className="border-b border-border p-5 lg:w-[320px] lg:border-b-0 lg:border-r">
-          <Text className="text-2xl font-extrabold text-white">Settings</Text>
-          <Text className="mt-3 leading-6 text-muted">Manage your account preferences and security</Text>
+
 
           <View className="mt-7 gap-2">
-            <SettingsMenuItem icon={UserRound} title="Profile" subtitle="Edit your profile details" active />
-            <SettingsMenuItem icon={Shield} title="Security" subtitle="Password and 2FA" />
-            <SettingsMenuItem icon={Bell} title="Notifications" subtitle="Manage your alerts" />
-            <SettingsMenuItem icon={SlidersHorizontal} title="Trading Preferences" subtitle="Set trading options" />
-            <SettingsMenuItem icon={Palette} title="Appearance" subtitle="Customize your experience" />
-            <SettingsMenuItem icon={Volume2} title="Sounds" subtitle="Manage sound settings" />
-            <SettingsMenuItem icon={CreditCard} title="Payments" subtitle="Payment methods" />
-            <SettingsMenuItem icon={Headphones} title="Support" subtitle="Help and support" />
-            <Pressable onPress={signOut}>
-              <SettingsMenuItem icon={LogOut} title="Session" subtitle="Sign out and sessions" />
-            </Pressable>
-          </View>
-
-          <View className="mt-8 rounded-2xl border border-border bg-surface p-5">
-            <View className="mb-4 h-10 w-10 items-center justify-center rounded-xl bg-panel">
-              <Headphones size={19} color="#f3f7ff" />
-            </View>
-            <Text className="text-lg font-extrabold text-white">Need Help?</Text>
-            <Text className="mt-3 leading-6 text-muted">If you need any support, our team is here to help you.</Text>
-            <View className="mt-5 rounded-xl border border-primary px-4 py-3">
-              <Text className="text-center font-bold text-primary">Contact Support</Text>
-            </View>
+            {settingsSections.map((section) => (
+              <SettingsMenuItem
+                key={section.key}
+                icon={section.icon}
+                title={section.title}
+                subtitle={section.subtitle}
+                active={activeSection === section.key}
+                onPress={() => setActiveSection(section.key)}
+              />
+            ))}
           </View>
         </View>
 
         <View className="flex-1 p-5 lg:p-8">
           <View className="mb-6 flex-row flex-wrap items-center justify-between gap-4">
             <View>
-              <Text className="text-3xl font-extrabold text-white">Profile</Text>
-              <Text className="mt-2 text-muted">Manage your personal information and profile picture.</Text>
+              <Text className="text-3xl font-extrabold text-white">{activeSettings.title}</Text>
+              <Text className="mt-2 text-muted">{activeSettings.subtitle}</Text>
             </View>
-            <View className="flex-row flex-wrap gap-3">
-              {editingProfile ? (
-                <>
-                  <Pressable onPress={cancelProfileEdit} className="rounded-xl border border-border bg-panel px-6 py-4">
-                    <Text className="font-extrabold text-white">Cancel</Text>
+            {activeSection === 'profile' ? (
+              <View className="flex-row flex-wrap gap-3">
+                {editingProfile ? (
+                  <>
+                    <Pressable onPress={cancelProfileEdit} className="rounded-xl border border-border bg-panel px-6 py-4">
+                      <Text className="font-extrabold text-white">Cancel</Text>
+                    </Pressable>
+                    <Pressable onPress={saveSettings} className="flex-row items-center rounded-xl bg-primary px-6 py-4">
+                      <Save size={17} color="#05130d" />
+                      <Text className="ml-2 font-extrabold text-black">Save Changes</Text>
+                    </Pressable>
+                  </>
+                ) : (
+                  <Pressable onPress={() => setEditingProfile(true)} className="rounded-xl bg-primary px-6 py-4">
+                    <Text className="font-extrabold text-black">Edit</Text>
                   </Pressable>
-                  <Pressable onPress={saveSettings} className="flex-row items-center rounded-xl bg-primary px-6 py-4">
-                    <Save size={17} color="#05130d" />
-                    <Text className="ml-2 font-extrabold text-black">Save Changes</Text>
-                  </Pressable>
-                </>
-              ) : (
-                <Pressable onPress={() => setEditingProfile(true)} className="rounded-xl bg-primary px-6 py-4">
-                  <Text className="font-extrabold text-black">Edit</Text>
-                </Pressable>
-              )}
-            </View>
+                )}
+              </View>
+            ) : null}
           </View>
 
           {message ? <Text className="mb-5 rounded-xl border border-success/40 bg-success/10 p-4 text-success">{message}</Text> : null}
           {error ? <Text className="mb-5 rounded-xl border border-danger/40 bg-danger/10 p-4 text-danger">{error}</Text> : null}
 
-          <View className="rounded-2xl border border-border bg-surface p-5 lg:p-7">
+          {activeSection === 'profile' ? (
+            <View className="rounded-2xl border border-border bg-surface p-5 lg:p-7">
             <Text className="mb-6 text-2xl font-extrabold text-white">Profile Information</Text>
             <View className="gap-8 lg:flex-row">
               <View className="items-center lg:w-[300px]">
@@ -632,9 +853,11 @@ export default function SettingsScreen() {
                 <SettingsInput label="Date of Birth" value={profileForm.dateOfBirth} editable={editingProfile} error={profileErrors.dateOfBirth} onChangeText={(dateOfBirth) => setProfileForm((current) => ({ ...current, dateOfBirth }))} placeholder="DD / MM / YYYY" />
               </View>
             </View>
-          </View>
+            </View>
+          ) : null}
 
-          <View className="mt-5 rounded-2xl border border-border bg-surface p-5 lg:p-7">
+          {activeSection === 'security' ? (
+            <View className="rounded-2xl border border-border bg-surface p-5 lg:p-7">
             <View className="mb-6 flex-row items-center">
               <View className="mr-4 h-12 w-12 items-center justify-center rounded-xl bg-primary/15">
                 <LockKeyhole size={20} color="#D4AF37" />
@@ -646,13 +869,38 @@ export default function SettingsScreen() {
             </View>
             <View className="gap-5 lg:flex-row">
               <View className="flex-1">
-                <PasswordInput label="Current Password" placeholder="Enter your current password" />
-                <PasswordInput label="New Password" placeholder="Enter your new password" />
-                <PasswordInput label="Confirm New Password" placeholder="Confirm your new password" />
-                <Pressable className="mt-2 flex-row self-start rounded-xl bg-primary px-6 py-4">
+                <PasswordInput
+                  label="Current Password"
+                  value={passwordForm.currentPassword}
+                  onChangeText={(currentPassword) => {
+                    setPasswordForm((current) => ({ ...current, currentPassword }));
+                    setPasswordMessage('');
+                  }}
+                  placeholder="Enter your current password"
+                />
+                <PasswordInput
+                  label="New Password"
+                  value={passwordForm.newPassword}
+                  onChangeText={(newPassword) => {
+                    setPasswordForm((current) => ({ ...current, newPassword }));
+                    setPasswordMessage('');
+                  }}
+                  placeholder="Enter your new password"
+                />
+                <PasswordInput
+                  label="Confirm New Password"
+                  value={passwordForm.confirmPassword}
+                  onChangeText={(confirmPassword) => {
+                    setPasswordForm((current) => ({ ...current, confirmPassword }));
+                    setPasswordMessage('');
+                  }}
+                  placeholder="Confirm your new password"
+                />
+                <Pressable disabled={passwordBusy} onPress={submitChangePassword} className={`mt-2 flex-row self-start rounded-xl bg-primary px-6 py-4 ${passwordBusy ? 'opacity-60' : ''}`}>
                   <LockKeyhole size={16} color="#05130d" />
-                  <Text className="ml-2 font-extrabold text-black">Update Password</Text>
+                  <Text className="ml-2 font-extrabold text-black">{passwordBusy ? 'Updating...' : 'Update Password'}</Text>
                 </Pressable>
+                {passwordMessage ? <Text className="mt-3 text-sm text-muted">{passwordMessage}</Text> : null}
               </View>
               <View className="rounded-2xl border border-border bg-panel p-5 lg:w-[300px]">
                 <Text className="mb-5 font-bold text-success">Password Requirements</Text>
@@ -663,41 +911,197 @@ export default function SettingsScreen() {
                 <Requirement>At least 1 special character</Requirement>
               </View>
             </View>
-          </View>
-
-          <View className="mt-5 rounded-2xl border border-border bg-surface p-5 lg:p-7">
-            <View className="mb-6 flex-row items-center">
-              <View className="mr-4 h-12 w-12 items-center justify-center rounded-xl bg-primary/15">
-                <Info size={20} color="#D4AF37" />
-              </View>
-              <Text className="text-2xl font-extrabold text-white">Account Information</Text>
-            </View>
-            <View className="flex-row flex-wrap gap-5">
-              <View className="min-w-[180px] flex-1">
-                <Text className="mb-2 text-sm text-muted">Account ID</Text>
-                <View className="flex-row self-start items-center rounded-xl border border-border bg-panel px-4 py-3">
-                  <Text className="font-bold text-white">#TRD{String(user?.id || '000000').padStart(6, '0')}</Text>
-                  <Copy size={15} color="#8fa0bb" style={{ marginLeft: 8 }} />
+            <View className="mt-5 rounded-2xl border border-border bg-panel p-5">
+              <View className="mb-4 flex-row items-center">
+                <View className="mr-3 h-10 w-10 items-center justify-center rounded-xl bg-primary/15">
+                  <Shield size={18} color="#D4AF37" />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-lg font-extrabold text-white">Forgot Password</Text>
+                  <Text className="mt-1 text-sm text-muted">Send a reset code to your registered email address.</Text>
                 </View>
               </View>
-              <AccountInfoTile label="Account Type" value={user?.accountType || 'Standard'} />
-              <AccountInfoTile label="Account Status" value={user?.tradingStatus === 'frozen' ? 'Frozen' : 'Active'} badge tone={user?.tradingStatus === 'frozen' ? 'danger' : 'success'} />
-              <AccountInfoTile label="KYC Status" value={user?.verificationStatus === 'approved' ? 'Verified' : 'Pending'} badge tone={user?.verificationStatus === 'approved' ? 'success' : 'warning'} />
+              <View className="lg:flex-row lg:items-end lg:gap-3">
+                <SettingsInput
+                  className="flex-1"
+                  label="Account Email"
+                  value={forgotEmail}
+                  keyboardType="email-address"
+                  onChangeText={(value) => {
+                    setForgotEmail(value);
+                    setForgotMessage('');
+                  }}
+                  placeholder="email@example.com"
+                />
+                <Pressable disabled={forgotBusy} onPress={submitForgotPassword} className={`mb-4 min-h-[46px] items-center justify-center rounded-xl border border-primary/60 bg-primary/10 px-5 ${forgotBusy ? 'opacity-60' : ''}`}>
+                  <Text className="font-bold text-primary">{forgotBusy ? 'Sending...' : 'Send Code'}</Text>
+                </Pressable>
+              </View>
+              <View className="rounded-xl border border-border bg-surface p-4">
+                <SettingsInput
+                  label="Reset Code"
+                  value={forgotToken}
+                  onChangeText={(value) => {
+                    setForgotToken(value);
+                    setForgotMessage('');
+                  }}
+                  placeholder="Enter email reset code"
+                />
+                <PasswordInput label="New Password" value={forgotPassword} onChangeText={setForgotPassword} placeholder="Enter new password" />
+                <PasswordInput label="Confirm New Password" value={forgotConfirmPassword} onChangeText={setForgotConfirmPassword} placeholder="Confirm new password" />
+                <Pressable disabled={forgotBusy} onPress={submitResetPassword} className={`mt-1 flex-row self-start rounded-xl bg-primary px-5 py-3 ${forgotBusy ? 'opacity-60' : ''}`}>
+                  <LockKeyhole size={16} color="#05130d" />
+                  <Text className="ml-2 font-extrabold text-black">Reset Password</Text>
+                </Pressable>
+              </View>
+              {forgotMessage ? <Text className="text-sm text-muted">{forgotMessage}</Text> : null}
             </View>
-          </View>
+            </View>
+          ) : null}
 
-          <View className="mt-5 flex-row items-center justify-between rounded-2xl border border-border bg-surface p-5">
-            <View className="flex-row items-center">
-              <View className="mr-4 h-11 w-11 items-center justify-center rounded-xl bg-panel">
-                <Settings2 size={19} color="#D4AF37" />
+          
+          {activeSection === 'notifications' ? (
+            <SettingsPanel icon={Bell} title="Notifications" subtitle="Choose which account alerts you want to receive.">
+              <ToggleRow title="Trade Alerts" subtitle="Notify me when orders open, close, or change status." enabled />
+              <ToggleRow title="Deposit and Withdrawal Updates" subtitle="Receive updates for payment review and wallet changes." enabled />
+              <ToggleRow title="Security Alerts" subtitle="Get notified about sign-ins and important account activity." enabled />
+              <ToggleRow title="Marketing Updates" subtitle="Receive product news and promotional messages." />
+            </SettingsPanel>
+          ) : null}
+
+          {activeSection === 'payments' ? (
+            <SettingsPanel icon={CreditCard} title="Bank Account Details" subtitle="Save your withdrawal bank account details.">
+              <View className="rounded-xl border border-border bg-panel p-4">
+                <View className="lg:flex-row lg:gap-4">
+                  <SettingsInput
+                    className="flex-1"
+                    label="Account Holder Name"
+                    value={bankForm.bankAccountHolder}
+                    onChangeText={(bankAccountHolder) => {
+                      setBankForm((current) => ({ ...current, bankAccountHolder }));
+                      setBankMessage('');
+                    }}
+                    placeholder="Name on bank account"
+                  />
+                  <SettingsInput
+                    className="flex-1"
+                    label="Bank Name"
+                    value={bankForm.bankName}
+                    onChangeText={(bankName) => {
+                      setBankForm((current) => ({ ...current, bankName }));
+                      setBankMessage('');
+                    }}
+                    placeholder="Bank name"
+                  />
+                </View>
+                <View className="lg:flex-row lg:gap-4">
+                  <SettingsInput
+                    className="flex-1"
+                    label="Branch"
+                    value={bankForm.bankBranch}
+                    onChangeText={(bankBranch) => {
+                      setBankForm((current) => ({ ...current, bankBranch }));
+                      setBankMessage('');
+                    }}
+                    placeholder="Branch name"
+                  />
+                  <SettingsInput
+                    className="flex-1"
+                    label="Account Number"
+                    value={bankForm.bankAccountNumber}
+                    keyboardType="number-pad"
+                    onChangeText={(bankAccountNumber) => {
+                      setBankForm((current) => ({ ...current, bankAccountNumber }));
+                      setBankMessage('');
+                    }}
+                    placeholder="Bank account number"
+                  />
+                </View>
+                <Pressable disabled={bankBusy} onPress={saveBankDetails} className={`mt-2 flex-row self-start rounded-xl bg-primary px-6 py-4 ${bankBusy ? 'opacity-60' : ''}`}>
+                  <Save size={16} color="#05130d" />
+                  <Text className="ml-2 font-extrabold text-black">{bankBusy ? 'Saving...' : editingBankAccountId ? 'Update Bank Details' : 'Save Bank Details'}</Text>
+                </Pressable>
+                {bankMessage ? <Text className="mt-3 text-sm text-muted">{bankMessage}</Text> : null}
               </View>
-              <View>
-                <Text className="font-bold text-white">Appearance Mode</Text>
-                <Text className="mt-1 text-muted">{darkMode ? 'Dark mode enabled' : 'Light mode enabled'}</Text>
+              {bankAccounts.length ? (
+                <View className="mt-4 gap-3">
+                  <Text className="text-base font-extrabold text-white">Saved Bank Account Details</Text>
+                  {bankAccounts.map((account, index) => (
+                    <View key={account.id || `${account.bankAccountNumber}-${index}`} className="rounded-xl border border-primary/30 bg-primary/10 p-4">
+                      <View className="mb-4 flex-row flex-wrap items-center justify-between gap-3">
+                        <View className="flex-row flex-wrap items-center gap-2">
+                          <Text className="font-extrabold text-white">Account {index + 1}</Text>
+                          <Text className={`rounded-full px-3 py-1 text-xs font-bold ${account.status === 'approved' ? 'bg-success/10 text-success' : account.status === 'rejected' ? 'bg-danger/10 text-danger' : 'bg-primary/10 text-primary'}`}>
+                            {account.status === 'approved' ? 'Approved' : account.status === 'rejected' ? 'Rejected' : account.status === 'delete_pending' ? 'Delete Pending' : 'Pending'}
+                          </Text>
+                        </View>
+                        <View className="flex-row gap-2">
+                          <Pressable disabled={bankBusy} onPress={() => editBankDetails(account)} className="rounded-lg border border-primary px-4 py-2">
+                            <Text className="text-xs font-bold text-primary">Edit</Text>
+                          </Pressable>
+                          <Pressable disabled={bankBusy} onPress={() => deleteBankDetails(account.id)} className={`rounded-lg bg-danger/10 px-4 py-2 ${bankBusy ? 'opacity-60' : ''}`}>
+                            <Text className="text-xs font-bold text-danger">Delete</Text>
+                          </Pressable>
+                        </View>
+                      </View>
+                      {account.status === 'approved' ? (
+                        <View className="gap-3">
+                          <View>
+                            <Text className="text-xs uppercase text-muted">Account Holder</Text>
+                            <Text className="mt-1 font-bold text-white">{account.bankAccountHolder || '-'}</Text>
+                          </View>
+                          <View>
+                            <Text className="text-xs uppercase text-muted">Bank Name</Text>
+                            <Text className="mt-1 font-bold text-white">{account.bankName || '-'}</Text>
+                          </View>
+                          <View>
+                            <Text className="text-xs uppercase text-muted">Branch</Text>
+                            <Text className="mt-1 font-bold text-white">{account.bankBranch || '-'}</Text>
+                          </View>
+                          <View>
+                            <Text className="text-xs uppercase text-muted">Account Number</Text>
+                            <Text className="mt-1 font-bold text-white">{account.bankAccountNumber || '-'}</Text>
+                          </View>
+                        </View>
+                      ) : (
+                        <View className={`rounded-xl border p-4 ${account.status === 'rejected' ? 'border-danger/40 bg-danger/10' : 'border-primary/40 bg-panel'}`}>
+                          <Text className={`font-bold ${account.status === 'rejected' ? 'text-danger' : 'text-primary'}`}>
+                            {account.status === 'rejected'
+                              ? 'Bank account details rejected'
+                              : account.status === 'delete_pending'
+                                ? 'Bank account delete request pending admin approval'
+                                : 'Bank account details pending admin approval'}
+                          </Text>
+                          <Text className="mt-2 text-sm text-muted">
+                            {account.status === 'rejected'
+                              ? 'Please edit and resubmit your bank account details.'
+                              : account.status === 'delete_pending'
+                                ? 'This account will be removed after admin approval.'
+                                : 'Your details will be shown here after the admin approves this account.'}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <View className="mt-4 rounded-xl border border-border bg-panel p-4">
+                  <Text className="font-bold text-white">Saved Bank Account Details</Text>
+                  <Text className="mt-2 text-sm text-muted">No bank account details saved yet.</Text>
+                </View>
+              )}
+            </SettingsPanel>
+          ) : null}
+
+          {activeSection === 'session' ? (
+            <SettingsPanel icon={LogOut} title="Session" subtitle="Manage your current login session.">
+              <View className="rounded-xl border border-border bg-panel p-4">
+                <Text className="font-bold text-white">Current Session</Text>
+                <Text className="mt-2 text-sm text-muted">Signed in as {user?.email || 'NovaFXM user'}.</Text>
               </View>
-            </View>
-            <CustomButton title={darkMode ? 'Switch Light' : 'Switch Dark'} onPress={toggleTheme} className="min-w-[150px]" />
-          </View>
+              <CustomButton title="Logout" variant="danger" onPress={signOut} className="mt-5 max-w-[220px]" />
+            </SettingsPanel>
+          ) : null}
         </View>
       </View>
     </ScrollView>

@@ -27,6 +27,7 @@
     "jsonwebtoken": "^9.0.3",
     "lzma-native": "^8.0.6",
     "mysql2": "^3.22.3",
+    "nodemailer": "^8.0.10",
     "sequelize": "^6.37.8",
     "socket.io": "^4.8.3",
     "ws": "~8.20.1"

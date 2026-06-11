@@ -1,4 +1,5 @@
-const { User, Wallet } = require('../models');
+const bcrypt = require('bcryptjs');
+const { User, Wallet, BankAccount } = require('../models');
 
 const countries = [
   { name: 'Sri Lanka', code: '+94' },
@@ -37,7 +38,18 @@ exports.profile = async (req, res, next) => {
 
 exports.updateProfile = async (req, res, next) => {
   try {
-    const { name, email, phone, country, dateOfBirth, profileImage } = req.body;
+    const {
+      name,
+      email,
+      phone,
+      country,
+      dateOfBirth,
+      profileImage,
+      bankAccountHolder,
+      bankName,
+      bankBranch,
+      bankAccountNumber,
+    } = req.body;
     const selectedCountry = countryByName(country) || { name: String(country || '').trim(), code: null };
     const normalizedEmail = String(email || '').trim().toLowerCase();
     const normalizedPhone = String(phone || '').trim();
@@ -64,9 +76,161 @@ exports.updateProfile = async (req, res, next) => {
       country: selectedCountry.name,
       dateOfBirth: normalizedDateOfBirth,
       profileImage: profileImage || null,
+      bankAccountHolder: String(bankAccountHolder || '').trim() || null,
+      bankName: String(bankName || '').trim() || null,
+      bankBranch: String(bankBranch || '').trim() || null,
+      bankAccountNumber: String(bankAccountNumber || '').trim() || null,
     }, { where: { id: req.user.id } });
     const user = await User.findByPk(req.user.id, { attributes: { exclude: ['password'] }, include: [{ model: Wallet, as: 'wallet' }] });
     return res.json({ user });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+exports.changePassword = async (req, res, next) => {
+  try {
+    const { currentPassword, newPassword, confirmPassword } = req.body;
+    if (!currentPassword) return res.status(400).json({ message: 'Current password is required.' });
+    if (!newPassword || String(newPassword).length < 8) return res.status(400).json({ message: 'New password must be at least 8 characters.' });
+    if (newPassword !== confirmPassword) return res.status(400).json({ message: 'New password and confirmation do not match.' });
+
+    const user = await User.findByPk(req.user.id);
+    if (!user || !(await bcrypt.compare(String(currentPassword), user.password))) {
+      return res.status(401).json({ message: 'Current password is incorrect.' });
+    }
+
+    await user.update({ password: await bcrypt.hash(String(newPassword), 12) });
+    return res.json({ message: 'Password updated successfully.' });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+exports.updateBankDetails = async (req, res, next) => {
+  try {
+    const bankAccountHolder = String(req.body.bankAccountHolder || '').trim();
+    const bankName = String(req.body.bankName || '').trim();
+    const bankBranch = String(req.body.bankBranch || '').trim();
+    const bankAccountNumber = String(req.body.bankAccountNumber || '').trim();
+
+    if (!bankAccountHolder || !bankName || !bankAccountNumber) {
+      return res.status(400).json({ message: 'Account holder, bank name and account number are required.' });
+    }
+
+    await User.update({
+      bankAccountHolder,
+      bankName,
+      bankBranch: bankBranch || null,
+      bankAccountNumber,
+    }, { where: { id: req.user.id } });
+    const user = await User.findByPk(req.user.id, { attributes: { exclude: ['password'] }, include: [{ model: Wallet, as: 'wallet' }] });
+    return res.json({ user, message: 'Bank account details saved successfully.' });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+exports.deleteBankDetails = async (req, res, next) => {
+  try {
+    await User.update({
+      bankAccountHolder: null,
+      bankName: null,
+      bankBranch: null,
+      bankAccountNumber: null,
+    }, { where: { id: req.user.id } });
+    const user = await User.findByPk(req.user.id, { attributes: { exclude: ['password'] }, include: [{ model: Wallet, as: 'wallet' }] });
+    return res.json({ user, message: 'Bank account details deleted successfully.' });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+const bankPayload = (body) => ({
+  accountHolderName: String(body.accountHolderName || body.bankAccountHolder || '').trim(),
+  bankName: String(body.bankName || '').trim(),
+  branchName: String(body.branchName || body.bankBranch || '').trim() || null,
+  accountNumber: String(body.accountNumber || body.bankAccountNumber || '').trim(),
+});
+
+const validateBankPayload = (payload) => {
+  if (!payload.accountHolderName || !payload.bankName || !payload.accountNumber) {
+    return 'Account holder, bank name and account number are required.';
+  }
+  return null;
+};
+
+exports.listBankAccounts = async (req, res, next) => {
+  try {
+    let accounts = await BankAccount.findAll({
+      where: { userId: req.user.id },
+      order: [['createdAt', 'DESC']],
+    });
+    if (!accounts.length) {
+      const user = await User.findByPk(req.user.id);
+      if (user?.bankAccountHolder && user?.bankName && user?.bankAccountNumber) {
+        await BankAccount.create({
+          userId: req.user.id,
+          accountHolderName: user.bankAccountHolder,
+          bankName: user.bankName,
+          branchName: user.bankBranch || null,
+          accountNumber: user.bankAccountNumber,
+          status: 'approved',
+          reviewedAt: new Date(),
+          reviewedBy: req.user.id,
+        });
+        await user.update({
+          bankAccountHolder: null,
+          bankName: null,
+          bankBranch: null,
+          bankAccountNumber: null,
+        });
+        accounts = await BankAccount.findAll({
+          where: { userId: req.user.id },
+          order: [['createdAt', 'DESC']],
+        });
+      }
+    }
+    return res.json({ accounts });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+exports.createBankAccount = async (req, res, next) => {
+  try {
+    const payload = bankPayload(req.body);
+    const validationError = validateBankPayload(payload);
+    if (validationError) return res.status(400).json({ message: validationError });
+
+    const account = await BankAccount.create({ ...payload, userId: req.user.id, status: 'pending', reviewedAt: null, reviewedBy: null });
+    return res.status(201).json({ account, message: 'Bank account details submitted for admin approval.' });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+exports.updateBankAccount = async (req, res, next) => {
+  try {
+    const payload = bankPayload(req.body);
+    const validationError = validateBankPayload(payload);
+    if (validationError) return res.status(400).json({ message: validationError });
+
+    const account = await BankAccount.findOne({ where: { id: req.params.id, userId: req.user.id } });
+    if (!account) return res.status(404).json({ message: 'Bank account not found.' });
+    await account.update({ ...payload, status: 'pending', reviewedAt: null, reviewedBy: null });
+    return res.json({ account, message: 'Bank account details updated and submitted for admin approval.' });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+exports.deleteBankAccount = async (req, res, next) => {
+  try {
+    const account = await BankAccount.findOne({ where: { id: req.params.id, userId: req.user.id } });
+    if (!account) return res.status(404).json({ message: 'Bank account not found.' });
+    await account.update({ status: 'delete_pending', reviewedAt: null, reviewedBy: null });
+    return res.json({ account, message: 'Bank account deletion request submitted for admin approval.' });
   } catch (error) {
     return next(error);
   }

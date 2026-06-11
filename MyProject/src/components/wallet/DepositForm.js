@@ -138,12 +138,7 @@ export default function DepositForm({ onSubmit, loading, disabled, disabledMessa
             </View>
           </View>
 
-          <View className="mb-4 lg:flex-row lg:items-end lg:gap-3">
-            <CustomInput className="flex-1" label="Reference Number" placeholder="Transaction or receipt reference" value={form.referenceNumber} onChangeText={update('referenceNumber')} />
-            <Pressable onPress={generateReference} className="mb-4 min-h-[46px] items-center justify-center rounded-xl border border-primary/60 bg-primary/10 px-4">
-              <Text className="text-xs font-bold text-primary">Generate Reference</Text>
-            </Pressable>
-          </View>
+          
           <View className="mb-4">
             <Text className="mb-2 text-sm font-medium text-muted">Upload Receipt</Text>
             <Pressable onPress={openReceiptPicker} className="min-h-[118px] items-center justify-center rounded-2xl border border-dashed border-border bg-surface p-5">

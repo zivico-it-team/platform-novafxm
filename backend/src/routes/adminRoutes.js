@@ -22,6 +22,9 @@ router.put('/deposits/:id/reject', controller.reviewDeposit('rejected'));
 router.get('/withdrawals', controller.withdrawals);
 router.put('/withdrawals/:id/approve', controller.reviewWithdrawal('approved'));
 router.put('/withdrawals/:id/reject', controller.reviewWithdrawal('rejected'));
+router.get('/bank-accounts', controller.bankAccounts);
+router.put('/bank-accounts/:id/approve', controller.reviewBankAccount('approved'));
+router.put('/bank-accounts/:id/reject', controller.reviewBankAccount('rejected'));
 router.get('/trades', controller.trades);
 
 module.exports = router;
