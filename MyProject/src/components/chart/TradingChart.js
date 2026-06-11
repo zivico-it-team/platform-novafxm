@@ -822,12 +822,20 @@ export default function TradingChart() {
   const liveCandleRef = useRef(null);
   const previousPriceRef = useRef(null);
   const lastGapReloadAtRef = useRef(0);
+  const lastGapReloadKeyRef = useRef('');
+
+  useEffect(() => {
+    previousPriceRef.current = null;
+    liveCandleRef.current = null;
+    lastGapReloadAtRef.current = 0;
+    lastGapReloadKeyRef.current = '';
+    setPriceDirection(0);
+  }, [currentSymbol.symbol, timeframe, viewRange]);
 
   useEffect(() => {
     let active = true;
     setHistory([]);
-    previousPriceRef.current = null;
-    setPriceDirection(0);
+    liveCandleRef.current = null;
     const limit = viewRange === 'Full'
       ? FULL_HISTORY_LIMITS[timeframe]
       : HISTORY_LIMITS[timeframe];
@@ -871,9 +879,12 @@ export default function TradingChart() {
     const previousTime = Number(previous?.time);
     if (Number.isFinite(previousTime) && time < previousTime) return;
 
-    if (Number.isFinite(previousTime) && time - previousTime > liveGapGraceSeconds(timeframe)) {
+    const hasLargeGap = Number.isFinite(previousTime) && time - previousTime > liveGapGraceSeconds(timeframe);
+    if (hasLargeGap) {
       const now = Date.now();
-      if (now - lastGapReloadAtRef.current > 30000) {
+      const gapReloadKey = `${currentSymbol.symbol}:${timeframe}:${viewRange}:${previousTime}:${time}`;
+      if (gapReloadKey !== lastGapReloadKeyRef.current && now - lastGapReloadAtRef.current > 30000) {
+        lastGapReloadKeyRef.current = gapReloadKey;
         lastGapReloadAtRef.current = now;
         setReloadKey((value) => value + 1);
       }
@@ -886,12 +897,12 @@ export default function TradingChart() {
           high: Math.max(Number(previous.high), price),
           low: Math.min(Number(previous.low), price),
           close: price,
-        }
+      }
       : {
           time,
-          open: previous ? Number(previous.close) : price,
-          high: Math.max(previous ? Number(previous.close) : price, price),
-          low: Math.min(previous ? Number(previous.close) : price, price),
+          open: previous && !hasLargeGap ? Number(previous.close) : price,
+          high: Math.max(previous && !hasLargeGap ? Number(previous.close) : price, price),
+          low: Math.min(previous && !hasLargeGap ? Number(previous.close) : price, price),
           close: price,
         };
 
@@ -907,24 +918,24 @@ export default function TradingChart() {
       window.dispatchEvent(new MessageEvent('message', { data: ${JSON.stringify(message)} }));
       true;
     `);
-  }, [currentSymbol.price, currentSymbol.source, currentSymbol.symbol, timeframe]);
+  }, [currentSymbol.price, currentSymbol.source, currentSymbol.symbol, timeframe, viewRange]);
 
-  const candles = useMemo(
-    () => applyLivePriceToCandles(history, currentSymbol, timeframe),
-    [history, currentSymbol.symbol, currentSymbol.price, currentSymbol.source, timeframe],
-  );
-  useEffect(() => {
-    liveCandleRef.current = candles?.[candles.length - 1] || null;
-  }, [candles]);
+  const candles = useMemo(() => history, [history]);
   const ui = useMemo(() => chartUiFromTheme(colors), [colors]);
   const html = useMemo(
     () => chartHtml(candles, currentSymbol.decimals, timeframe, chartType, tools, drawings, activeDrawingTool, ui, viewRange),
     [candles, currentSymbol.decimals, timeframe, chartType, tools, drawings, activeDrawingTool, ui, viewRange],
   );
+  const chartDataKey = useMemo(() => {
+    const first = candles?.[0]?.time || 0;
+    const last = candles?.[candles.length - 1]?.time || 0;
+    return `${candles.length}:${first}:${last}`;
+  }, [candles]);
   const chartRenderKey = JSON.stringify({
     symbol: currentSymbol.symbol,
     timeframe,
     viewRange,
+    chartDataKey,
     chartType,
     drawings: drawings.length,
     activeDrawingTool,

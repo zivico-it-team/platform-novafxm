@@ -137,6 +137,10 @@ const allInstruments = [
 ];
 
 const instruments = allInstruments;
+const streamInstruments = [...instruments].sort((left, right) => {
+  if (left.popular !== right.popular) return right.popular ? 1 : -1;
+  return left.symbol.localeCompare(right.symbol);
+});
 
 let priceCache = { at: 0, data: null };
 const latestQuotes = new Map();
@@ -183,7 +187,6 @@ const CANDLE_SECONDS = {
   '6M': 15552000,
   '12M': 31536000,
 };
-const LIVE_CANDLE_TIMEFRAMES = ['1m', '3m', '5m', '15m', '1H', '4H', '1D', '1W', '1M'];
 const LIVE_CANDLE_FLUSH_MS = 15000;
 let quoteSocket = null;
 let reconnectTimer = null;
@@ -199,6 +202,13 @@ const AUTO_CATCHUP_THROTTLE_MS = Math.max(60000, Number(process.env.AUTO_CATCHUP
 const AUTO_CATCHUP_ALWAYS_RECENT = process.env.AUTO_CATCHUP_ALWAYS_RECENT !== 'false';
 const AUTO_CATCHUP_LOGS_ENABLED = process.env.AUTO_CATCHUP_LOGS_ENABLED === 'true';
 const LIVE_CANDLE_SAVE_ENABLED = process.env.LIVE_CANDLE_SAVE_ENABLED === 'true';
+const RECENT_CANDLE_SAVE_ENABLED = process.env.RECENT_CANDLE_SAVE_ENABLED !== 'false';
+const csv = (value) => String(value || '')
+  .split(',')
+  .map((item) => item.trim())
+  .filter(Boolean);
+const LIVE_CANDLE_TIMEFRAMES = csv(process.env.LIVE_CANDLE_SAVE_TIMEFRAMES || '1m');
+const LIVE_CANDLE_SAVE_SYMBOLS = new Set(csv(process.env.LIVE_CANDLE_SAVE_SYMBOLS || ''));
 const RECENT_CANDLE_LOOKBACK_SECONDS = Math.max(
   3600,
   (Number(process.env.RECENT_CANDLE_LOOKBACK_MINUTES) || 60) * 60,
@@ -274,6 +284,7 @@ function bufferLiveCandle(quote) {
   const price = Number(quote?.price);
   if (!quote?.symbol || !Number.isFinite(price) || price <= 0) return;
   if (!['tradingview', 'stale'].includes(quote.source)) return;
+  if (LIVE_CANDLE_SAVE_SYMBOLS.size && !LIVE_CANDLE_SAVE_SYMBOLS.has(quote.symbol)) return;
 
   LIVE_CANDLE_TIMEFRAMES.forEach((timeframe) => {
     const time = bucketTime(Math.floor(Date.now() / 1000), timeframe);
@@ -342,10 +353,13 @@ const isDeadlockError = (error) => (
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function saveLiveCandleGroup(group) {
+  const candles = await normalizeLiveCandlesForSave(group);
+  if (!candles.length) return;
+
   const maxAttempts = 4;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      await saveCandles(group.symbol, group.timeframe, group.candles);
+      await saveCandles(group.symbol, group.timeframe, candles);
       return;
     } catch (error) {
       if (!isDeadlockError(error) || attempt === maxAttempts) {
@@ -356,6 +370,45 @@ async function saveLiveCandleGroup(group) {
       await delay(75 * attempt);
     }
   }
+}
+
+async function normalizeLiveCandlesForSave(group) {
+  const candles = [...(group.candles || [])]
+    .filter((candle) => Number.isFinite(Number(candle.time)))
+    .sort((a, b) => Number(a.time) - Number(b.time));
+
+  if (!candles.length) return [];
+
+  const lastTime = Number(candles[candles.length - 1].time);
+  const stored = await readCandles(group.symbol, group.timeframe, candles.length + 2, { to: lastTime + 1 }).catch(() => []);
+  const storedByTime = new Map(stored.map((candle) => [Number(candle.time), candle]));
+  let previous = stored.filter((candle) => Number(candle.time) < Number(candles[0].time)).at(-1) || null;
+
+  return candles.map((candle) => {
+    const time = Number(candle.time);
+    const existing = storedByTime.get(time);
+    const close = Number(candle.close);
+    const storedOpen = Number(existing?.open);
+    const previousClose = Number(previous?.close);
+    const open = Number.isFinite(storedOpen)
+      ? storedOpen
+      : Number.isFinite(previousClose)
+        ? previousClose
+        : Number(candle.open);
+
+    const adjusted = {
+      time,
+      open,
+      high: Math.max(open, Number(existing?.high ?? candle.high), Number(candle.high), close),
+      low: Math.min(open, Number(existing?.low ?? candle.low), Number(candle.low), close),
+      close,
+      volume: Number(existing?.volume || candle.volume || 0),
+    };
+    previous = adjusted;
+    return adjusted;
+  }).filter((candle) => (
+    [candle.time, candle.open, candle.high, candle.low, candle.close].every(Number.isFinite)
+  ));
 }
 
 function fallbackPrice(instrument) {
@@ -421,7 +474,7 @@ function connectQuoteStream() {
   quoteSocket.on('open', () => {
     quoteSocket.send(packMessage('quote_create_session', [session]));
     quoteSocket.send(packMessage('quote_set_fields', [session, 'lp', 'chp', 'bid', 'ask', 'pricescale', 'minmov', 'pro_name']));
-    instruments.forEach((item) => quoteSocket.send(packMessage('quote_add_symbols', [session, item.ticker])));
+    streamInstruments.forEach((item) => quoteSocket.send(packMessage('quote_add_symbols', [session, item.ticker])));
     console.log('TradingView quote stream connected');
   });
 
@@ -599,6 +652,48 @@ const mergeCandles = (stored, recent, limit) => {
     .slice(-limit);
 };
 
+const maxDislocationPct = (item) => {
+  if (item.group === 'METALS') return 1.5;
+  if (item.group === 'FOREX') return 2;
+  if (item.group === 'INDICES') return 4;
+  if (item.group === 'ENERGIES') return 5;
+  if (item.group === 'CRYPTO CFD') return 12;
+  return 5;
+};
+
+const pruneDislocatedSegments = (candles, item, timeframe) => {
+  if (!Array.isArray(candles) || candles.length < 2) return candles || [];
+
+  const seconds = timeframeSeconds(timeframe);
+  if (!seconds) return candles;
+
+  const minTimeGap = Math.max(seconds * 10, 3600);
+  const maxMovePct = maxDislocationPct(item);
+  let startIndex = 0;
+
+  for (let index = candles.length - 1; index > 0; index--) {
+    const current = candles[index];
+    const previous = candles[index - 1];
+    const currentTime = Number(current.time);
+    const previousTime = Number(previous.time);
+    const currentOpen = Number(current.open);
+    const previousClose = Number(previous.close);
+
+    if (![currentTime, previousTime, currentOpen, previousClose].every(Number.isFinite) || previousClose <= 0) {
+      continue;
+    }
+
+    const gapSeconds = currentTime - previousTime;
+    const movePct = Math.abs((currentOpen - previousClose) / previousClose) * 100;
+    if (gapSeconds > minTimeGap && movePct > maxMovePct) {
+      startIndex = index;
+      break;
+    }
+  }
+
+  return startIndex > 0 ? candles.slice(startIndex) : candles;
+};
+
 async function fetchRecentProviderCandles(item, timeframe, stored, limit) {
   if (!AUTO_CATCHUP_ENABLED || timeframe === '1s') return [];
 
@@ -631,7 +726,7 @@ async function fetchRecentProviderCandles(item, timeframe, stored, limit) {
   );
   const to = now + seconds;
 
-  const task = fetchRecentCandles(item, timeframe, from, to, { save: false })
+  const task = fetchRecentCandles(item, timeframe, from, to, { save: RECENT_CANDLE_SAVE_ENABLED })
     .then((candles) => {
       if (AUTO_CATCHUP_LOGS_ENABLED && candles.length > 0) {
         console.log(`Fetched ${candles.length} recent provider candles for ${item.symbol} ${timeframe}`);
@@ -666,7 +761,11 @@ async function getHistoricalCandles(symbol, timeframe = '15m', limit = 240) {
     return [];
   });
   const recentProviderCandles = await fetchRecentProviderCandles(item, timeframe, stored, boundedLimit);
-  const currentStored = mergeCandles(stored, recentProviderCandles, boundedLimit);
+  const currentStored = pruneDislocatedSegments(
+    mergeCandles(stored, recentProviderCandles, boundedLimit),
+    item,
+    timeframe
+  );
 
   if (item.group === 'CRYPTO CFD' && ['BINANCE:', 'COINBASE:'].some((prefix) => item.ticker.startsWith(prefix))) {
     const sourceTimeframe = DERIVED_CANDLE_SOURCES[timeframe];
