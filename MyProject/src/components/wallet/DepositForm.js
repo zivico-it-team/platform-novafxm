@@ -3,6 +3,7 @@ import { Platform, Pressable, Text, View } from 'react-native';
 import { Banknote, CheckCircle2, Clock3, ShieldCheck, Sparkles, UploadCloud, Wallet, X } from 'lucide-react-native';
 import CustomButton from '../common/CustomButton';
 import CustomInput from '../common/CustomInput';
+import { useAppTheme } from '../../context/ThemeContext';
 
 const paymentMethods = [
   { label: 'BTC', description: 'Bitcoin transfer', icon: Banknote },
@@ -28,6 +29,7 @@ function readFileDataUrl(file) {
 }
 
 export default function DepositForm({ onSubmit, loading, disabled, disabledMessage }) {
+  const { colors } = useAppTheme();
   const receiptInputRef = useRef(null);
   const [form, setForm] = useState({ amount: '', paymentMethod: 'BTC', referenceNumber: '', note: '' });
   const [receipt, setReceipt] = useState(null);
@@ -59,12 +61,12 @@ export default function DepositForm({ onSubmit, loading, disabled, disabledMessa
     }
   };
   return (
-    <View className="flex-1 overflow-hidden rounded-2xl border border-border bg-panel">
-      <View className="border-b border-border bg-surface px-5 py-4">
+    <View className="flex-1 overflow-hidden rounded-2xl border" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+      <View className="border-b px-5 py-4" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
         <View className="flex-row items-center justify-between">
           <View>
-            <Text className="text-xl font-black text-white">Deposit Funds</Text>
-            <Text className="mt-1 text-sm text-muted">Submit a funding request with receipt proof.</Text>
+            <Text className="text-xl font-black" style={{ color: colors.text }}>Deposit Funds</Text>
+            <Text className="mt-1 text-sm" style={{ color: colors.muted }}>Submit a funding request with receipt proof.</Text>
           </View>
           <View className="h-11 w-11 items-center justify-center rounded-2xl bg-primary/15">
             <Wallet size={22} color="#D4AF37" />
@@ -76,8 +78,8 @@ export default function DepositForm({ onSubmit, loading, disabled, disabledMessa
         <View className="flex-1">
           <View className="mb-4">
             <View className="flex-row items-end justify-between">
-              <Text className="text-xs font-bold uppercase text-muted">Deposit Amount</Text>
-              <Text className="text-xs font-bold text-white">USD</Text>
+              <Text className="text-xs font-bold uppercase" style={{ color: colors.muted }}>Deposit Amount</Text>
+              <Text className="text-xs font-bold" style={{ color: colors.text }}>USD</Text>
             </View>
             <CustomInput
               label=""
@@ -89,23 +91,24 @@ export default function DepositForm({ onSubmit, loading, disabled, disabledMessa
               style={{ borderColor: '#D4AF37', fontSize: 22, fontWeight: '900' }}
             />
             <View className="mt-2 flex-row justify-between">
-              <Text className="text-xs text-muted">Minimum Deposit: $100</Text>
-              <Text className="text-xs text-muted">Processing Time: 5 - 30 Minutes</Text>
+              <Text className="text-xs" style={{ color: colors.muted }}>Minimum Deposit: $100</Text>
+              <Text className="text-xs" style={{ color: colors.muted }}>Processing Time: 5 - 30 Minutes</Text>
             </View>
             <View className="mt-3 flex-row flex-wrap gap-2">
               {quickAmounts.map((amount) => (
                 <Pressable
                   key={amount}
                   onPress={() => update('amount')(String(amount))}
-                  className={`rounded-full border px-3 py-2 ${String(amount) === String(form.amount) ? 'border-primary bg-primary/10' : 'border-border bg-surface'}`}
+                  className="rounded-full border px-3 py-2"
+                  style={{ backgroundColor: String(amount) === String(form.amount) ? `${colors.primary}1a` : colors.surface, borderColor: String(amount) === String(form.amount) ? colors.primary : colors.border }}
                 >
-                  <Text className={`text-xs font-bold ${String(amount) === String(form.amount) ? 'text-primary' : 'text-muted'}`}>${amount}</Text>
+                  <Text className="text-xs font-bold" style={{ color: String(amount) === String(form.amount) ? colors.primary : colors.muted }}>${amount}</Text>
                 </Pressable>
               ))}
             </View>
           </View>
 
-          <Text className="mb-3 text-xs font-bold uppercase text-muted">Payment Method</Text>
+          <Text className="mb-3 text-xs font-bold uppercase" style={{ color: colors.muted }}>Payment Method</Text>
           <View className="mb-5 flex-row flex-wrap gap-3">
             {paymentMethods.map(({ label, description, icon: Icon }) => {
               const selected = form.paymentMethod === label;
@@ -113,7 +116,8 @@ export default function DepositForm({ onSubmit, loading, disabled, disabledMessa
                 <Pressable
                   key={label}
                   onPress={() => update('paymentMethod')(label)}
-                  className={`min-h-[92px] flex-1 min-w-[160px] rounded-xl border p-4 ${selected ? 'border-primary bg-primary/10' : 'border-border bg-surface'}`}
+                  className="min-h-[92px] flex-1 min-w-[160px] rounded-xl border p-4"
+                  style={{ backgroundColor: selected ? `${colors.primary}1a` : colors.surface, borderColor: selected ? colors.primary : colors.border }}
                 >
                   <View className="flex-row items-center justify-between">
                     <Icon size={24} color="#12cf7a" />
@@ -123,8 +127,8 @@ export default function DepositForm({ onSubmit, loading, disabled, disabledMessa
                       </View>
                     ) : null}
                   </View>
-                  <Text className={`mt-3 text-sm font-bold ${selected ? 'text-primary' : 'text-white'}`}>{label}</Text>
-                  <Text className="mt-1 text-[11px] text-muted">{description}</Text>
+                  <Text className="mt-3 text-sm font-bold" style={{ color: selected ? colors.primary : colors.text }}>{label}</Text>
+                  <Text className="mt-1 text-[11px]" style={{ color: colors.muted }}>{description}</Text>
                 </Pressable>
               );
             })}
@@ -133,15 +137,15 @@ export default function DepositForm({ onSubmit, loading, disabled, disabledMessa
           <View className="mb-5 flex-row items-center rounded-2xl border border-primary/30 bg-primary/10 p-4">
             <Sparkles size={18} color="#D4AF37" />
             <View className="ml-3 flex-1">
-              <Text className="text-sm font-bold text-white">Selected Method: {selectedMethod.label}</Text>
-              <Text className="mt-1 text-xs text-muted">{selectedMethod.description}. Upload the receipt after completing the transfer.</Text>
+              <Text className="text-sm font-bold" style={{ color: colors.text }}>Selected Method: {selectedMethod.label}</Text>
+              <Text className="mt-1 text-xs" style={{ color: colors.muted }}>{selectedMethod.description}. Upload the receipt after completing the transfer.</Text>
             </View>
           </View>
 
           
           <View className="mb-4">
-            <Text className="mb-2 text-sm font-medium text-muted">Upload Receipt</Text>
-            <Pressable onPress={openReceiptPicker} className="min-h-[118px] items-center justify-center rounded-2xl border border-dashed border-border bg-surface p-5">
+            <Text className="mb-2 text-sm font-medium" style={{ color: colors.muted }}>Upload Receipt</Text>
+            <Pressable onPress={openReceiptPicker} className="min-h-[118px] items-center justify-center rounded-2xl border border-dashed p-5" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
               {Platform.OS === 'web' ? (
                 <input
                   ref={receiptInputRef}
@@ -154,30 +158,30 @@ export default function DepositForm({ onSubmit, loading, disabled, disabledMessa
               <View className="mb-3 h-11 w-11 items-center justify-center rounded-2xl bg-primary/10">
                 <UploadCloud size={23} color="#D4AF37" />
               </View>
-              <Text className="text-center font-bold text-white">{receipt ? fileName(receipt) : 'Click to upload or drag and drop'}</Text>
-              <Text className="mt-1 text-center text-xs text-muted">{receipt ? 'Receipt attached and ready to submit' : 'JPG or PNG receipt image'}</Text>
+              <Text className="text-center font-bold" style={{ color: colors.text }}>{receipt ? fileName(receipt) : 'Click to upload or drag and drop'}</Text>
+              <Text className="mt-1 text-center text-xs" style={{ color: colors.muted }}>{receipt ? 'Receipt attached and ready to submit' : 'JPG or PNG receipt image'}</Text>
             </Pressable>
             {receipt ? (
-              <Pressable onPress={() => setReceipt(null)} className="mt-2 flex-row items-center self-start rounded-full border border-border px-3 py-2">
+              <Pressable onPress={() => setReceipt(null)} className="mt-2 flex-row items-center self-start rounded-full border px-3 py-2" style={{ borderColor: colors.border }}>
                 <X size={14} color="#8fa0bb" />
-                <Text className="ml-2 text-xs font-bold text-muted">Remove receipt</Text>
+                <Text className="ml-2 text-xs font-bold" style={{ color: colors.muted }}>Remove receipt</Text>
               </Pressable>
             ) : null}
           </View>
           <CustomInput label="Note (Optional)" placeholder="Optional note for admin review" value={form.note} onChangeText={update('note')} />
           <View className="mb-4 flex-row rounded-xl border border-success/20 bg-success/10 p-3">
             <ShieldCheck size={17} color="#12cf7a" />
-            <Text className="ml-2 flex-1 text-xs font-semibold text-white">Funds are credited only after payment verification. Never share your account password with anyone.</Text>
+            <Text className="ml-2 flex-1 text-xs font-semibold" style={{ color: colors.text }}>Funds are credited only after payment verification. Never share your account password with anyone.</Text>
           </View>
           <CustomButton title="Submit Deposit Request" onPress={submit} loading={loading} disabled={disabled} variant="success" />
         </View>
 
         <View className="w-full gap-4 xl:w-[280px]">
-          <View className="rounded-2xl border border-border bg-surface p-5">
+          <View className="rounded-2xl border p-5" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
             <View className="mb-4 h-12 w-12 items-center justify-center rounded-2xl bg-success/10">
               <ShieldCheck size={24} color="#12cf7a" />
             </View>
-            <Text className="text-lg font-black text-white">Deposit Process</Text>
+            <Text className="text-lg font-black" style={{ color: colors.text }}>Deposit Process</Text>
             <View className="mt-5 gap-4">
               {['Request Submitted', 'Waiting for Review', 'Approved', 'Funds Credited'].map((item, index) => (
                 <View key={item} className="flex-row">
@@ -185,28 +189,28 @@ export default function DepositForm({ onSubmit, loading, disabled, disabledMessa
                     {index === 0 ? <CheckCircle2 size={15} color="#0B0B0B" /> : <Clock3 size={14} color="#8fa0bb" />}
                   </View>
                   <View className="flex-1">
-                    <Text className="text-sm font-bold text-white">{item}</Text>
-                    <Text className="mt-1 text-xs text-muted">{index === 0 ? 'You submit your deposit request' : index === 1 ? 'Admin is reviewing your request' : index === 2 ? 'Your deposit has been approved' : 'Amount added to your wallet'}</Text>
+                    <Text className="text-sm font-bold" style={{ color: colors.text }}>{item}</Text>
+                    <Text className="mt-1 text-xs" style={{ color: colors.muted }}>{index === 0 ? 'You submit your deposit request' : index === 1 ? 'Admin is reviewing your request' : index === 2 ? 'Your deposit has been approved' : 'Amount added to your wallet'}</Text>
                   </View>
                 </View>
               ))}
             </View>
           </View>
-          <View className="rounded-2xl border border-border bg-surface p-5">
+          <View className="rounded-2xl border p-5" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
             <Clock3 size={24} color="#12cf7a" />
-            <Text className="mt-3 text-base font-black text-white">Estimated Processing Time</Text>
-            <Text className="mt-3 text-sm leading-5 text-muted">Standard review: 5 - 30 Minutes</Text>
-            <Text className="mt-1 text-sm leading-5 text-muted">Weekends and holidays: up to 24 hours</Text>
+            <Text className="mt-3 text-base font-black" style={{ color: colors.text }}>Estimated Processing Time</Text>
+            <Text className="mt-3 text-sm leading-5" style={{ color: colors.muted }}>Standard review: 5 - 30 Minutes</Text>
+            <Text className="mt-1 text-sm leading-5" style={{ color: colors.muted }}>Weekends and holidays: up to 24 hours</Text>
           </View>
-          <View className="flex-1 rounded-2xl border border-border bg-surface p-5">
+          <View className="flex-1 rounded-2xl border p-5" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
             <UploadCloud size={24} color="#D4AF37" />
-            <Text className="mt-3 text-base font-black text-white">Receipt Checklist</Text>
-            <Text className="mt-2 text-sm leading-5 text-muted">Before submitting, make sure your receipt clearly shows:</Text>
+            <Text className="mt-3 text-base font-black" style={{ color: colors.text }}>Receipt Checklist</Text>
+            <Text className="mt-2 text-sm leading-5" style={{ color: colors.muted }}>Before submitting, make sure your receipt clearly shows:</Text>
             <View className="mt-4 gap-3">
               {['Paid amount', 'Transaction reference', 'Payment date', 'Sender account details'].map((item) => (
                 <View key={item} className="flex-row items-center">
                   <CheckCircle2 size={15} color="#12cf7a" />
-                  <Text className="ml-2 text-sm font-semibold text-white">{item}</Text>
+                  <Text className="ml-2 text-sm font-semibold" style={{ color: colors.text }}>{item}</Text>
                 </View>
               ))}
             </View>
