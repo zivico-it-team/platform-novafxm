@@ -1,13 +1,13 @@
 import { Text, TextInput, View } from 'react-native';
 import { useAppTheme } from '../../context/ThemeContext';
 
-export default function CustomInput({ label, error, className = '', style, placeholderTextColor, ...props }) {
+export default function CustomInput({ label, error, className = '', style, placeholderTextColor, labelStyle, ...props }) {
   const { darkMode, colors } = useAppTheme();
   const inputBackground = darkMode ? colors.surface : '#f6fff9';
 
   return (
     <View className={`mb-4 ${className}`}>
-      {label ? <Text className="mb-2 text-sm font-medium" style={{ color: colors.muted }}>{label}</Text> : null}
+      {label ? <Text className="mb-2 text-sm font-medium" style={[{ color: colors.muted }, labelStyle]}>{label}</Text> : null}
       <TextInput
         placeholderTextColor={placeholderTextColor || colors.muted}
         className="h-12 rounded-xl border px-4"
