@@ -16,8 +16,10 @@ import {
   UserRound,
 } from 'lucide-react-native';
 import CustomButton from '../src/components/common/CustomButton';
+import DashboardTabs from '../src/components/layout/DashboardTabs';
 import { useAuth } from '../src/hooks/useAuth';
 import { authService } from '../src/services/authService';
+import { useAppTheme } from '../src/context/ThemeContext';
 
 const countries = [
   { name: 'Afghanistan', code: '+93' },
@@ -257,31 +259,36 @@ const settingsSections = [
 ];
 
 function SettingsMenuItem({ icon: Icon, title, subtitle, active, onPress }) {
+  const { colors } = useAppTheme();
+
   return (
-    <Pressable onPress={onPress} className={`flex-row items-center rounded-xl p-4 ${active ? 'border-l-4 border-primary bg-primary/10' : ''}`}>
-      <View className={`mr-3 h-10 w-10 items-center justify-center rounded-xl ${active ? 'bg-primary/20' : 'bg-surface'}`}>
+    <Pressable onPress={onPress} className={`flex-row items-center rounded-xl p-4 ${active ? 'border-l-4 border-primary' : ''}`} style={{ backgroundColor: active ? `${colors.primary}1a` : 'transparent' }}>
+      <View className="mr-3 h-10 w-10 items-center justify-center rounded-xl" style={{ backgroundColor: active ? `${colors.primary}33` : colors.surface }}>
         <Icon size={19} color={active ? '#D4AF37' : '#9CA3AF'} />
       </View>
       <View>
-        <Text className={`font-bold ${active ? 'text-primary' : 'text-white'}`}>{title}</Text>
-        <Text className="mt-1 text-xs text-muted">{subtitle}</Text>
+        <Text className="font-bold" style={{ color: active ? colors.primary : colors.text }}>{title}</Text>
+        <Text className="mt-1 text-xs" style={{ color: colors.muted }}>{subtitle}</Text>
       </View>
     </Pressable>
   );
 }
 
 function SettingsInput({ label, value, onChangeText, placeholder, editable = true, error, keyboardType }) {
+  const { colors } = useAppTheme();
+
   return (
     <View className="mb-4">
-      <Text className="mb-2 text-sm font-bold text-white">{label}</Text>
+      <Text className="mb-2 text-sm font-bold" style={{ color: colors.text }}>{label}</Text>
       <TextInput
         value={value}
         onChangeText={onChangeText}
         editable={editable}
         placeholder={placeholder}
-        placeholderTextColor="#8fa0bb"
+        placeholderTextColor={colors.muted}
         keyboardType={keyboardType}
-        className={`rounded-xl border border-border bg-panel px-4 py-3 text-white ${editable ? '' : 'opacity-70'}`}
+        className={`rounded-xl border px-4 py-3 ${editable ? '' : 'opacity-70'}`}
+        style={{ backgroundColor: colors.panel, borderColor: colors.border, color: colors.text }}
       />
       {error ? <Text className="mt-1 text-xs text-danger">{error}</Text> : null}
     </View>
@@ -289,6 +296,7 @@ function SettingsInput({ label, value, onChangeText, placeholder, editable = tru
 }
 
 function CountrySelect({ value, onChange, editable, error }) {
+  const { colors } = useAppTheme();
   const [open, setOpen] = useState(false);
   const selectedCountry = countryByName(value);
 
@@ -299,23 +307,25 @@ function CountrySelect({ value, onChange, editable, error }) {
 
   return (
     <View className="mb-4">
-      <Text className="mb-2 text-sm font-bold text-white">Country</Text>
+      <Text className="mb-2 text-sm font-bold" style={{ color: colors.text }}>Country</Text>
       <Pressable
         disabled={!editable}
         onPress={() => setOpen((current) => !current)}
-        className={`rounded-xl border border-border bg-panel px-4 py-3 ${editable ? '' : 'opacity-70'}`}
+        className={`rounded-xl border px-4 py-3 ${editable ? '' : 'opacity-70'}`}
+        style={{ backgroundColor: colors.panel, borderColor: colors.border }}
       >
-        <Text className="text-white">{selectedCountry.name} ({selectedCountry.code})</Text>
+        <Text style={{ color: colors.text }}>{selectedCountry.name} ({selectedCountry.code})</Text>
       </Pressable>
       {open && editable ? (
-        <ScrollView nestedScrollEnabled className="mt-2 rounded-xl border border-border bg-panel" style={{ maxHeight: 320 }}>
+        <ScrollView nestedScrollEnabled className="mt-2 rounded-xl border" style={{ maxHeight: 320, backgroundColor: colors.panel, borderColor: colors.border }}>
           {countries.map((country) => (
             <Pressable
               key={country.name}
               onPress={() => selectCountry(country.name)}
-              className={`border-b border-border px-4 py-3 ${country.name === value ? 'bg-primary/10' : ''}`}
+              className="border-b px-4 py-3"
+              style={{ backgroundColor: country.name === value ? `${colors.primary}1a` : 'transparent', borderColor: colors.border }}
             >
-              <Text className={country.name === value ? 'font-bold text-primary' : 'text-white'}>{country.name} ({country.code})</Text>
+              <Text className={country.name === value ? 'font-bold' : ''} style={{ color: country.name === value ? colors.primary : colors.text }}>{country.name} ({country.code})</Text>
             </Pressable>
           ))}
         </ScrollView>
@@ -326,11 +336,13 @@ function CountrySelect({ value, onChange, editable, error }) {
 }
 
 function PasswordInput({ label, placeholder, value, onChangeText }) {
+  const { colors } = useAppTheme();
+
   return (
     <View className="mb-4">
-      <Text className="mb-2 text-sm font-bold text-white">{label}</Text>
-      <View className="flex-row items-center rounded-xl border border-border bg-panel px-4">
-        <TextInput secureTextEntry value={value} onChangeText={onChangeText} placeholder={placeholder} placeholderTextColor="#8fa0bb" className="flex-1 py-3 text-white" />
+      <Text className="mb-2 text-sm font-bold" style={{ color: colors.text }}>{label}</Text>
+      <View className="flex-row items-center rounded-xl border px-4" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+        <TextInput secureTextEntry value={value} onChangeText={onChangeText} placeholder={placeholder} placeholderTextColor={colors.muted} className="flex-1 py-3" style={{ color: colors.text }} />
         <Shield size={17} color="#8fa0bb" />
       </View>
     </View>
@@ -338,15 +350,18 @@ function PasswordInput({ label, placeholder, value, onChangeText }) {
 }
 
 function Requirement({ children }) {
+  const { colors } = useAppTheme();
+
   return (
     <View className="mb-4 flex-row items-center">
       <CheckCircle2 size={16} color="#22c55e" />
-      <Text className="ml-3 text-sm text-muted">{children}</Text>
+      <Text className="ml-3 text-sm" style={{ color: colors.muted }}>{children}</Text>
     </View>
   );
 }
 
 function AccountInfoTile({ label, value, badge, tone = 'success' }) {
+  const { colors } = useAppTheme();
   const toneStyle = tone === 'danger'
     ? { backgroundColor: '#f24d5826', color: '#f24d58' }
     : tone === 'warning'
@@ -355,28 +370,30 @@ function AccountInfoTile({ label, value, badge, tone = 'success' }) {
 
   return (
     <View className="min-w-[160px] flex-1">
-      <Text className="mb-2 text-sm text-muted">{label}</Text>
+      <Text className="mb-2 text-sm" style={{ color: colors.muted }}>{label}</Text>
       {badge ? (
         <View className="self-start rounded-lg px-3 py-2" style={{ backgroundColor: toneStyle.backgroundColor }}>
           <Text className="font-bold" style={{ color: toneStyle.color }}>{value}</Text>
         </View>
       ) : (
-        <Text className="text-base font-bold text-white">{value}</Text>
+        <Text className="text-base font-bold" style={{ color: colors.text }}>{value}</Text>
       )}
     </View>
   );
 }
 
 function SettingsPanel({ icon: Icon, title, subtitle, children }) {
+  const { colors } = useAppTheme();
+
   return (
-    <View className="rounded-2xl border border-border bg-surface p-5 lg:p-7">
+    <View className="rounded-2xl border p-5 lg:p-7" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
       <View className="mb-6 flex-row items-center">
         <View className="mr-4 h-12 w-12 items-center justify-center rounded-xl bg-primary/15">
           <Icon size={20} color="#D4AF37" />
         </View>
         <View className="flex-1">
-          <Text className="text-2xl font-extrabold text-white">{title}</Text>
-          {subtitle ? <Text className="mt-1 text-muted">{subtitle}</Text> : null}
+          <Text className="text-2xl font-extrabold" style={{ color: colors.text }}>{title}</Text>
+          {subtitle ? <Text className="mt-1" style={{ color: colors.muted }}>{subtitle}</Text> : null}
         </View>
       </View>
       {children}
@@ -385,13 +402,15 @@ function SettingsPanel({ icon: Icon, title, subtitle, children }) {
 }
 
 function ToggleRow({ title, subtitle, enabled = false }) {
+  const { colors } = useAppTheme();
+
   return (
-    <View className="mb-3 flex-row items-center justify-between rounded-xl border border-border bg-panel p-4">
+    <View className="mb-3 flex-row items-center justify-between rounded-xl border p-4" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
       <View className="flex-1 pr-4">
-        <Text className="font-bold text-white">{title}</Text>
-        <Text className="mt-1 text-sm text-muted">{subtitle}</Text>
+        <Text className="font-bold" style={{ color: colors.text }}>{title}</Text>
+        <Text className="mt-1 text-sm" style={{ color: colors.muted }}>{subtitle}</Text>
       </View>
-      <View className={`h-7 w-12 justify-center rounded-full px-1 ${enabled ? 'items-end bg-primary' : 'items-start bg-surface'}`}>
+      <View className={`h-7 w-12 justify-center rounded-full px-1 ${enabled ? 'items-end bg-primary' : 'items-start'}`} style={{ backgroundColor: enabled ? colors.primary : colors.surface }}>
         <View className="h-5 w-5 rounded-full bg-white" />
       </View>
     </View>
@@ -409,6 +428,7 @@ const normalizeBankAccount = (account) => ({
 
 export default function SettingsScreen() {
   const { user, logout, updateProfile } = useAuth();
+  const { colors } = useAppTheme();
   const profileImageInputRef = useRef(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -730,19 +750,21 @@ export default function SettingsScreen() {
   const activeSettings = settingsSections.find((section) => section.key === activeSection) || settingsSections[0];
 
   return (
-    <ScrollView className="flex-1 bg-[#0B0B0B]" contentContainerClassName="p-4 lg:p-8">
+    <ScrollView className="flex-1" style={{ backgroundColor: colors.background }} contentContainerClassName="p-4 lg:p-8">
       <View className="mb-5 flex-row flex-wrap items-center justify-between gap-3">
         <View>
-          <Text className="text-3xl font-extrabold text-white">Settings</Text>
-          <Text className="mt-1 text-muted">Manage your account preferences and security</Text>
+          <Text className="text-3xl font-extrabold" style={{ color: colors.text }}>Settings</Text>
+          <Text className="mt-1" style={{ color: colors.muted }}>Manage your account preferences and security</Text>
         </View>
-        <Pressable onPress={() => router.push('/dashboard')} className="rounded-xl border border-border bg-panel px-4 py-3">
+        <Pressable onPress={() => router.push('/dashboard')} className="rounded-xl border px-4 py-3" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
           <Text className="font-bold text-primary">Back to Dashboard</Text>
         </Pressable>
       </View>
 
-      <View className="overflow-hidden rounded-2xl border border-border bg-panel lg:flex-row">
-        <View className="border-b border-border p-5 lg:w-[320px] lg:border-b-0 lg:border-r">
+      <DashboardTabs activeKey="settings" />
+
+      <View className="overflow-hidden rounded-2xl border lg:flex-row" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+        <View className="border-b p-5 lg:w-[320px] lg:border-b-0 lg:border-r" style={{ borderColor: colors.border }}>
 
 
           <View className="mt-7 gap-2">
@@ -762,15 +784,15 @@ export default function SettingsScreen() {
         <View className="flex-1 p-5 lg:p-8">
           <View className="mb-6 flex-row flex-wrap items-center justify-between gap-4">
             <View>
-              <Text className="text-3xl font-extrabold text-white">{activeSettings.title}</Text>
-              <Text className="mt-2 text-muted">{activeSettings.subtitle}</Text>
+              <Text className="text-3xl font-extrabold" style={{ color: colors.text }}>{activeSettings.title}</Text>
+              <Text className="mt-2" style={{ color: colors.muted }}>{activeSettings.subtitle}</Text>
             </View>
             {activeSection === 'profile' ? (
               <View className="flex-row flex-wrap gap-3">
                 {editingProfile ? (
                   <>
-                    <Pressable onPress={cancelProfileEdit} className="rounded-xl border border-border bg-panel px-6 py-4">
-                      <Text className="font-extrabold text-white">Cancel</Text>
+                    <Pressable onPress={cancelProfileEdit} className="rounded-xl border px-6 py-4" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+                      <Text className="font-extrabold" style={{ color: colors.text }}>Cancel</Text>
                     </Pressable>
                     <Pressable onPress={saveSettings} className="flex-row items-center rounded-xl bg-primary px-6 py-4">
                       <Save size={17} color="#05130d" />
@@ -790,11 +812,11 @@ export default function SettingsScreen() {
           {error ? <Text className="mb-5 rounded-xl border border-danger/40 bg-danger/10 p-4 text-danger">{error}</Text> : null}
 
           {activeSection === 'profile' ? (
-            <View className="rounded-2xl border border-border bg-surface p-5 lg:p-7">
-            <Text className="mb-6 text-2xl font-extrabold text-white">Profile Information</Text>
+            <View className="rounded-2xl border p-5 lg:p-7" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
+            <Text className="mb-6 text-2xl font-extrabold" style={{ color: colors.text }}>Profile Information</Text>
             <View className="gap-8 lg:flex-row">
               <View className="items-center lg:w-[300px]">
-                <View className="h-40 w-40 overflow-hidden rounded-full border border-border bg-panel">
+                <View className="h-40 w-40 overflow-hidden rounded-full border" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
                   {profileForm.profileImage ? (
                     <Image source={{ uri: profileForm.profileImage }} className="h-full w-full" resizeMode="cover" />
                   ) : (
@@ -833,7 +855,7 @@ export default function SettingsScreen() {
                     ) : null}
                   </View>
                 ) : null}
-                <Text className="mt-6 text-xl font-extrabold text-white">{profileForm.name || 'NovaFXM User'}</Text>
+                <Text className="mt-6 text-xl font-extrabold" style={{ color: colors.text }}>{profileForm.name || 'NovaFXM User'}</Text>
                 <View className="mt-3 rounded-lg px-3 py-2" style={{ backgroundColor: user?.verificationStatus === 'approved' ? '#12cf7a26' : '#D4AF3726' }}>
                   <Text className="font-bold" style={{ color: user?.verificationStatus === 'approved' ? '#12cf7a' : '#D4AF37' }}>
                     {user?.verificationStatus === 'approved' ? 'Verified' : 'Not Verified'}
@@ -841,7 +863,7 @@ export default function SettingsScreen() {
                 </View>
                 <View className="mt-4 flex-row items-center">
                   <CalendarDays size={15} color="#8fa0bb" />
-                  <Text className="ml-2 text-muted">Member since {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'NovaFXM'}</Text>
+                  <Text className="ml-2" style={{ color: colors.muted }}>Member since {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'NovaFXM'}</Text>
                 </View>
               </View>
 
@@ -857,14 +879,14 @@ export default function SettingsScreen() {
           ) : null}
 
           {activeSection === 'security' ? (
-            <View className="rounded-2xl border border-border bg-surface p-5 lg:p-7">
+            <View className="rounded-2xl border p-5 lg:p-7" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
             <View className="mb-6 flex-row items-center">
               <View className="mr-4 h-12 w-12 items-center justify-center rounded-xl bg-primary/15">
                 <LockKeyhole size={20} color="#D4AF37" />
               </View>
               <View>
-                <Text className="text-2xl font-extrabold text-white">Change Password</Text>
-                <Text className="mt-1 text-muted">Ensure your account is using a long, random password to stay secure.</Text>
+                <Text className="text-2xl font-extrabold" style={{ color: colors.text }}>Change Password</Text>
+                <Text className="mt-1" style={{ color: colors.muted }}>Ensure your account is using a long, random password to stay secure.</Text>
               </View>
             </View>
             <View className="gap-5 lg:flex-row">
@@ -900,9 +922,9 @@ export default function SettingsScreen() {
                   <LockKeyhole size={16} color="#05130d" />
                   <Text className="ml-2 font-extrabold text-black">{passwordBusy ? 'Updating...' : 'Update Password'}</Text>
                 </Pressable>
-                {passwordMessage ? <Text className="mt-3 text-sm text-muted">{passwordMessage}</Text> : null}
+                {passwordMessage ? <Text className="mt-3 text-sm" style={{ color: colors.muted }}>{passwordMessage}</Text> : null}
               </View>
-              <View className="rounded-2xl border border-border bg-panel p-5 lg:w-[300px]">
+              <View className="rounded-2xl border p-5 lg:w-[300px]" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
                 <Text className="mb-5 font-bold text-success">Password Requirements</Text>
                 <Requirement>Minimum 8 characters</Requirement>
                 <Requirement>At least 1 uppercase letter</Requirement>
@@ -911,14 +933,14 @@ export default function SettingsScreen() {
                 <Requirement>At least 1 special character</Requirement>
               </View>
             </View>
-            <View className="mt-5 rounded-2xl border border-border bg-panel p-5">
+            <View className="mt-5 rounded-2xl border p-5" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
               <View className="mb-4 flex-row items-center">
                 <View className="mr-3 h-10 w-10 items-center justify-center rounded-xl bg-primary/15">
                   <Shield size={18} color="#D4AF37" />
                 </View>
                 <View className="flex-1">
-                  <Text className="text-lg font-extrabold text-white">Forgot Password</Text>
-                  <Text className="mt-1 text-sm text-muted">Send a reset code to your registered email address.</Text>
+                  <Text className="text-lg font-extrabold" style={{ color: colors.text }}>Forgot Password</Text>
+                  <Text className="mt-1 text-sm" style={{ color: colors.muted }}>Send a reset code to your registered email address.</Text>
                 </View>
               </View>
               <View className="lg:flex-row lg:items-end lg:gap-3">
@@ -937,7 +959,7 @@ export default function SettingsScreen() {
                   <Text className="font-bold text-primary">{forgotBusy ? 'Sending...' : 'Send Code'}</Text>
                 </Pressable>
               </View>
-              <View className="rounded-xl border border-border bg-surface p-4">
+              <View className="rounded-xl border p-4" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
                 <SettingsInput
                   label="Reset Code"
                   value={forgotToken}
@@ -954,7 +976,7 @@ export default function SettingsScreen() {
                   <Text className="ml-2 font-extrabold text-black">Reset Password</Text>
                 </Pressable>
               </View>
-              {forgotMessage ? <Text className="text-sm text-muted">{forgotMessage}</Text> : null}
+              {forgotMessage ? <Text className="text-sm" style={{ color: colors.muted }}>{forgotMessage}</Text> : null}
             </View>
             </View>
           ) : null}
@@ -971,7 +993,7 @@ export default function SettingsScreen() {
 
           {activeSection === 'payments' ? (
             <SettingsPanel icon={CreditCard} title="Bank Account Details" subtitle="Save your withdrawal bank account details.">
-              <View className="rounded-xl border border-border bg-panel p-4">
+              <View className="rounded-xl border p-4" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
                 <View className="lg:flex-row lg:gap-4">
                   <SettingsInput
                     className="flex-1"
@@ -1021,16 +1043,16 @@ export default function SettingsScreen() {
                   <Save size={16} color="#05130d" />
                   <Text className="ml-2 font-extrabold text-black">{bankBusy ? 'Saving...' : editingBankAccountId ? 'Update Bank Details' : 'Save Bank Details'}</Text>
                 </Pressable>
-                {bankMessage ? <Text className="mt-3 text-sm text-muted">{bankMessage}</Text> : null}
+                {bankMessage ? <Text className="mt-3 text-sm" style={{ color: colors.muted }}>{bankMessage}</Text> : null}
               </View>
               {bankAccounts.length ? (
                 <View className="mt-4 gap-3">
-                  <Text className="text-base font-extrabold text-white">Saved Bank Account Details</Text>
+                  <Text className="text-base font-extrabold" style={{ color: colors.text }}>Saved Bank Account Details</Text>
                   {bankAccounts.map((account, index) => (
                     <View key={account.id || `${account.bankAccountNumber}-${index}`} className="rounded-xl border border-primary/30 bg-primary/10 p-4">
                       <View className="mb-4 flex-row flex-wrap items-center justify-between gap-3">
                         <View className="flex-row flex-wrap items-center gap-2">
-                          <Text className="font-extrabold text-white">Account {index + 1}</Text>
+                          <Text className="font-extrabold" style={{ color: colors.text }}>Account {index + 1}</Text>
                           <Text className={`rounded-full px-3 py-1 text-xs font-bold ${account.status === 'approved' ? 'bg-success/10 text-success' : account.status === 'rejected' ? 'bg-danger/10 text-danger' : 'bg-primary/10 text-primary'}`}>
                             {account.status === 'approved' ? 'Approved' : account.status === 'rejected' ? 'Rejected' : account.status === 'delete_pending' ? 'Delete Pending' : 'Pending'}
                           </Text>
@@ -1047,24 +1069,24 @@ export default function SettingsScreen() {
                       {account.status === 'approved' ? (
                         <View className="gap-3">
                           <View>
-                            <Text className="text-xs uppercase text-muted">Account Holder</Text>
-                            <Text className="mt-1 font-bold text-white">{account.bankAccountHolder || '-'}</Text>
+                            <Text className="text-xs uppercase" style={{ color: colors.muted }}>Account Holder</Text>
+                            <Text className="mt-1 font-bold" style={{ color: colors.text }}>{account.bankAccountHolder || '-'}</Text>
                           </View>
                           <View>
-                            <Text className="text-xs uppercase text-muted">Bank Name</Text>
-                            <Text className="mt-1 font-bold text-white">{account.bankName || '-'}</Text>
+                            <Text className="text-xs uppercase" style={{ color: colors.muted }}>Bank Name</Text>
+                            <Text className="mt-1 font-bold" style={{ color: colors.text }}>{account.bankName || '-'}</Text>
                           </View>
                           <View>
-                            <Text className="text-xs uppercase text-muted">Branch</Text>
-                            <Text className="mt-1 font-bold text-white">{account.bankBranch || '-'}</Text>
+                            <Text className="text-xs uppercase" style={{ color: colors.muted }}>Branch</Text>
+                            <Text className="mt-1 font-bold" style={{ color: colors.text }}>{account.bankBranch || '-'}</Text>
                           </View>
                           <View>
-                            <Text className="text-xs uppercase text-muted">Account Number</Text>
-                            <Text className="mt-1 font-bold text-white">{account.bankAccountNumber || '-'}</Text>
+                            <Text className="text-xs uppercase" style={{ color: colors.muted }}>Account Number</Text>
+                            <Text className="mt-1 font-bold" style={{ color: colors.text }}>{account.bankAccountNumber || '-'}</Text>
                           </View>
                         </View>
                       ) : (
-                        <View className={`rounded-xl border p-4 ${account.status === 'rejected' ? 'border-danger/40 bg-danger/10' : 'border-primary/40 bg-panel'}`}>
+                        <View className={`rounded-xl border p-4 ${account.status === 'rejected' ? 'border-danger/40 bg-danger/10' : 'border-primary/40'}`} style={{ backgroundColor: account.status === 'rejected' ? undefined : colors.panel }}>
                           <Text className={`font-bold ${account.status === 'rejected' ? 'text-danger' : 'text-primary'}`}>
                             {account.status === 'rejected'
                               ? 'Bank account details rejected'
@@ -1072,7 +1094,7 @@ export default function SettingsScreen() {
                                 ? 'Bank account delete request pending admin approval'
                                 : 'Bank account details pending admin approval'}
                           </Text>
-                          <Text className="mt-2 text-sm text-muted">
+                          <Text className="mt-2 text-sm" style={{ color: colors.muted }}>
                             {account.status === 'rejected'
                               ? 'Please edit and resubmit your bank account details.'
                               : account.status === 'delete_pending'
@@ -1085,9 +1107,9 @@ export default function SettingsScreen() {
                   ))}
                 </View>
               ) : (
-                <View className="mt-4 rounded-xl border border-border bg-panel p-4">
-                  <Text className="font-bold text-white">Saved Bank Account Details</Text>
-                  <Text className="mt-2 text-sm text-muted">No bank account details saved yet.</Text>
+                <View className="mt-4 rounded-xl border p-4" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+                  <Text className="font-bold" style={{ color: colors.text }}>Saved Bank Account Details</Text>
+                  <Text className="mt-2 text-sm" style={{ color: colors.muted }}>No bank account details saved yet.</Text>
                 </View>
               )}
             </SettingsPanel>
@@ -1095,9 +1117,9 @@ export default function SettingsScreen() {
 
           {activeSection === 'session' ? (
             <SettingsPanel icon={LogOut} title="Session" subtitle="Manage your current login session.">
-              <View className="rounded-xl border border-border bg-panel p-4">
-                <Text className="font-bold text-white">Current Session</Text>
-                <Text className="mt-2 text-sm text-muted">Signed in as {user?.email || 'NovaFXM user'}.</Text>
+              <View className="rounded-xl border p-4" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+                <Text className="font-bold" style={{ color: colors.text }}>Current Session</Text>
+                <Text className="mt-2 text-sm" style={{ color: colors.muted }}>Signed in as {user?.email || 'NovaFXM user'}.</Text>
               </View>
               <CustomButton title="Logout" variant="danger" onPress={signOut} className="mt-5 max-w-[220px]" />
             </SettingsPanel>

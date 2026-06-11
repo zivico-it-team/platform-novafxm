@@ -3,32 +3,34 @@ import { Link, router } from 'expo-router';
 import { Copy, RefreshCcw, UsersRound } from 'lucide-react-native';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import CustomButton from '../src/components/common/CustomButton';
+import DashboardTabs from '../src/components/layout/DashboardTabs';
 import { dashboardService } from '../src/services/dashboardService';
 import { useAuth } from '../src/hooks/useAuth';
+import { useAppTheme } from '../src/context/ThemeContext';
 
-function Metric({ label, value, hint }) {
+function Metric({ label, value, hint, colors }) {
   return (
-    <View className="min-w-[190px] flex-1 rounded-2xl border border-border bg-surface p-4">
-      <Text className="text-xs font-bold uppercase text-muted">{label}</Text>
-      <Text className="mt-2 text-2xl font-black text-white">{value}</Text>
-      {hint ? <Text className="mt-1 text-xs text-muted">{hint}</Text> : null}
+    <View className="min-w-[190px] flex-1 rounded-2xl border p-4" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
+      <Text className="text-xs font-bold uppercase" style={{ color: colors.muted }}>{label}</Text>
+      <Text className="mt-2 text-2xl font-black" style={{ color: colors.text }}>{value}</Text>
+      {hint ? <Text className="mt-1 text-xs" style={{ color: colors.muted }}>{hint}</Text> : null}
     </View>
   );
 }
 
-function ReferralCard({ referral }) {
+function ReferralCard({ referral, colors }) {
   return (
-    <View className="rounded-xl border border-border bg-surface p-4">
+    <View className="rounded-xl border p-4" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
       <View className="flex-row items-center justify-between">
         <View className="min-w-0 flex-1">
-          <Text className="font-black text-white" numberOfLines={1}>{referral.name || 'Client'}</Text>
-          <Text className="mt-1 text-sm text-muted" numberOfLines={1}>{referral.email || '-'}</Text>
+          <Text className="font-black" style={{ color: colors.text }} numberOfLines={1}>{referral.name || 'Client'}</Text>
+          <Text className="mt-1 text-sm" style={{ color: colors.muted }} numberOfLines={1}>{referral.email || '-'}</Text>
         </View>
-        <View className="rounded-full bg-panel px-3 py-1">
-          <Text className="text-xs font-bold text-primary">{referral.accountType || 'Demo'}</Text>
+        <View className="rounded-full px-3 py-1" style={{ backgroundColor: colors.panel }}>
+          <Text className="text-xs font-bold" style={{ color: colors.primary }}>{referral.accountType || 'Demo'}</Text>
         </View>
       </View>
-      <Text className="mt-2 text-xs text-muted">
+      <Text className="mt-2 text-xs" style={{ color: colors.muted }}>
         Joined {referral.createdAt ? new Date(referral.createdAt).toLocaleDateString() : '-'}
       </Text>
     </View>
@@ -37,6 +39,7 @@ function ReferralCard({ referral }) {
 
 export default function BrokerRewardsScreen() {
   const { user } = useAuth();
+  const { colors } = useAppTheme();
   const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -72,59 +75,62 @@ export default function BrokerRewardsScreen() {
   };
 
   return (
-    <ScrollView className="flex-1 bg-[#0B0B0B]" contentContainerClassName="p-4 lg:p-8">
+    <ScrollView className="flex-1" style={{ backgroundColor: colors.background }} contentContainerClassName="p-4 lg:p-8">
       <View className="mb-6 flex-row flex-wrap items-center justify-between gap-3">
         <View>
-          <Text className="text-3xl font-black text-white">Broker Rewards</Text>
-          <Text className="mt-1 text-muted">{user?.email || 'Track your referral link, clients, and commission.'}</Text>
+          <Text className="text-3xl font-black" style={{ color: colors.text }}>Broker Rewards</Text>
+          <Text className="mt-1" style={{ color: colors.muted }}>{user?.email || 'Track your referral link, clients, and commission.'}</Text>
         </View>
         <View className="flex-row flex-wrap gap-3">
-          <Pressable onPress={() => loadDashboard().catch(() => {})} className="flex-row items-center rounded-xl border border-border bg-panel px-4 py-3">
+          <Pressable onPress={() => loadDashboard().catch(() => {})} className="flex-row items-center rounded-xl border px-4 py-3" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
             <RefreshCcw size={16} color={loading ? '#D4AF37' : '#8fa0bb'} />
-            <Text className="ml-2 font-bold text-white">Refresh</Text>
+            <Text className="ml-2 font-bold" style={{ color: colors.text }}>Refresh</Text>
           </Pressable>
           <Link href="/dashboard" asChild>
-            <Pressable className="rounded-xl border border-border bg-panel px-4 py-3">
-              <Text className="font-bold text-primary">Back to Dashboard</Text>
+            <Pressable className="rounded-xl border px-4 py-3" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+              <Text className="font-bold" style={{ color: colors.primary }}>Back to Dashboard</Text>
             </Pressable>
           </Link>
         </View>
       </View>
 
-      <View className="mb-5 overflow-hidden rounded-2xl border border-primary/40 bg-panel p-5">
-        <Text className="text-sm font-black uppercase tracking-[1px] text-primary">Your Broker Code</Text>
-        <Text className="mt-3 text-4xl font-black text-white">{referral.code || '-'}</Text>
+      <DashboardTabs activeKey="rewards" />
+
+      <View className="mb-5 overflow-hidden rounded-2xl border p-5" style={{ backgroundColor: colors.panel, borderColor: colors.primary }}>
+        <Text className="text-sm font-black uppercase tracking-[1px]" style={{ color: colors.primary }}>Your Broker Code</Text>
+        <Text className="mt-3 text-4xl font-black" style={{ color: colors.text }}>{referral.code || '-'}</Text>
         {referral.referrer ? (
-          <Text className="mt-2 text-muted">You were referred by {referral.referrer.name || referral.referrer.email}</Text>
+          <Text className="mt-2" style={{ color: colors.muted }}>You were referred by {referral.referrer.name || referral.referrer.email}</Text>
         ) : (
-          <Text className="mt-2 text-muted">Share your link below. New users registered from it are linked to you.</Text>
+          <Text className="mt-2" style={{ color: colors.muted }}>Share your link below. New users registered from it are linked to you.</Text>
         )}
         <TextInput
           editable={false}
           value={referralUrl}
-          className="mt-5 rounded-xl border border-border bg-surface p-4 text-white"
+          className="mt-5 rounded-xl border p-4"
+          style={{ backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }}
         />
         <CustomButton title={copied ? 'Copied' : 'Copy Referral URL'} onPress={copyReferral} className="mt-4 max-w-[240px]" />
       </View>
 
       <View className="mb-5 flex-row flex-wrap gap-3">
-        <Metric label="My Referrals" value={String(referral.referralCount || referrals.length || 0)} hint="Users registered through your link" />
-        <Metric label="Pending Deposits" value={`${pendingDeposits.toFixed(2)} USD`} hint="Waiting for approval" />
-        <Metric label="Approved Deposits" value={`${approvedDeposits.toFixed(2)} USD`} hint="Confirmed referral volume" />
-        <Metric label="Commission" value={`${commission.toFixed(2)} USD`} hint={`${(commissionRate * 100).toFixed(2)}% rate`} />
+        <Metric label="My Referrals" value={String(referral.referralCount || referrals.length || 0)} hint="Users registered through your link" colors={colors} />
+        <Metric label="Pending Deposits" value={`${pendingDeposits.toFixed(2)} USD`} hint="Waiting for approval" colors={colors} />
+        <Metric label="Approved Deposits" value={`${approvedDeposits.toFixed(2)} USD`} hint="Confirmed referral volume" colors={colors} />
+        <Metric label="Commission" value={`${commission.toFixed(2)} USD`} hint={`${(commissionRate * 100).toFixed(2)}% rate`} colors={colors} />
       </View>
 
-      <View className="rounded-2xl border border-border bg-panel p-5">
+      <View className="rounded-2xl border p-5" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
         <View className="mb-4 flex-row items-center justify-between">
           <View>
-            <Text className="text-xl font-black text-white">My Referrals</Text>
-            <Text className="mt-1 text-muted">Every client linked to your referral code.</Text>
+            <Text className="text-xl font-black" style={{ color: colors.text }}>My Referrals</Text>
+            <Text className="mt-1" style={{ color: colors.muted }}>Every client linked to your referral code.</Text>
           </View>
           <UsersRound size={24} color="#D4AF37" />
         </View>
         <View className="gap-3">
-          {referrals.map((item) => <ReferralCard key={item.id} referral={item} />)}
-          {!referrals.length ? <Text className="rounded-xl border border-dashed border-border bg-surface p-5 text-muted">No referrals yet.</Text> : null}
+          {referrals.map((item) => <ReferralCard key={item.id} referral={item} colors={colors} />)}
+          {!referrals.length ? <Text className="rounded-xl border border-dashed p-5" style={{ backgroundColor: colors.surface, borderColor: colors.border, color: colors.muted }}>No referrals yet.</Text> : null}
         </View>
       </View>
     </ScrollView>

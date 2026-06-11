@@ -2,8 +2,10 @@ import { Link, router } from 'expo-router';
 import { CheckCircle2, FileText, UploadCloud, X } from 'lucide-react-native';
 import { useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import DashboardTabs from '../src/components/layout/DashboardTabs';
 import NovaLogo from '../src/components/brand/NovaLogo';
 import { useAuth } from '../src/hooks/useAuth';
+import { useAppTheme } from '../src/context/ThemeContext';
 
 const BLACK = '#0B0B0B';
 const GOLD = '#D4AF37';
@@ -22,7 +24,7 @@ function readFileDataUrl(file) {
   });
 }
 
-function UploadBox({ title, file, onSelect, onClear }) {
+function UploadBox({ title, file, onSelect, onClear, colors }) {
   const inputRef = useRef(null);
   const ready = Boolean(file);
 
@@ -31,14 +33,14 @@ function UploadBox({ title, file, onSelect, onClear }) {
   };
 
   return (
-    <View className="rounded-2xl border" style={{ backgroundColor: '#101010', borderColor: ready ? GOLD : GREEN }}>
+    <View className="rounded-2xl border" style={{ backgroundColor: colors.panel, borderColor: ready ? GOLD : GREEN }}>
       <View className="border-b px-5 py-4" style={{ borderColor: GREEN }}>
-        <Text className="font-extrabold text-white">{title}</Text>
+        <Text className="font-extrabold" style={{ color: colors.text }}>{title}</Text>
       </View>
       <Pressable
         onPress={openPicker}
         className="m-5 min-h-[180px] items-center justify-center rounded-2xl border border-dashed p-6"
-        style={{ backgroundColor: BLACK, borderColor: ready ? GOLD : '#3a3a3a' }}
+        style={{ backgroundColor: colors.surface, borderColor: ready ? GOLD : colors.border }}
       >
         {Platform.OS === 'web' ? (
           <input
@@ -52,8 +54,8 @@ function UploadBox({ title, file, onSelect, onClear }) {
         <View className="mb-4 h-16 w-16 items-center justify-center rounded-2xl" style={{ backgroundColor: ready ? 'rgba(212, 175, 55, .16)' : 'rgba(1, 68, 33, .55)' }}>
           {ready ? <CheckCircle2 size={34} color={GOLD} /> : <UploadCloud size={34} color={GOLD} />}
         </View>
-        <Text className="text-center text-lg font-extrabold text-white">{ready ? fileName(file) : 'Drop your file to upload or browse'}</Text>
-        <Text className="mt-2 text-center text-sm text-muted">Upload a clear photo. JPG or PNG works best.</Text>
+        <Text className="text-center text-lg font-extrabold" style={{ color: colors.text }}>{ready ? fileName(file) : 'Drop your file to upload or browse'}</Text>
+        <Text className="mt-2 text-center text-sm" style={{ color: colors.muted }}>Upload a clear photo. JPG or PNG works best.</Text>
         {ready ? (
           <Pressable
             onPress={(event) => {
@@ -74,6 +76,7 @@ function UploadBox({ title, file, onSelect, onClear }) {
 
 export default function VerificationUploadScreen() {
   const { submitVerification } = useAuth();
+  const { colors } = useAppTheme();
   const [idProof, setIdProof] = useState(null);
   const [addressProof, setAddressProof] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -101,21 +104,23 @@ export default function VerificationUploadScreen() {
   };
 
   return (
-    <ScrollView className="flex-1" style={{ backgroundColor: BLACK }} contentContainerClassName="p-4 lg:p-8">
+    <ScrollView className="flex-1" style={{ backgroundColor: colors.background }} contentContainerClassName="p-4 lg:p-8">
       <View className="mb-6 flex-row flex-wrap items-center justify-between gap-3">
         <View className="flex-row items-center">
           <NovaLogo dark width={150} height={38} />
           <View className="ml-5">
-            <Text className="text-3xl font-extrabold text-white">Upload Documents</Text>
-            <Text className="mt-1 text-muted">Both required photos must be uploaded before completion.</Text>
+            <Text className="text-3xl font-extrabold" style={{ color: colors.text }}>Upload Documents</Text>
+            <Text className="mt-1" style={{ color: colors.muted }}>Both required photos must be uploaded before completion.</Text>
           </View>
         </View>
         <Link href="/verification" asChild><Pressable><Text style={{ color: GOLD }}>Back to Verification</Text></Pressable></Link>
       </View>
 
+      <DashboardTabs activeKey="verification" />
+
       <View className="gap-4">
-        <UploadBox title="ID Proof" file={idProof} onSelect={setIdProof} onClear={() => setIdProof(null)} />
-        <UploadBox title="Address Proof" file={addressProof} onSelect={setAddressProof} onClear={() => setAddressProof(null)} />
+        <UploadBox title="ID Proof" file={idProof} onSelect={setIdProof} onClear={() => setIdProof(null)} colors={colors} />
+        <UploadBox title="Address Proof" file={addressProof} onSelect={setAddressProof} onClear={() => setAddressProof(null)} colors={colors} />
       </View>
       {success ? <Text className="mt-4 rounded-xl border border-success/40 bg-success/10 p-4 text-success">{success}</Text> : null}
       {error ? <Text className="mt-4 rounded-xl border border-danger/40 bg-danger/10 p-4 text-danger">{error}</Text> : null}
@@ -124,9 +129,9 @@ export default function VerificationUploadScreen() {
         <Pressable
           onPress={() => router.push('/verification')}
           className="h-12 min-w-[180px] items-center justify-center rounded-xl border px-6"
-          style={{ borderColor: GREEN, backgroundColor: '#101010' }}
+          style={{ borderColor: GREEN, backgroundColor: colors.panel }}
         >
-          <Text className="font-extrabold text-white">Cancel</Text>
+          <Text className="font-extrabold" style={{ color: colors.text }}>Cancel</Text>
         </Pressable>
         <Pressable
           disabled={!complete || busy}

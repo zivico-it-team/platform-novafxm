@@ -3,52 +3,53 @@ import { Pressable, Text, View } from 'react-native';
 import CustomButton from '../common/CustomButton';
 import CustomInput from '../common/CustomInput';
 import { dateTime, money } from '../../utils/formatters';
+import { useAppTheme } from '../../context/ThemeContext';
 
-function Option({ active, label, onPress }) {
+function Option({ active, label, onPress, colors }) {
   return (
     <Pressable
       onPress={onPress}
       className="min-h-[42px] flex-1 items-center justify-center rounded-xl border px-3"
-      style={{ backgroundColor: active ? '#D4AF37' : '#111827', borderColor: active ? '#D4AF37' : '#243142' }}
+      style={{ backgroundColor: active ? colors.primary : colors.surface, borderColor: active ? colors.primary : colors.border }}
     >
-      <Text className="text-sm font-bold" style={{ color: active ? '#05130d' : '#f8fafc' }}>{label}</Text>
+      <Text className="text-sm font-bold" style={{ color: active ? '#05130d' : colors.text }}>{label}</Text>
     </Pressable>
   );
 }
 
-function InfoTile({ label, value, tone = 'text-white' }) {
+function InfoTile({ label, value, tone, colors }) {
   return (
-    <View className="min-w-[145px] flex-1 rounded-xl border border-border bg-surface p-3">
-      <Text className="text-xs font-semibold uppercase text-muted">{label}</Text>
-      <Text className={`mt-2 text-base font-extrabold ${tone}`}>{value}</Text>
+    <View className="min-w-[145px] flex-1 rounded-xl border p-3" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
+      <Text className="text-xs font-semibold uppercase" style={{ color: colors.muted }}>{label}</Text>
+      <Text className="mt-2 text-base font-extrabold" style={{ color: tone || colors.text }}>{value}</Text>
     </View>
   );
 }
 
-function WithdrawalHistory({ withdrawals }) {
+function WithdrawalHistory({ withdrawals, colors }) {
   return (
-    <View className="mt-5 rounded-2xl border border-border bg-surface p-4">
-      <Text className="mb-3 text-base font-bold text-white">Withdrawal History</Text>
+    <View className="mt-5 rounded-2xl border p-4" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
+      <Text className="mb-3 text-base font-bold" style={{ color: colors.text }}>Withdrawal History</Text>
       {withdrawals.length ? (
-        <View className="overflow-hidden rounded-xl border border-border">
-          <View className="flex-row bg-panel px-3 py-2">
-            <Text className="flex-[1.4] text-xs font-bold uppercase text-muted">Date</Text>
-            <Text className="flex-1 text-xs font-bold uppercase text-muted">Method</Text>
-            <Text className="flex-1 text-xs font-bold uppercase text-muted">Amount</Text>
-            <Text className="flex-1 text-xs font-bold uppercase text-muted">Status</Text>
+        <View className="overflow-hidden rounded-xl border" style={{ borderColor: colors.border }}>
+          <View className="flex-row px-3 py-2" style={{ backgroundColor: colors.panel }}>
+            <Text className="flex-[1.4] text-xs font-bold uppercase" style={{ color: colors.muted }}>Date</Text>
+            <Text className="flex-1 text-xs font-bold uppercase" style={{ color: colors.muted }}>Method</Text>
+            <Text className="flex-1 text-xs font-bold uppercase" style={{ color: colors.muted }}>Amount</Text>
+            <Text className="flex-1 text-xs font-bold uppercase" style={{ color: colors.muted }}>Status</Text>
           </View>
           {withdrawals.map((item) => (
-            <View key={item.id} className="flex-row border-t border-border px-3 py-3">
-              <Text className="flex-[1.4] text-xs text-muted">{dateTime(item.createdAt)}</Text>
-              <Text className="flex-1 text-xs text-white">{item.withdrawalMethod || (item.description?.toLowerCase().includes('crypto') ? 'Crypto' : 'Bank')}</Text>
-              <Text className="flex-1 text-xs font-semibold text-white">{money(item.amount)} USD</Text>
-              <Text className={`flex-1 text-xs font-bold capitalize ${['approved', 'completed'].includes(item.status) ? 'text-success' : item.status === 'rejected' ? 'text-danger' : 'text-primary'}`}>
+            <View key={item.id} className="flex-row border-t px-3 py-3" style={{ borderColor: colors.border }}>
+              <Text className="flex-[1.4] text-xs" style={{ color: colors.muted }}>{dateTime(item.createdAt)}</Text>
+              <Text className="flex-1 text-xs" style={{ color: colors.text }}>{item.withdrawalMethod || (item.description?.toLowerCase().includes('crypto') ? 'Crypto' : 'Bank')}</Text>
+              <Text className="flex-1 text-xs font-semibold" style={{ color: colors.text }}>{money(item.amount)} USD</Text>
+              <Text className="flex-1 text-xs font-bold capitalize" style={{ color: ['approved', 'completed'].includes(item.status) ? colors.success : item.status === 'rejected' ? colors.danger : colors.primary }}>
                 {item.status}
               </Text>
             </View>
           ))}
         </View>
-      ) : <Text className="text-muted">No withdrawal requests yet.</Text>}
+      ) : <Text style={{ color: colors.muted }}>No withdrawal requests yet.</Text>}
     </View>
   );
 }
@@ -61,6 +62,7 @@ export default function WithdrawForm({
   summary = {},
   transactions = [],
 }) {
+  const { colors } = useAppTheme();
   const [form, setForm] = useState({
     amount: '',
     withdrawalMethod: 'Bank',
@@ -93,18 +95,18 @@ export default function WithdrawForm({
     }
   };
   return (
-    <View className="flex-1 rounded-2xl border border-border bg-panel p-5">
-      <Text className="mb-5 text-lg font-bold text-white">Withdraw Funds</Text>
+    <View className="flex-1 rounded-2xl border p-5" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+      <Text className="mb-5 text-lg font-bold" style={{ color: colors.text }}>Withdraw Funds</Text>
 
       <View className="mb-5 flex-row flex-wrap gap-3">
-        <InfoTile label="Available Balance" value={`${money(availableBalance)} USD`} />
-        <InfoTile label="Withdrawable Balance" value={`${money(withdrawableBalance)} USD`} />
+        <InfoTile label="Available Balance" value={`${money(availableBalance)} USD`} colors={colors} />
+        <InfoTile label="Withdrawable Balance" value={`${money(withdrawableBalance)} USD`} colors={colors} />
       </View>
 
-      <Text className="mb-2 text-sm font-medium text-muted">Withdrawal Method</Text>
+      <Text className="mb-2 text-sm font-medium" style={{ color: colors.muted }}>Withdrawal Method</Text>
       <View className="mb-4 flex-row gap-3">
-        <Option active={form.withdrawalMethod === 'Bank'} label="Bank" onPress={() => setMethod('Bank')} />
-        <Option active={form.withdrawalMethod === 'Crypto'} label="Crypto" onPress={() => setMethod('Crypto')} />
+        <Option active={form.withdrawalMethod === 'Bank'} label="Bank" onPress={() => setMethod('Bank')} colors={colors} />
+        <Option active={form.withdrawalMethod === 'Crypto'} label="Crypto" onPress={() => setMethod('Crypto')} colors={colors} />
       </View>
 
       <CustomInput label="Amount (USD)" keyboardType="decimal-pad" value={form.amount} onChangeText={update('amount')} />
@@ -114,7 +116,7 @@ export default function WithdrawForm({
       <CustomButton title="Request Withdrawal" onPress={submit} loading={loading} disabled={disabled} variant="primary" />
       {disabled && disabledMessage ? <Text className="mt-3 text-sm text-danger">{disabledMessage}</Text> : null}
       {message ? <Text className={`mt-3 text-sm ${message.startsWith('Success') ? 'text-success' : 'text-danger'}`}>{message}</Text> : null}
-      <WithdrawalHistory withdrawals={withdrawals} />
+      <WithdrawalHistory withdrawals={withdrawals} colors={colors} />
     </View>
   );
 }
