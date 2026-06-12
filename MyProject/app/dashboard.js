@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, router, useLocalSearchParams } from 'expo-router';
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import {
   ArrowUpRight,
   CheckCircle2,
@@ -99,6 +99,45 @@ function AccountCard({ account, colors }) {
   );
 }
 
+function AccountGroup({ title, subtitle, accounts, emptyText, colors }) {
+  return (
+    <View className="rounded-2xl border p-4" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
+      <View className="mb-4">
+        <Text className="text-lg font-black" style={{ color: colors.text }}>{title}</Text>
+        <Text className="mt-1 text-xs" style={{ color: colors.muted }}>{subtitle}</Text>
+      </View>
+      <View className="flex-row flex-wrap gap-4">
+        {accounts.map((account) => <AccountCard key={account.id} account={account} colors={colors} />)}
+        {!accounts.length ? (
+          <View className="w-full items-center rounded-2xl border border-dashed p-8" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+            <Plus size={26} color="#D4AF37" />
+            <Text className="mt-3 text-lg font-black" style={{ color: colors.text }}>{emptyText}</Text>
+          </View>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+function CreateAccountConfirm({ type, loading, onCancel, onConfirm, colors }) {
+  return (
+    <Modal visible={Boolean(type)} transparent animationType="fade" onRequestClose={loading ? undefined : onCancel}>
+      <View className="flex-1 items-center justify-center bg-black/70 p-5">
+        <View className="w-full max-w-[420px] rounded-2xl border p-5" style={{ backgroundColor: colors.panel, borderColor: colors.primary }}>
+          <Text className="text-xl font-black" style={{ color: colors.text }}>Create {type || ''} account?</Text>
+          <Text className="mt-2 text-sm leading-5" style={{ color: colors.muted }}>
+            Please verify this action. The {String(type || '').toLowerCase()} account will be created only after you confirm.
+          </Text>
+          <View className="mt-5 flex-row flex-wrap gap-3">
+            <CustomButton title={loading ? 'Creating...' : 'Verify & Create'} onPress={onConfirm} loading={loading} disabled={loading} className="min-w-[170px]" />
+            <CustomButton title="Cancel" variant="secondary" onPress={onCancel} disabled={loading} className="min-w-[120px]" />
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 export default function DashboardScreen() {
   const params = useLocalSearchParams();
   const { user, logout, loading: authLoading } = useAuth();
@@ -109,6 +148,8 @@ export default function DashboardScreen() {
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [accountError, setAccountError] = useState('');
+  const [pendingAccountType, setPendingAccountType] = useState(null);
+  const [accountCreating, setAccountCreating] = useState(false);
 
   const loadDashboard = async () => {
     if (!user) return;
@@ -146,21 +187,32 @@ export default function DashboardScreen() {
   const withdrawalLockedMessage = 'Verification approval is required before withdrawals.';
   const referral = dashboard?.referral || {};
   const accounts = dashboard?.accounts || [];
-  const demoAccountCount = accounts.filter((account) => account.type === 'Demo').length;
-  const liveAccountCount = accounts.filter((account) => account.type === 'Live').length;
+  const demoAccounts = accounts.filter((account) => account.type === 'Demo');
+  const liveAccounts = accounts.filter((account) => account.type === 'Live');
+  const demoAccountCount = demoAccounts.length;
+  const liveAccountCount = liveAccounts.length;
   const transactions = dashboard?.transactions || [];
   const depositTransactions = transactions.filter((item) => item.type === 'deposit');
   const referrals = referral.referrals || [];
   const referralText = useMemo(() => referral.url || '', [referral.url]);
 
-  const createAccount = async (type) => {
+  const askCreateAccount = (type) => {
+    setAccountError('');
+    setPendingAccountType(type);
+  };
+
+  const createAccount = async () => {
+    const type = pendingAccountType;
+    if (!type) return;
     setAccountError('');
     if (!user) {
       router.replace('/login');
       return;
     }
+    setAccountCreating(true);
     try {
-      await dashboardService.createAccount(type);
+      await dashboardService.createAccount(type, true);
+      setPendingAccountType(null);
       await loadDashboard();
     } catch (requestError) {
       if (requestError.response?.status === 401) {
@@ -169,6 +221,8 @@ export default function DashboardScreen() {
         return;
       }
       setAccountError(requestError.response?.data?.message || 'Account could not be created.');
+    } finally {
+      setAccountCreating(false);
     }
   };
 
@@ -249,23 +303,37 @@ export default function DashboardScreen() {
               <Text className="mt-1 text-xs" style={{ color: colors.muted }}>Demo {demoAccountCount}/{DEMO_ACCOUNT_LIMIT} | Live {liveAccountCount}/{LIVE_ACCOUNT_LIMIT}</Text>
             </View>
             <View className="flex-row flex-wrap gap-3">
-              <CustomButton title="Create Demo Account" onPress={() => createAccount('Demo')} disabled={demoAccountCount >= DEMO_ACCOUNT_LIMIT} className="min-w-[210px]" />
-              <CustomButton title="Create Live Account" onPress={() => createAccount('Live')} disabled={liveAccountCount >= LIVE_ACCOUNT_LIMIT} variant="secondary" className="min-w-[210px]" />
+              <CustomButton title="Create Demo Account" onPress={() => askCreateAccount('Demo')} disabled={demoAccountCount >= DEMO_ACCOUNT_LIMIT || accountCreating} className="min-w-[210px]" />
+              <CustomButton title="Create Live Account" onPress={() => askCreateAccount('Live')} disabled={liveAccountCount >= LIVE_ACCOUNT_LIMIT || accountCreating} variant="secondary" className="min-w-[210px]" />
             </View>
           </View>
           {accountError ? <Text className="mb-4 rounded-xl border border-danger/40 bg-danger/10 p-3 text-danger">{accountError}</Text> : null}
-          <View className="flex-row flex-wrap gap-4">
-            {accounts.map((account) => <AccountCard key={account.id} account={account} colors={colors} />)}
-            {!accounts.length && !loading ? (
-              <View className="w-full items-center rounded-2xl border border-dashed p-8" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
-                <Plus size={26} color="#D4AF37" />
-                <Text className="mt-3 text-lg font-black" style={{ color: colors.text }}>No accounts yet</Text>
-                <Text className="mt-1 text-center" style={{ color: colors.muted }}>Create a demo or live account to start trading.</Text>
-              </View>
-            ) : null}
+          <View className="gap-4">
+            <AccountGroup
+              title="Demo Accounts"
+              subtitle={`${demoAccountCount}/${DEMO_ACCOUNT_LIMIT} demo account slots used`}
+              accounts={demoAccounts}
+              emptyText={loading ? 'Loading demo accounts...' : 'No demo accounts yet'}
+              colors={colors}
+            />
+            <AccountGroup
+              title="Live Accounts"
+              subtitle={`${liveAccountCount}/${LIVE_ACCOUNT_LIMIT} live account slots used`}
+              accounts={liveAccounts}
+              emptyText={loading ? 'Loading live accounts...' : 'No live accounts yet'}
+              colors={colors}
+            />
           </View>
         </Card>
       ) : null}
+
+      <CreateAccountConfirm
+        type={pendingAccountType}
+        loading={accountCreating}
+        onCancel={() => setPendingAccountType(null)}
+        onConfirm={createAccount}
+        colors={colors}
+      />
 
       {activeSection === 'deposit' ? (
         <Card title="Deposit" subtitle="Submit a funding request with your payment reference." colors={colors}>
