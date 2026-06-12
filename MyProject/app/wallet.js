@@ -10,8 +10,8 @@ import { useAuth } from '../src/hooks/useAuth';
 export default function WalletScreen() {
   const { user } = useAuth();
   const { summary, transactions, deposit, withdraw, loading } = useWallet();
-  const fundingLocked = Boolean(user && user.verificationStatus !== 'approved');
-  const fundingLockedMessage = 'Verification approval is required before deposits and withdrawals.';
+  const withdrawalLocked = Boolean(user && user.verificationStatus !== 'approved');
+  const withdrawalLockedMessage = 'Verification approval is required before withdrawals.';
   return (
     <ScrollView className="flex-1 bg-[#0B0B0B]" contentContainerClassName="p-4 lg:p-8">
       <View className="mb-6 flex-row items-center justify-between">
@@ -20,12 +20,12 @@ export default function WalletScreen() {
       </View>
       <WalletCard summary={summary} transactions={transactions} user={user} />
       <View className="gap-4 lg:flex-row">
-        <DepositForm onSubmit={(values) => deposit(values, Boolean(user))} loading={loading} disabled={fundingLocked} disabledMessage={fundingLockedMessage} />
+        <DepositForm onSubmit={(values) => deposit(values, Boolean(user))} loading={loading} />
         <WithdrawForm
           onSubmit={(values) => withdraw(values, Boolean(user))}
           loading={loading}
-          disabled={fundingLocked}
-          disabledMessage={fundingLockedMessage}
+          disabled={withdrawalLocked}
+          disabledMessage={withdrawalLockedMessage}
           summary={summary}
           transactions={transactions}
         />

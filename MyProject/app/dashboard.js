@@ -142,8 +142,8 @@ export default function DashboardScreen() {
   }, [params.section]);
 
   const wallet = dashboard?.wallet || user?.wallet || {};
-  const fundingLocked = Boolean(user && user.verificationStatus !== 'approved');
-  const fundingLockedMessage = 'Verification approval is required before deposits and withdrawals.';
+  const withdrawalLocked = Boolean(user && user.verificationStatus !== 'approved');
+  const withdrawalLockedMessage = 'Verification approval is required before withdrawals.';
   const referral = dashboard?.referral || {};
   const accounts = dashboard?.accounts || [];
   const demoAccountCount = accounts.filter((account) => account.type === 'Demo').length;
@@ -269,7 +269,7 @@ export default function DashboardScreen() {
 
       {activeSection === 'deposit' ? (
         <Card title="Deposit" subtitle="Submit a funding request with your payment reference." colors={colors}>
-          <DepositForm onSubmit={(values) => deposit(values, Boolean(user)).then(loadDashboard)} loading={walletLoading} disabled={fundingLocked} disabledMessage={fundingLockedMessage} />
+          <DepositForm onSubmit={(values) => deposit(values, Boolean(user)).then(loadDashboard)} loading={walletLoading} />
           <TransactionList transactions={depositTransactions} title="Deposit History" />
         </Card>
       ) : null}
@@ -279,8 +279,8 @@ export default function DashboardScreen() {
           <WithdrawForm
             onSubmit={(values) => withdraw(values, Boolean(user)).then(loadDashboard)}
             loading={walletLoading}
-            disabled={fundingLocked}
-            disabledMessage={fundingLockedMessage}
+            disabled={withdrawalLocked}
+            disabledMessage={withdrawalLockedMessage}
             summary={wallet}
             transactions={transactions}
           />

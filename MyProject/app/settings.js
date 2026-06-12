@@ -427,6 +427,8 @@ const normalizeBankAccount = (account) => ({
   payoutType: String(account.bankName || account.branchName || '').toLowerCase().includes('trc20') ? 'TRC20' : 'Bank',
 });
 
+const detailForType = (accounts, payoutType) => accounts.find((account) => account.payoutType === payoutType);
+
 export default function SettingsScreen() {
   const { user, logout, updateProfile } = useAuth();
   const { colors } = useAppTheme();
@@ -696,19 +698,23 @@ export default function SettingsScreen() {
         bankBranch: bankForm.bankBranch.trim(),
         bankAccountNumber: bankForm.bankAccountNumber.trim(),
       };
-      const result = editingBankAccountId && editingPayoutType === 'Bank'
-        ? await authService.updateBankAccount(editingBankAccountId, nextBankDetails)
+      const existingBankAccount = detailForType(bankAccounts, 'Bank');
+      const targetBankAccountId = editingBankAccountId && editingPayoutType === 'Bank'
+        ? editingBankAccountId
+        : existingBankAccount?.id;
+      const result = targetBankAccountId
+        ? await authService.updateBankAccount(targetBankAccountId, nextBankDetails)
         : await authService.createBankAccount(nextBankDetails);
-      const savedAccount = normalizeBankAccount(result.account || { ...nextBankDetails, id: editingBankAccountId });
+      const savedAccount = normalizeBankAccount(result.account || { ...nextBankDetails, id: targetBankAccountId });
       setBankAccounts((current) => (
-        editingBankAccountId && editingPayoutType === 'Bank'
-          ? current.map((account) => (String(account.id) === String(editingBankAccountId) ? savedAccount : account))
+        targetBankAccountId
+          ? current.map((account) => (String(account.id) === String(targetBankAccountId) ? savedAccount : account))
           : [savedAccount, ...current]
       ));
       setBankForm({ bankAccountHolder: '', bankName: '', bankBranch: '', bankAccountNumber: '' });
       setEditingBankAccountId(null);
       setEditingPayoutType('Bank');
-      setBankMessage(result.message || (editingBankAccountId ? 'Bank account details updated successfully.' : 'Bank account details saved successfully.'));
+      setBankMessage(result.message || (targetBankAccountId ? 'Bank account details updated and submitted for admin approval.' : 'Bank account details saved successfully.'));
     } catch (requestError) {
       setBankMessage(requestError.response?.data?.message || 'Bank account details could not be saved.');
     } finally {
@@ -730,19 +736,23 @@ export default function SettingsScreen() {
         bankBranch: 'TRC20',
         bankAccountNumber: trc20Form.walletAddress.trim(),
       };
-      const result = editingBankAccountId && editingPayoutType === 'TRC20'
-        ? await authService.updateBankAccount(editingBankAccountId, nextTrc20Details)
+      const existingTrc20Account = detailForType(bankAccounts, 'TRC20');
+      const targetTrc20AccountId = editingBankAccountId && editingPayoutType === 'TRC20'
+        ? editingBankAccountId
+        : existingTrc20Account?.id;
+      const result = targetTrc20AccountId
+        ? await authService.updateBankAccount(targetTrc20AccountId, nextTrc20Details)
         : await authService.createBankAccount(nextTrc20Details);
-      const savedAccount = normalizeBankAccount(result.account || { ...nextTrc20Details, id: editingBankAccountId });
+      const savedAccount = normalizeBankAccount(result.account || { ...nextTrc20Details, id: targetTrc20AccountId });
       setBankAccounts((current) => (
-        editingBankAccountId && editingPayoutType === 'TRC20'
-          ? current.map((account) => (String(account.id) === String(editingBankAccountId) ? savedAccount : account))
+        targetTrc20AccountId
+          ? current.map((account) => (String(account.id) === String(targetTrc20AccountId) ? savedAccount : account))
           : [savedAccount, ...current]
       ));
       setTrc20Form({ walletHolderName: '', walletAddress: '' });
       setEditingBankAccountId(null);
       setEditingPayoutType('Bank');
-      setBankMessage(editingBankAccountId && editingPayoutType === 'TRC20' ? 'TRC20 details updated and submitted for admin approval.' : 'TRC20 details submitted for admin approval.');
+      setBankMessage(targetTrc20AccountId ? 'TRC20 details updated and submitted for admin approval.' : 'TRC20 details submitted for admin approval.');
     } catch (requestError) {
       setBankMessage(requestError.response?.data?.message || 'TRC20 details could not be saved.');
     } finally {
@@ -801,6 +811,8 @@ export default function SettingsScreen() {
     .map((part) => part[0]?.toUpperCase())
     .join('');
   const activeSettings = settingsSections.find((section) => section.key === activeSection) || settingsSections[0];
+  const existingBankDetails = detailForType(bankAccounts, 'Bank');
+  const existingTrc20Details = detailForType(bankAccounts, 'TRC20');
 
   return (
     <ScrollView className="flex-1" style={{ backgroundColor: colors.background }} contentContainerClassName="p-4 lg:p-8">
@@ -1095,7 +1107,7 @@ export default function SettingsScreen() {
                 </View>
                 <Pressable disabled={bankBusy} onPress={saveBankDetails} className={`mt-2 flex-row self-start rounded-xl bg-primary px-6 py-4 ${bankBusy ? 'opacity-60' : ''}`}>
                   <Save size={16} color="#05130d" />
-                  <Text className="ml-2 font-extrabold text-black">{bankBusy ? 'Saving...' : editingBankAccountId && editingPayoutType === 'Bank' ? 'Update Bank Details' : 'Save Bank Details'}</Text>
+                  <Text className="ml-2 font-extrabold text-black">{bankBusy ? 'Saving...' : (editingBankAccountId && editingPayoutType === 'Bank') || existingBankDetails ? 'Update Bank Details' : 'Save Bank Details'}</Text>
                 </Pressable>
               </View>
               <View className="mt-4 rounded-xl border p-4" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
@@ -1124,18 +1136,18 @@ export default function SettingsScreen() {
                 </View>
                 <Pressable disabled={bankBusy} onPress={saveTrc20Details} className={`mt-2 flex-row self-start rounded-xl bg-primary px-6 py-4 ${bankBusy ? 'opacity-60' : ''}`}>
                   <Save size={16} color="#05130d" />
-                  <Text className="ml-2 font-extrabold text-black">{bankBusy ? 'Saving...' : editingBankAccountId && editingPayoutType === 'TRC20' ? 'Update TRC20 Details' : 'Save TRC20 Details'}</Text>
+                  <Text className="ml-2 font-extrabold text-black">{bankBusy ? 'Saving...' : (editingBankAccountId && editingPayoutType === 'TRC20') || existingTrc20Details ? 'Update TRC20 Details' : 'Save TRC20 Details'}</Text>
                 </Pressable>
               </View>
               {bankMessage ? <Text className="mt-3 text-sm" style={{ color: colors.muted }}>{bankMessage}</Text> : null}
               {bankAccounts.length ? (
                 <View className="mt-4 gap-3">
                   <Text className="text-base font-extrabold" style={{ color: colors.text }}>Saved Withdrawal Details</Text>
-                  {bankAccounts.map((account, index) => (
-                    <View key={account.id || `${account.bankAccountNumber}-${index}`} className="rounded-xl border border-primary/30 bg-primary/10 p-4">
+                  {bankAccounts.map((account) => (
+                    <View key={account.id || account.bankAccountNumber} className="rounded-xl border border-primary/30 bg-primary/10 p-4">
                       <View className="mb-4 flex-row flex-wrap items-center justify-between gap-3">
                         <View className="flex-row flex-wrap items-center gap-2">
-                          <Text className="font-extrabold" style={{ color: colors.text }}>{account.payoutType} Details {index + 1}</Text>
+                          <Text className="font-extrabold" style={{ color: colors.text }}>{account.payoutType} Details</Text>
                           <Text className={`rounded-full px-3 py-1 text-xs font-bold ${account.status === 'approved' ? 'bg-success/10 text-success' : account.status === 'rejected' ? 'bg-danger/10 text-danger' : 'bg-primary/10 text-primary'}`}>
                             {account.status === 'approved' ? 'Approved' : account.status === 'rejected' ? 'Rejected' : account.status === 'delete_pending' ? 'Delete Pending' : 'Pending'}
                           </Text>

@@ -50,9 +50,6 @@ exports.transactions = async (req, res, next) => {
 
 exports.deposit = async (req, res, next) => {
   try {
-    if (req.user.verificationStatus !== 'approved') {
-      return res.status(403).json({ message: 'Complete account verification before deposits.' });
-    }
     const { amount, paymentMethod, referenceNumber, receiptImage, note } = req.body;
     if (!(Number(amount) >= 100) || !paymentMethod || !referenceNumber) {
       return res.status(400).json({ message: 'Minimum deposit is $100. Payment method and reference number are required.' });

@@ -11,7 +11,6 @@ export default function DepositScreen() {
   const { user } = useAuth();
   const { colors } = useAppTheme();
   const { deposit, transactions, loading } = useWallet();
-  const fundingLocked = Boolean(user && user.verificationStatus !== 'approved');
   const depositTransactions = transactions.filter((item) => item.type === 'deposit');
   const latestReviewedDeposit = depositTransactions.find((item) => ['approved', 'completed', 'rejected'].includes(item.status));
   const depositApproved = ['approved', 'completed'].includes(latestReviewedDeposit?.status);
@@ -70,8 +69,6 @@ export default function DepositScreen() {
       <DepositForm
         onSubmit={(values) => deposit(values, Boolean(user))}
         loading={loading}
-        disabled={fundingLocked}
-        disabledMessage="Verification approval is required before deposits and withdrawals."
       />
       <TransactionList transactions={depositTransactions} title="Deposit History" />
     </ScrollView>

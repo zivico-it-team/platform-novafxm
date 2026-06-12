@@ -16,7 +16,7 @@ export default function WithdrawScreen() {
         onSubmit={(values) => withdraw(values, Boolean(user))}
         loading={loading}
         disabled={fundingLocked}
-        disabledMessage="Verification approval is required before deposits and withdrawals."
+        disabledMessage="Verification approval is required before withdrawals."
         summary={summary}
         transactions={transactions}
       />
