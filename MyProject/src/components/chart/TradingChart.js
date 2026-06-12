@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
+import { Platform, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { WebView } from 'react-native-webview';
 import {
   Activity,
@@ -11,7 +11,9 @@ import {
   Mountain,
   Plus,
   ScatterChart,
+  Search,
   Settings,
+  Star,
   Trash2,
   TrendingUp,
 } from 'lucide-react-native';
@@ -294,9 +296,17 @@ function chartHtml(candles, decimals, timeframe, chartType, tools, drawings, act
 #chart{position:absolute;inset:0}
 #drawing-layer{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:12}
 #empty{display:none;position:absolute;left:0;right:0;top:48%;text-align:center;color:${chartColors.text};font:14px Arial,sans-serif}
+#ohlc-panel{position:absolute;left:10px;top:8px;z-index:20;display:flex;align-items:center;gap:10px;max-width:calc(100% - 20px);overflow:hidden;white-space:nowrap;font:12px Arial,sans-serif;color:${chartColors.text};pointer-events:none;text-shadow:0 1px 2px rgba(0,0,0,.38)}
+#ohlc-panel .symbol{font-weight:800;color:${ui.accent}}
+#ohlc-panel .value{font-weight:700}
+#ohlc-panel .up{color:${chartColors.up}}
+#ohlc-panel .down{color:${chartColors.down}}
+.axis-badge{position:absolute;z-index:21;display:none;border-radius:4px;background:${ui.accent};color:#0B0B0B;font:11px Arial,sans-serif;font-weight:800;line-height:1;padding:5px 7px;pointer-events:none;box-shadow:0 8px 20px rgba(0,0,0,.18)}
+#price-badge{right:4px;transform:translateY(-50%)}
+#time-badge{bottom:4px;transform:translateX(-50%)}
 </style></head>
 <body>
-<div id="chart-wrap"><div id="chart"></div><svg id="drawing-layer"></svg><div id="empty">Waiting for chart data</div></div>
+<div id="chart-wrap"><div id="chart"></div><svg id="drawing-layer"></svg><div id="ohlc-panel"></div><div id="price-badge" class="axis-badge"></div><div id="time-badge" class="axis-badge"></div><div id="empty">Waiting for chart data</div></div>
 <script src="https://unpkg.com/lightweight-charts@5/dist/lightweight-charts.standalone.production.js"></script>
 <script>
 let data = ${JSON.stringify(candles)};
@@ -358,6 +368,61 @@ const histogramData = (items) => items.map((item) => ({
   value: Number(item.close),
   color: Number(item.close) >= Number(item.open) ? 'rgba(18, 207, 122, .68)' : 'rgba(242, 77, 88, .68)'
 })).filter((item) => Number.isFinite(item.time) && Number.isFinite(item.value));
+const byTime = new Map();
+const rememberBar = (bar) => {
+  if (!bar || !Number.isFinite(Number(bar.time))) return;
+  byTime.set(Number(bar.time), bar);
+};
+data.forEach(rememberBar);
+const formatPrice = (value) => {
+  const number = Number(value);
+  return Number.isFinite(number) ? number.toFixed(${safeDecimals}) : '-';
+};
+const getDisplayBar = (param) => {
+  if (!data.length) return null;
+  if (param?.time != null && byTime.has(Number(param.time))) return byTime.get(Number(param.time));
+  if (Number.isFinite(Number(param?.logical))) {
+    const index = Math.max(0, Math.min(data.length - 1, Math.round(Number(param.logical))));
+    return data[index];
+  }
+  return lastBar || data[data.length - 1];
+};
+const setHoverReadout = (bar, point) => {
+  const panel = document.getElementById('ohlc-panel');
+  const priceBadge = document.getElementById('price-badge');
+  const timeBadge = document.getElementById('time-badge');
+  const chartElement = document.getElementById('chart');
+  if (!panel || !priceBadge || !timeBadge || !chartElement || !bar) return;
+  const open = Number(bar.open);
+  const high = Number(bar.high);
+  const low = Number(bar.low);
+  const close = Number(bar.close);
+  const change = close - open;
+  const changePercent = open ? (change / open) * 100 : 0;
+  const tone = change >= 0 ? 'up' : 'down';
+  panel.innerHTML =
+    '<span class="symbol">OHLC</span>' +
+    '<span>O <span class="value">' + formatPrice(open) + '</span></span>' +
+    '<span>H <span class="value">' + formatPrice(high) + '</span></span>' +
+    '<span>L <span class="value">' + formatPrice(low) + '</span></span>' +
+    '<span>C <span class="value ' + tone + '">' + formatPrice(close) + '</span></span>' +
+    '<span class="' + tone + '">' + (change >= 0 ? '+' : '') + formatPrice(change) + ' (' + (changePercent >= 0 ? '+' : '') + changePercent.toFixed(2) + '%)</span>';
+  if (point && Number.isFinite(Number(point.x)) && Number.isFinite(Number(point.y))) {
+    const price = series.coordinateToPrice(point.y);
+    priceBadge.textContent = formatPrice(price);
+    priceBadge.style.top = Math.max(16, Math.min(chartElement.clientHeight - 18, point.y)) + 'px';
+    priceBadge.style.display = 'block';
+    timeBadge.textContent = formatLocalDateTime(bar.time);
+    timeBadge.style.left = Math.max(48, Math.min(chartElement.clientWidth - 48, point.x)) + 'px';
+    timeBadge.style.display = 'block';
+  } else {
+    priceBadge.style.display = 'none';
+    timeBadge.style.display = 'none';
+  }
+};
+const clearHoverReadout = () => {
+  setHoverReadout(lastBar || data[data.length - 1], null);
+};
 const mainSeriesOptions = {
   color: ${JSON.stringify(ui.accent)},
   lineColor: ${JSON.stringify(ui.accent)},
@@ -683,6 +748,13 @@ if (data.length) {
   renderIndicators();
   renderGraphSettings();
   chart.subscribeClick(handleChartClick);
+  chart.subscribeCrosshairMove((param) => {
+    if (!param?.point || param.point.x < 0 || param.point.y < 0) {
+      clearHoverReadout();
+      return;
+    }
+    setHoverReadout(getDisplayBar(param), param.point);
+  });
   document.body.style.cursor = activeDrawingTool ? 'crosshair' : 'default';
   if (${showFullRange}) {
     chart.timeScale().fitContent();
@@ -692,6 +764,7 @@ if (data.length) {
       to: data.length + 4
     });
   }
+  clearHoverReadout();
   requestAnimationFrame(renderDrawings);
   if (chart.timeScale().subscribeVisibleLogicalRangeChange) {
     chart.timeScale().subscribeVisibleLogicalRangeChange(renderDrawings);
@@ -714,6 +787,7 @@ function applyLiveCandle(candle) {
   const index = data.findIndex((item) => Number(item.time) === Number(next.time));
   if (index >= 0) data[index] = next;
   else data.push(next);
+  rememberBar(next);
   document.getElementById('empty').style.display = 'none';
   if (chartType === 'candles' || chartType === 'combo' || chartType === 'bar' || chartType === 'hollow') {
     series.update(next);
@@ -726,6 +800,7 @@ function applyLiveCandle(candle) {
   } else {
     series.update({ time: next.time, value: next.close });
   }
+  clearHoverReadout();
 }
 function receiveLiveUpdate(event) {
   let payload = event.data;
@@ -757,6 +832,9 @@ export default function TradingChart() {
   const [chartType, setChartType] = useState('candles');
   const [chartMenuOpen, setChartMenuOpen] = useState(false);
   const [symbolMenuOpen, setSymbolMenuOpen] = useState(false);
+  const [hoveredSymbol, setHoveredSymbol] = useState(null);
+  const [symbolSearch, setSymbolSearch] = useState('');
+  const [symbolTab, setSymbolTab] = useState('Popular');
   const [indicatorOpen, setIndicatorOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [drawingOpen, setDrawingOpen] = useState(false);
@@ -949,6 +1027,20 @@ export default function TradingChart() {
     ['Ask', quote(currentSymbol.ask, currentSymbol.decimals), ui.success],
     ['Spread', quote(currentSymbol.spread, currentSymbol.decimals), ui.muted],
   ];
+  const symbolTabs = ['Popular', 'Crypto', 'Forex', 'Indices', 'Metals', 'Energies'];
+  const filteredSymbols = useMemo(() => {
+    const query = symbolSearch.trim().toLowerCase();
+    return prices.filter((item) => {
+      const group = String(item.group || '').toLowerCase();
+      const matchesSearch = !query || item.symbol.toLowerCase().includes(query) || group.includes(query);
+      const matchesTab = symbolTab === 'Popular'
+        ? item.popular
+        : symbolTab === 'Crypto'
+          ? group.includes('crypto')
+          : group.includes(symbolTab.toLowerCase());
+      return matchesSearch && matchesTab;
+    });
+  }, [prices, symbolSearch, symbolTab]);
   const activeChartType = CHART_TYPES.find(([key]) => key === chartType) || CHART_TYPES[0];
   const ActiveChartIcon = activeChartType[2];
   const activeIndicatorAddLabel = ({
@@ -997,6 +1089,13 @@ export default function TradingChart() {
     setSettingsOpen(false);
     setDrawingOpen(false);
   };
+  const openSymbolMenu = () => {
+    setSymbolMenuOpen(true);
+    setChartMenuOpen(false);
+    setIndicatorOpen(false);
+    setSettingsOpen(false);
+    setDrawingOpen(false);
+  };
   const toggleIndicatorMenu = () => {
     setIndicatorOpen((value) => !value);
     setSymbolMenuOpen(false);
@@ -1026,6 +1125,7 @@ export default function TradingChart() {
     setSelectedSymbol(symbol);
     setViewRange('Full');
     setSymbolMenuOpen(false);
+    setHoveredSymbol(null);
   };
   const applyDrawingTool = (key) => {
     if (key === 'clear') {
@@ -1104,8 +1204,13 @@ export default function TradingChart() {
         {mobile ? (
           <View className="px-0.5 pt-0.5">
             <View className="flex-row items-center justify-between">
-              <Pressable onPress={toggleSymbolMenu} className="min-w-0 flex-row items-center">
+              <Pressable onHoverIn={openSymbolMenu} onPress={toggleSymbolMenu} className="min-w-0 flex-row items-center rounded-md px-1.5 py-1" style={{ backgroundColor: symbolMenuOpen ? ui.soft : 'transparent', cursor: 'pointer' }}>
+                <Star size={14} color={symbolMenuOpen ? ui.accent : ui.muted} />
+                <View className="mx-1.5 h-5 w-5 items-center justify-center rounded-full" style={{ backgroundColor: ui.accent }}>
+                  <Text className="text-[10px] font-black" style={{ color: ui.activeText }}>{currentSymbol.symbol?.[0] || '$'}</Text>
+                </View>
                 <Text className="max-w-[150px] text-[17px] font-extrabold" numberOfLines={1} style={{ color: ui.text }}>{currentSymbol.symbol}</Text>
+                <Text className="ml-1 rounded px-1 py-0.5 text-[9px] font-extrabold" style={{ backgroundColor: ui.control, color: ui.muted }}>Perp</Text>
                 <ChevronDown size={15} color={symbolMenuOpen ? ui.accent : ui.muted} strokeWidth={2.4} />
               </Pressable>
               <View className="flex-row items-center">
@@ -1160,7 +1265,7 @@ export default function TradingChart() {
               ))}
             </ScrollView>
 
-            <View className="mt-1.5 flex-row items-center justify-end" style={{ columnGap: 4 }}>
+            <View className="mt-1.5 flex-row items-center justify-start" style={{ columnGap: 4 }}>
               <IconButton active={chartMenuOpen} ui={ui} size={iconButtonSize} onPress={toggleChartMenu}>
                 <ActiveChartIcon size={14} color={chartMenuOpen ? ui.activeText : ui.text} />
               </IconButton>
@@ -1178,13 +1283,18 @@ export default function TradingChart() {
         ) : (
           <>
             <View className="flex-row flex-wrap items-center" style={{ columnGap: compactToolbar ? 6 : 10, rowGap: 3 }}>
-              <View className="flex-row items-center gap-1.5 sm:gap-2" style={{ height: compactToolbar ? 24 : 28 }}>
+              <Pressable onHoverIn={openSymbolMenu} onPress={toggleSymbolMenu} className="flex-row items-center rounded-md px-1.5" style={{ height: compactToolbar ? 24 : 28, backgroundColor: symbolMenuOpen ? ui.soft : 'transparent', cursor: 'pointer', gap: compactToolbar ? 5 : 7 }}>
+                <Star size={compactToolbar ? 12 : 14} color={symbolMenuOpen ? ui.accent : ui.muted} />
+                <View className="items-center justify-center rounded-full" style={{ width: compactToolbar ? 18 : 21, height: compactToolbar ? 18 : 21, backgroundColor: ui.accent }}>
+                  <Text className="font-black" style={{ color: ui.activeText, fontSize: compactToolbar ? 9 : 10 }}>{currentSymbol.symbol?.[0] || '$'}</Text>
+                </View>
                 <Text className="font-extrabold" style={{ color: ui.text, fontSize: compactToolbar ? 12 : 14 }}>{currentSymbol.symbol}</Text>
-                <ChevronDown size={13} color={ui.muted} strokeWidth={2.4} />
+                <Text className="rounded px-1 py-0.5 font-extrabold" style={{ backgroundColor: ui.control, color: ui.muted, fontSize: compactToolbar ? 8 : 9 }}>Perp</Text>
+                <ChevronDown size={13} color={symbolMenuOpen ? ui.accent : ui.muted} strokeWidth={2.4} />
                 <Text className="font-bold" style={{ color: priceTone, fontSize: compactToolbar ? 12 : 14 }}>{quote(currentSymbol.price, currentSymbol.decimals)}</Text>
                 <Text className="font-bold" style={{ color: priceTone, fontSize: compactToolbar ? 10 : 12 }}>{percent(currentSymbol.change)}</Text>
                 <Text className="text-[10px]" style={{ color: ui.muted }}>Spread: {quote(currentSymbol.spread, currentSymbol.decimals)}</Text>
-              </View>
+              </Pressable>
               <View className="flex-row flex-wrap items-center" style={{ columnGap: 1, rowGap: 1, minHeight: compactToolbar ? 22 : 28 }}>
                 {TIMEFRAMES.map((entry) => (
                   <Pressable
@@ -1228,27 +1338,85 @@ export default function TradingChart() {
       </View>
 
         {symbolMenuOpen ? (
-          <View className="absolute left-2 w-[232px] overflow-hidden rounded-md border shadow-2xl" style={{ top: toolbarMenuTop, maxHeight: 264, backgroundColor: ui.menu, borderColor: ui.menuBorder, zIndex: 3200, elevation: 3200 }}>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {prices.map((item) => {
+          <View className="absolute left-2 w-[532px] max-w-[96vw] overflow-hidden rounded-lg border shadow-2xl" style={{ top: toolbarMenuTop, maxHeight: mobile ? 390 : 504, backgroundColor: ui.menu, borderColor: ui.menuBorder, zIndex: 3200, elevation: 3200 }}>
+            <View className="border-b px-4 py-3" style={{ borderColor: ui.border }}>
+              <View className="flex-row items-center justify-between">
+                <View className="min-w-0 flex-1 flex-row items-center">
+                  <Star size={17} color={ui.accent} />
+                  <View className="mx-2 h-6 w-6 items-center justify-center rounded-full" style={{ backgroundColor: ui.accent }}>
+                    <Text className="text-[11px] font-black" style={{ color: ui.activeText }}>{currentSymbol.symbol?.[0] || '$'}</Text>
+                  </View>
+                  <Text className="text-lg font-extrabold" numberOfLines={1} style={{ color: ui.text }}>{currentSymbol.symbol}</Text>
+                  <Text className="ml-1 rounded px-1 py-0.5 text-[10px] font-extrabold" style={{ backgroundColor: ui.control, color: ui.muted }}>Perp</Text>
+                  <ChevronDown size={13} color={ui.muted} />
+                </View>
+                <View className="items-end">
+                  <Text className="text-lg font-extrabold" numberOfLines={1} style={{ color: priceTone }}>{quote(currentSymbol.price, currentSymbol.decimals)}</Text>
+                  <Text className="text-[11px] font-bold" numberOfLines={1} style={{ color: priceTone }}>{percent(currentSymbol.change)}</Text>
+                </View>
+              </View>
+              <View className="mt-3 h-9 flex-row items-center rounded-md border px-3" style={{ backgroundColor: ui.control, borderColor: ui.border }}>
+                <Search size={16} color={ui.muted} />
+                <TextInput
+                  value={symbolSearch}
+                  onChangeText={setSymbolSearch}
+                  placeholder="Search"
+                  placeholderTextColor={ui.muted}
+                  className="ml-2 h-9 flex-1 text-sm"
+                  style={{ color: ui.text }}
+                />
+              </View>
+              <View className="mt-3 flex-row items-center justify-between">
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ columnGap: 18 }}>
+                  {symbolTabs.map((entry) => (
+                    <Pressable key={entry} onPress={() => setSymbolTab(entry)} className="border-b-2 pb-1" style={{ borderColor: entry === symbolTab ? ui.accent : 'transparent', cursor: 'pointer' }}>
+                      <Text className="text-sm font-extrabold" style={{ color: entry === symbolTab ? ui.text : ui.muted }}>{entry}</Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+                <Pressable className="flex-row items-center">
+                  <Text className="text-xs font-bold" style={{ color: ui.muted }}>All</Text>
+                  <ChevronDown size={13} color={ui.muted} />
+                </Pressable>
+              </View>
+            </View>
+            <View className="flex-row border-b px-4 py-2" style={{ borderColor: ui.border }}>
+              <Text className="flex-1 text-[11px] font-bold" style={{ color: ui.muted }}>Symbols / Vol</Text>
+              <Text className="w-[92px] text-right text-[11px] font-bold" style={{ color: ui.muted }}>Last Price</Text>
+              <Text className="w-[82px] text-right text-[11px] font-bold" style={{ color: ui.muted }}>24h Chg</Text>
+              <Text className="w-[92px] text-right text-[11px] font-bold" style={{ color: ui.muted }}>Funding Rate</Text>
+            </View>
+            <ScrollView showsVerticalScrollIndicator>
+              {filteredSymbols.map((item) => {
                 const itemPositive = Number(item.change) >= 0;
                 const itemTone = itemPositive ? ui.success : ui.danger;
                 const active = item.symbol === currentSymbol.symbol;
+                const hovered = hoveredSymbol === item.symbol;
                 return (
                   <Pressable
                     key={item.symbol}
+                    onHoverIn={() => setHoveredSymbol(item.symbol)}
+                    onHoverOut={() => setHoveredSymbol(null)}
                     onPress={() => selectSymbol(item.symbol)}
-                    className="h-11 flex-row items-center border-b px-3"
-                    style={{ backgroundColor: active ? ui.soft : 'transparent', borderColor: ui.border }}
+                    className="h-[48px] flex-row items-center px-4"
+                    style={{ backgroundColor: active || hovered ? ui.soft : 'transparent', cursor: 'pointer' }}
                   >
-                    <View className="min-w-0 flex-1">
-                      <Text className="text-xs font-extrabold" numberOfLines={1} style={{ color: active ? ui.accent : ui.text }}>{item.symbol}</Text>
-                      <Text className="text-[9px] font-semibold" numberOfLines={1} style={{ color: ui.muted }}>{item.group}</Text>
+                    <View className="min-w-0 flex-1 flex-row items-center">
+                      <Star size={14} color={active || hovered ? ui.accent : ui.muted} />
+                      <View className="mx-2 h-4 w-4 items-center justify-center rounded-full" style={{ backgroundColor: itemTone }}>
+                        <Text className="text-[8px] font-black text-white">{item.symbol?.[0] || '$'}</Text>
+                      </View>
+                      <View className="min-w-0 flex-1">
+                        <View className="flex-row items-center">
+                          <Text className="text-sm font-extrabold" numberOfLines={1} style={{ color: active || hovered ? ui.accent : ui.text }}>{item.symbol}</Text>
+                          <Text className="ml-1 rounded px-1 text-[10px] font-bold" style={{ backgroundColor: ui.control, color: ui.muted }}>Perp</Text>
+                        </View>
+                        <Text className="text-[11px]" style={{ color: ui.muted }}>{item.group || 'Market'}</Text>
+                      </View>
                     </View>
-                    <View className="items-end">
-                      <Text className="text-xs font-extrabold" numberOfLines={1} style={{ color: itemTone }}>{quote(item.price, item.decimals)}</Text>
-                      <Text className="text-[9px] font-bold" numberOfLines={1} style={{ color: itemTone }}>{percent(item.change)}</Text>
-                    </View>
+                    <Text className="w-[92px] text-right text-sm font-semibold" numberOfLines={1} style={{ color: ui.text }}>{quote(item.price, item.decimals)}</Text>
+                    <Text className="w-[82px] text-right text-sm font-bold" numberOfLines={1} style={{ color: itemTone }}>{percent(item.change)}</Text>
+                    <Text className="w-[92px] text-right text-sm font-semibold" numberOfLines={1} style={{ color: ui.text }}>{Number(item.spreadPoints ?? item.spread ?? 0).toFixed(5)}%</Text>
                   </Pressable>
                 );
               })}

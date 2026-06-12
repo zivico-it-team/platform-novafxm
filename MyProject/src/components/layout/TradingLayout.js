@@ -1,6 +1,5 @@
 import { ScrollView, useWindowDimensions, View } from 'react-native';
 import TopAccountBar from '../header/TopAccountBar';
-import SymbolPanel from '../market/SymbolPanel';
 import TradingChart from '../chart/TradingChart';
 import OrderPanel from '../order/OrderPanel';
 import OpenPositions from '../positions/OpenPositions';
@@ -38,7 +37,6 @@ export default function TradingLayout() {
         <View className={desktop ? 'h-[600px] flex-row gap-3' : mobile ? 'gap-1.5' : 'gap-3'}>
           {desktop ? (
             <>
-              <SymbolPanel />
               <TradingChart />
               <OrderRail summary={summary} user={user} showSummary={false} showAvailableMargin={false} />
             </>
@@ -47,7 +45,6 @@ export default function TradingLayout() {
               {mobile ? <AccountSummary summary={summary} user={user} compact /> : null}
               <TradingChart />
               <View className={tablet ? 'flex-row gap-3' : 'gap-1.5'}>
-                <SymbolPanel />
                 {!mobile ? <OrderRail summary={summary} user={user} /> : null}
               </View>
             </>

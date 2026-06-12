@@ -1,11 +1,10 @@
 import { useMemo, useState } from 'react';
 import { Platform, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { WebView } from 'react-native-webview';
-import { CalendarDays, ChevronDown, ChevronRight, CircleDollarSign, Search } from 'lucide-react-native';
-import { DEFAULT_SYMBOL, MARKET_GROUPS } from '../../constants/symbols';
+import { CalendarDays, ChevronDown, CircleDollarSign, Search, Star } from 'lucide-react-native';
 import { useAppTheme } from '../../context/ThemeContext';
 import { useDemoTrading } from '../../hooks/useDemoTrading';
-import SymbolCard from './SymbolCard';
+import { percent, quote } from '../../utils/formatters';
 
 function calendarHtml(colors, darkMode) {
   return `<!doctype html>
@@ -38,33 +37,83 @@ function calendarHtml(colors, darkMode) {
 </html>`;
 }
 
+function SymbolMarketRow({ item, selected, onSelect, colors, darkMode }) {
+  const [hovered, setHovered] = useState(false);
+  const positive = Number(item.change) >= 0;
+  const tone = positive ? colors.success : colors.danger;
+  const displaySymbol = item.symbol.replace('/', '');
+  const rowBackground = selected
+    ? colors.primarySoft
+    : hovered
+      ? darkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(212, 175, 55, 0.12)'
+      : 'transparent';
+  const fakeVolume = Number.isFinite(Number(item.volume))
+    ? `${(Number(item.volume) / 1000000).toFixed(2)}M`
+    : `${Math.max(Math.abs(Number(item.price) || 1) * 0.018, 1.05).toFixed(2)}M`;
+
+  return (
+    <Pressable
+      onHoverIn={() => setHovered(true)}
+      onHoverOut={() => setHovered(false)}
+      onPress={() => onSelect(item.symbol)}
+      className="h-[48px] flex-row items-center px-2"
+      style={{ backgroundColor: rowBackground, cursor: 'pointer' }}
+    >
+      <View className="min-w-0 flex-1 flex-row items-center">
+        <Star size={14} color={selected || hovered ? colors.primary : colors.muted} />
+        <View className="mx-1.5 h-4 w-4 items-center justify-center rounded-full" style={{ backgroundColor: tone }}>
+          <Text className="text-[8px] font-black text-white">{displaySymbol[0] || '$'}</Text>
+        </View>
+        <View className="min-w-0 flex-1">
+          <View className="flex-row items-center">
+            <Text className="text-xs font-semibold" numberOfLines={1} style={{ color: selected || hovered ? colors.primary : colors.text }}>{displaySymbol} CM</Text>
+            <Text className="ml-1 rounded px-1 text-[9px] font-bold" style={{ backgroundColor: darkMode ? colors.surface : '#f0f0f0', color: colors.muted }}>Perp</Text>
+          </View>
+          <Text className="text-[10px]" style={{ color: colors.muted }}>{fakeVolume}</Text>
+        </View>
+      </View>
+      <Text className="w-[72px] text-right text-xs font-semibold" numberOfLines={1} style={{ color: colors.text }}>{quote(item.price, item.decimals)}</Text>
+      <Text className="w-[64px] text-right text-xs font-semibold" numberOfLines={1} style={{ color: tone }}>{percent(item.change)}</Text>
+      <Text className="w-[72px] text-right text-xs font-semibold" numberOfLines={1} style={{ color: colors.text }}>{Number(item.spreadPoints ?? item.spread ?? 0).toFixed(5)}%</Text>
+    </Pressable>
+  );
+}
+
 export default function SymbolPanel() {
   const { width } = useWindowDimensions();
-  const { prices, selectedSymbol, setSelectedSymbol, connected } = useDemoTrading();
+  const { prices, selectedSymbol, setSelectedSymbol } = useDemoTrading();
   const { darkMode, colors } = useAppTheme();
   const [tab, setTab] = useState('symbols');
   const [search, setSearch] = useState('');
-  const [expanded, setExpanded] = useState({ POPULAR: true });
+  const [marketTab, setMarketTab] = useState('COIN-M');
+  const [tag, setTag] = useState('All');
   const panelBackground = darkMode ? colors.panel : '#e8f8ee';
   const controlBackground = darkMode ? colors.surface : '#f6fff9';
-  const groupBackground = darkMode ? colors.surface : colors.primarySoft;
-  const pillBackground = darkMode ? colors.primary : colors.primarySoft;
-  const pillText = '#0B0B0B';
-  const headerBackground = darkMode ? '#11161c' : colors.primarySoft;
   const tabBackground = darkMode ? colors.surface : '#f6fff9';
   const desktop = width >= 1100;
   const mobile = width < 760;
   const panelHeight = desktop ? undefined : 390;
+  const selectedItem = prices.find((item) => item.symbol === selectedSymbol) || prices[0];
+  const selectedPositive = Number(selectedItem?.change) >= 0;
+  const selectedTone = selectedPositive ? colors.success : colors.danger;
+  const marketTabs = ['Popular', 'Crypto CFD', 'Energies', 'Forex', 'Indices', 'Metals'];
+  const tags = ['All', 'New Listing', 'AI', 'Layer-1', 'Layer-2', 'Gaming', 'Meme', 'Infrastructure'];
   const filtered = useMemo(
-    () => prices.filter((item) => item.symbol.toLowerCase().includes(search.toLowerCase())),
-    [prices, search],
+    () => {
+      const query = search.trim().toLowerCase();
+      return prices.filter((item) => {
+        const matchesSearch = !query || item.symbol.toLowerCase().includes(query) || item.group?.toLowerCase().includes(query);
+        const itemGroup = String(item.group || '').toLowerCase();
+        const matchesTab = marketTab === 'Popular'
+          ? item.popular
+          : marketTab === 'Crypto CFD'
+            ? itemGroup.includes('crypto')
+            : itemGroup.includes(marketTab.toLowerCase());
+        return matchesSearch && matchesTab;
+      });
+    },
+    [marketTab, prices, search],
   );
-
-  const itemsForGroup = (group) =>
-    filtered
-      .filter((item) => (group === 'POPULAR' ? item.popular : item.group === group))
-      .sort((left, right) => (right.symbol === DEFAULT_SYMBOL ? 1 : 0) - (left.symbol === DEFAULT_SYMBOL ? 1 : 0));
-  const toggleGroup = (group) => setExpanded((current) => ({ ...current, [group]: !current[group] }));
 
   return (
     <View className="overflow-hidden rounded-2xl border p-2 lg:h-full lg:w-[350px]" style={{ height: panelHeight, backgroundColor: panelBackground, borderColor: colors.border }}>
@@ -99,45 +148,81 @@ export default function SymbolPanel() {
         </View>
       ) : (
         <View className="min-h-0 flex-1">
-          <View className={`${mobile ? 'mb-2' : 'mb-3'} flex-row items-center justify-between px-1`}>
-            <Text className={`${mobile ? 'rounded-md px-3 py-1.5 text-xs' : 'rounded-full px-4 py-2'} overflow-hidden font-bold`} style={{ backgroundColor: pillBackground, color: pillText }}>All</Text>
-            <View className="flex-row items-center rounded-full border px-3 py-2" style={{ backgroundColor: controlBackground, borderColor: colors.border }}>
-              <View className={`mr-2 h-2.5 w-2.5 rounded-full ${connected ? 'bg-success' : 'bg-primary'}`} />
-              <Text className="text-xs font-semibold" style={{ color: colors.muted }}>{connected ? 'Connected' : 'Demo feed'}</Text>
+          <View className="mb-3 rounded-xl border p-3" style={{ backgroundColor: darkMode ? colors.surface : '#ffffff', borderColor: colors.border }}>
+            <View className="flex-row items-center justify-between">
+              <View className="min-w-0 flex-1 flex-row items-center">
+                <Star size={16} color={colors.primary} />
+                <View className="mx-2 h-6 w-6 items-center justify-center rounded-full" style={{ backgroundColor: colors.primary }}>
+                  <Text className="text-[11px] font-black" style={{ color: '#0B0B0B' }}>{selectedItem?.symbol?.[0] || '$'}</Text>
+                </View>
+                <Text className="text-lg font-extrabold" numberOfLines={1} style={{ color: colors.text }}>{selectedItem?.symbol?.replace('/', '') || selectedSymbol}</Text>
+                <Text className="ml-1 rounded px-1 py-0.5 text-[10px] font-extrabold" style={{ backgroundColor: darkMode ? colors.panel : '#f0f0f0', color: colors.muted }}>Perp</Text>
+                <ChevronDown size={13} color={colors.muted} />
+              </View>
+              <View className="items-end">
+                <Text className="text-lg font-extrabold" style={{ color: selectedTone }}>{quote(selectedItem?.price, selectedItem?.decimals)}</Text>
+                <Text className="text-[11px] font-bold" style={{ color: selectedTone }}>{percent(selectedItem?.change)}</Text>
+              </View>
+            </View>
+            <View className="mt-2 flex-row items-center justify-between">
+              <Text className="text-[10px] font-semibold" style={{ color: colors.muted }}>Mark {quote(selectedItem?.bid, selectedItem?.decimals)}</Text>
+              <Text className="text-[10px] font-semibold" style={{ color: colors.muted }}>Index {quote(selectedItem?.ask, selectedItem?.decimals)}</Text>
+              <Text className="text-[10px] font-semibold" style={{ color: selectedTone }}>Funding {Number(selectedItem?.spreadPoints ?? selectedItem?.spread ?? 0).toFixed(5)}%</Text>
             </View>
           </View>
+
           <View className="mb-3 flex-row items-center rounded-xl border px-4" style={{ backgroundColor: controlBackground, borderColor: colors.border }}>
-            <TextInput value={search} onChangeText={setSearch} placeholder="Symbol Search" placeholderTextColor={colors.muted} className="h-11 flex-1" style={{ color: colors.text }} />
             <Search size={18} color={colors.muted} />
+            <TextInput value={search} onChangeText={setSearch} placeholder="Search" placeholderTextColor={colors.muted} className="ml-2 h-11 flex-1" style={{ color: colors.text }} />
           </View>
-          <View className="flex-row rounded-t-xl border px-3 py-3" style={{ backgroundColor: headerBackground, borderColor: colors.border }}>
-            <Text className="flex-1 text-center text-[11px] font-bold uppercase" style={{ color: colors.muted }}>Symbol</Text>
-            <Text className="w-[78px] text-right text-[11px] font-bold uppercase" style={{ color: colors.muted }}>Bid</Text>
-            <Text className="w-[54px] text-right text-[11px] font-bold uppercase" style={{ color: colors.muted }}>Spread</Text>
-            <Text className="w-[78px] text-right text-[11px] font-bold uppercase" style={{ color: colors.muted }}>Ask</Text>
+
+          <View className="mb-2 flex-row items-center justify-between">
+            <View className="flex-row items-center" style={{ gap: 16 }}>
+              {marketTabs.map((item) => (
+                <Pressable key={item} onPress={() => setMarketTab(item)} className="border-b-2 pb-1" style={{ borderColor: item === marketTab ? colors.primary : 'transparent' }}>
+                  <Text className="text-sm font-extrabold" style={{ color: item === marketTab ? colors.text : colors.muted }}>{item}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <Pressable className="flex-row items-center">
+              <Text className="text-xs font-bold" style={{ color: colors.muted }}>All</Text>
+              <ChevronDown size={13} color={colors.muted} />
+            </Pressable>
           </View>
+
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-2" contentContainerStyle={{ columnGap: 8 }}>
+            {tags.map((item) => (
+              <Pressable key={item} onPress={() => setTag(item)} className="rounded px-2 py-1" style={{ backgroundColor: item === tag ? controlBackground : 'transparent' }}>
+                <Text className="text-xs font-semibold" style={{ color: item === tag ? colors.text : colors.muted }}>{item}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+
+          <View className="flex-row border-b px-2 py-2" style={{ borderColor: colors.border }}>
+            <Text className="flex-1 text-[11px] font-medium" style={{ color: colors.muted }}>Symbols ↕ / Vol ↕</Text>
+            <Text className="w-[72px] text-right text-[11px] font-medium" style={{ color: colors.muted }}>Last Price ↕</Text>
+            <Text className="w-[64px] text-right text-[11px] font-medium" style={{ color: colors.muted }}>24h Chg ↕</Text>
+            <Text className="w-[72px] text-right text-[11px] font-medium" style={{ color: colors.muted }}>Funding Rate</Text>
+          </View>
+
           <ScrollView
-            className="deep-green-scrollbar min-h-0 max-h-[330px] rounded-b-xl border-x border-b lg:flex-1"
+            className="deep-green-scrollbar min-h-0 rounded-b-xl border-b lg:flex-1"
             style={{ borderColor: colors.border }}
             showsVerticalScrollIndicator
             indicatorStyle={darkMode ? 'white' : 'black'}
             persistentScrollbar
             nestedScrollEnabled
           >
-            {MARKET_GROUPS.map((group) => {
-              const items = itemsForGroup(group);
-              if (!items.length) return null;
-              const open = Boolean(search) || Boolean(expanded[group]);
-              return (
-                <View key={group}>
-                  <Pressable onPress={() => toggleGroup(group)} className="flex-row items-center border-b px-4 py-3" style={{ backgroundColor: groupBackground, borderColor: colors.border }}>
-                    {open ? <ChevronDown size={14} color={colors.primary} /> : <ChevronRight size={14} color={colors.muted} />}
-                    <Text className="ml-2 text-xs font-bold" style={{ color: colors.primary }}>{group}</Text>
-                  </Pressable>
-                  {open ? items.map((item) => <SymbolCard key={item.symbol} item={item} selected={item.symbol === selectedSymbol} onSelect={setSelectedSymbol} />) : null}
-                </View>
-              );
-            })}
+            {filtered.map((item) => (
+              <SymbolMarketRow
+                key={item.symbol}
+                item={item}
+                selected={item.symbol === selectedSymbol}
+                onSelect={setSelectedSymbol}
+                colors={colors}
+                darkMode={darkMode}
+              />
+            ))}
           </ScrollView>
         </View>
       )}

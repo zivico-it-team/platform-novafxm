@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Modal, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import { CircleUserRound, Plus, RefreshCw, Settings2, Sun, Moon } from 'lucide-react-native';
 import { useAuth } from '../../hooks/useAuth';
@@ -94,6 +94,16 @@ export default function TopAccountBar() {
   const iconHoverStyle = (action) => ({ transform: [{ scale: hoveredAction === action ? 1.12 : 1 }, { rotate: hoveredAction === action ? '8deg' : '0deg' }] });
 
   const iconColor = (action) => (hoveredAction === action ? colors.primary : colors.text);
+  const AuthButtons = () => (
+    <View className="flex-row items-center gap-2">
+      <Pressable onPress={() => router.push('/login')} className="h-[40px] justify-center rounded-md px-4" style={{ backgroundColor: colors.panel }}>
+        <Text className="text-sm font-semibold" style={{ color: colors.text }}>Log In</Text>
+      </Pressable>
+      <Pressable onPress={() => router.push('/register')} className="h-[40px] justify-center rounded-md px-4" style={{ backgroundColor: colors.primary }}>
+        <Text className="text-sm font-bold text-black">Sign Up</Text>
+      </Pressable>
+    </View>
+  );
 
   useEffect(() => () => cancelProfileHoverClose(), []);
 
@@ -111,10 +121,10 @@ export default function TopAccountBar() {
     <View className={`${mobile ? 'relative z-40 gap-1.5 px-2 py-1.5' : 'relative z-40 border-b px-2 py-1.5'} lg:flex-row lg:items-center lg:gap-3 lg:px-3 lg:py-3`} style={{ backgroundColor: colors.background, borderColor: colors.border }}>
       {mobile ? (
         <View className="flex-row items-center gap-2">
-          <Pressable onPress={() => setMenu(menu === 'account' ? null : 'account')} className="h-[40px] flex-1 flex-row items-center rounded-md border px-2" style={{ backgroundColor: colors.panel, borderColor: colors.border }}><CircleUserRound color={colors.muted} size={18} /><View className="ml-2 min-w-0 flex-1"><Text className="text-xs font-bold" numberOfLines={1} style={{ color: colors.text }}>{selectedAccount?.type || 'Demo'}</Text><Text className="text-[10px]" numberOfLines={1} style={{ color: colors.muted }}>{selectedAccount?.name || 'Demo account 1'}</Text></View><View className="ml-1 h-2 w-2 rounded-full" style={{ backgroundColor: colors.success }} /></Pressable>
+          {user ? <Pressable onPress={() => setMenu(menu === 'account' ? null : 'account')} className="h-[40px] flex-1 flex-row items-center rounded-md border px-2" style={{ backgroundColor: colors.panel, borderColor: colors.border }}><CircleUserRound color={colors.muted} size={18} /><View className="ml-2 min-w-0 flex-1"><Text className="text-xs font-bold" numberOfLines={1} style={{ color: colors.text }}>{selectedAccount?.type || 'Demo'}</Text><Text className="text-[10px]" numberOfLines={1} style={{ color: colors.muted }}>{selectedAccount?.name || 'Demo account 1'}</Text></View><View className="ml-1 h-2 w-2 rounded-full" style={{ backgroundColor: colors.success }} /></Pressable> : <AuthButtons />}
           <Pressable onPress={() => setOrderModal(true)} className="h-[40px] flex-row items-center justify-center rounded-md px-3" style={{ backgroundColor: colors.primary }}><Plus color="#0B0B0B" size={16} /><Text className="ml-1.5 text-xs font-bold text-black">New Order</Text></Pressable>
           <Pressable {...hoverProps('mobile-theme')} onPress={toggleTheme} className="h-[40px] w-[40px] items-center justify-center rounded-md border" style={iconButtonStyle('mobile-theme', { backgroundColor: colors.panel, borderColor: colors.border })}><View style={iconHoverStyle('mobile-theme')}>{darkMode ? <Sun size={18} color={iconColor('mobile-theme')} /> : <Moon size={18} color={iconColor('mobile-theme')} />}</View></Pressable>
-          <Pressable {...profileHoverProps('mobile-profile')} onPress={() => setMenu(menu === 'profile' ? null : 'profile')} className="h-[40px] w-[40px] items-center justify-center rounded-md border" style={iconButtonStyle('mobile-profile', { backgroundColor: colors.panel, borderColor: colors.border })}><View style={iconHoverStyle('mobile-profile')}><Settings2 color={iconColor('mobile-profile')} size={18} /></View></Pressable>
+          {user ? <Pressable {...profileHoverProps('mobile-profile')} onPress={() => setMenu(menu === 'profile' ? null : 'profile')} className="h-[40px] w-[40px] items-center justify-center rounded-md border" style={iconButtonStyle('mobile-profile', { backgroundColor: colors.panel, borderColor: colors.border })}><View style={iconHoverStyle('mobile-profile')}><Settings2 color={iconColor('mobile-profile')} size={18} /></View></Pressable> : null}
         </View>
       ) : (
         <View className="mb-3 flex-row items-center justify-between lg:mb-0"><NovaLogo dark={darkMode} width={180} height={44} /></View>
@@ -128,10 +138,11 @@ export default function TopAccountBar() {
           </View>
         ))}
       </ScrollView>
-      {!mobile ? <Pressable onPress={() => setMenu(menu === 'account' ? null : 'account')} className="mt-3 flex-row items-center rounded-xl border px-4 py-3 lg:mt-0 lg:w-[250px]" style={{ backgroundColor: colors.panel, borderColor: colors.border }}><CircleUserRound color={colors.muted} size={23} /><View><Text className="ml-4 font-bold" style={{ color: colors.text }}>{selectedAccount?.type || 'Demo'}</Text><Text className="ml-4 text-xs" style={{ color: colors.muted }}>{selectedAccount?.name || 'Demo account 1'}</Text></View><View className="ml-auto h-2.5 w-2.5 rounded-full" style={{ backgroundColor: colors.success }} /></Pressable> : null}
-      <Pressable {...hoverProps('sync')} onPress={() => syncAccount?.().catch(() => {})} className="mt-3 hidden h-[58px] w-[58px] items-center justify-center rounded-xl border lg:flex" style={iconButtonStyle('sync', { backgroundColor: colors.panel, borderColor: colors.border })}><View style={iconHoverStyle('sync')}><RefreshCw size={21} color={iconColor('sync')} /></View></Pressable>
+      {!mobile && user ? <Pressable onPress={() => setMenu(menu === 'account' ? null : 'account')} className="mt-3 flex-row items-center rounded-xl border px-4 py-3 lg:mt-0 lg:w-[250px]" style={{ backgroundColor: colors.panel, borderColor: colors.border }}><CircleUserRound color={colors.muted} size={23} /><View><Text className="ml-4 font-bold" style={{ color: colors.text }}>{selectedAccount?.type || 'Demo'}</Text><Text className="ml-4 text-xs" style={{ color: colors.muted }}>{selectedAccount?.name || 'Demo account 1'}</Text></View><View className="ml-auto h-2.5 w-2.5 rounded-full" style={{ backgroundColor: colors.success }} /></Pressable> : null}
+      {!mobile && !user ? <AuthButtons /> : null}
+      {user ? <Pressable {...hoverProps('sync')} onPress={() => syncAccount?.().catch(() => {})} className="mt-3 hidden h-[58px] w-[58px] items-center justify-center rounded-xl border lg:flex" style={iconButtonStyle('sync', { backgroundColor: colors.panel, borderColor: colors.border })}><View style={iconHoverStyle('sync')}><RefreshCw size={21} color={iconColor('sync')} /></View></Pressable> : null}
       <Pressable {...hoverProps('theme')} onPress={toggleTheme} className="mt-3 hidden h-[58px] w-[58px] items-center justify-center rounded-xl border lg:flex" style={iconButtonStyle('theme', { backgroundColor: colors.panel, borderColor: colors.border })}><View style={iconHoverStyle('theme')}>{darkMode ? <Sun size={21} color={iconColor('theme')} /> : <Moon size={21} color={iconColor('theme')} />}</View></Pressable>
-      <Pressable {...profileHoverProps('profile')} onPress={() => setMenu(menu === 'profile' ? null : 'profile')} className="mt-3 hidden h-[58px] w-[58px] items-center justify-center rounded-xl border lg:flex" style={iconButtonStyle('profile', { backgroundColor: colors.panel, borderColor: colors.border })}><View style={iconHoverStyle('profile')}><Settings2 size={21} color={iconColor('profile')} /></View></Pressable>
+      {user ? <Pressable {...profileHoverProps('profile')} onPress={() => setMenu(menu === 'profile' ? null : 'profile')} className="mt-3 hidden h-[58px] w-[58px] items-center justify-center rounded-xl border lg:flex" style={iconButtonStyle('profile', { backgroundColor: colors.panel, borderColor: colors.border })}><View style={iconHoverStyle('profile')}><Settings2 size={21} color={iconColor('profile')} /></View></Pressable> : null}
       <Modal visible={Boolean(menu)} transparent animationType="none" onRequestClose={() => setMenu(null)}>
         <Pressable className="flex-1" style={{ flex: 1 }} onPress={() => setMenu(null)}>
           <Pressable onPress={(event) => event.stopPropagation()}>
