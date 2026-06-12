@@ -152,9 +152,6 @@ const bankPayload = (body) => ({
   branchName: String(body.branchName || body.bankBranch || '').trim() || null,
   accountNumber: String(body.accountNumber || body.bankAccountNumber || '').trim(),
 });
-const isTrc20Account = (account) => String(`${account?.bankName || ''} ${account?.branchName || ''}`).toLowerCase().includes('trc20');
-const isTrc20Payload = (payload) => String(`${payload?.bankName || ''} ${payload?.branchName || ''}`).toLowerCase().includes('trc20');
-
 const validateBankPayload = (payload) => {
   if (!payload.accountHolderName || !payload.bankName || !payload.accountNumber) {
     return 'Account holder, bank name and account number are required.';
@@ -205,8 +202,10 @@ exports.createBankAccount = async (req, res, next) => {
     const validationError = validateBankPayload(payload);
     if (validationError) return res.status(400).json({ message: validationError });
 
-    const existingAccounts = await BankAccount.findAll({ where: { userId: req.user.id } });
-    const existingAccount = existingAccounts.find((account) => isTrc20Account(account) === isTrc20Payload(payload));
+    const existingAccount = await BankAccount.findOne({
+      where: { userId: req.user.id },
+      order: [['createdAt', 'DESC']],
+    });
     if (existingAccount) {
       await existingAccount.update({ ...payload, status: 'pending', reviewedAt: null, reviewedBy: null });
       return res.json({ account: existingAccount, message: 'Withdrawal details updated and submitted for admin approval.' });

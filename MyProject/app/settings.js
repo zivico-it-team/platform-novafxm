@@ -427,7 +427,7 @@ const normalizeBankAccount = (account) => ({
   payoutType: String(account.bankName || account.branchName || '').toLowerCase().includes('trc20') ? 'TRC20' : 'Bank',
 });
 
-const detailForType = (accounts, payoutType) => accounts.find((account) => account.payoutType === payoutType);
+const existingWithdrawalDetail = (accounts) => accounts[0] || null;
 
 export default function SettingsScreen() {
   const { user, logout, updateProfile } = useAuth();
@@ -698,10 +698,7 @@ export default function SettingsScreen() {
         bankBranch: bankForm.bankBranch.trim(),
         bankAccountNumber: bankForm.bankAccountNumber.trim(),
       };
-      const existingBankAccount = detailForType(bankAccounts, 'Bank');
-      const targetBankAccountId = editingBankAccountId && editingPayoutType === 'Bank'
-        ? editingBankAccountId
-        : existingBankAccount?.id;
+      const targetBankAccountId = editingBankAccountId || existingWithdrawalDetail(bankAccounts)?.id;
       const result = targetBankAccountId
         ? await authService.updateBankAccount(targetBankAccountId, nextBankDetails)
         : await authService.createBankAccount(nextBankDetails);
@@ -736,10 +733,7 @@ export default function SettingsScreen() {
         bankBranch: 'TRC20',
         bankAccountNumber: trc20Form.walletAddress.trim(),
       };
-      const existingTrc20Account = detailForType(bankAccounts, 'TRC20');
-      const targetTrc20AccountId = editingBankAccountId && editingPayoutType === 'TRC20'
-        ? editingBankAccountId
-        : existingTrc20Account?.id;
+      const targetTrc20AccountId = editingBankAccountId || existingWithdrawalDetail(bankAccounts)?.id;
       const result = targetTrc20AccountId
         ? await authService.updateBankAccount(targetTrc20AccountId, nextTrc20Details)
         : await authService.createBankAccount(nextTrc20Details);
@@ -811,8 +805,10 @@ export default function SettingsScreen() {
     .map((part) => part[0]?.toUpperCase())
     .join('');
   const activeSettings = settingsSections.find((section) => section.key === activeSection) || settingsSections[0];
-  const existingBankDetails = detailForType(bankAccounts, 'Bank');
-  const existingTrc20Details = detailForType(bankAccounts, 'TRC20');
+  const savedWithdrawalDetail = existingWithdrawalDetail(bankAccounts);
+  const showPaymentForms = !savedWithdrawalDetail || Boolean(editingBankAccountId);
+  const showBankForm = !savedWithdrawalDetail || editingPayoutType === 'Bank';
+  const showTrc20Form = !savedWithdrawalDetail || editingPayoutType === 'TRC20';
 
   return (
     <ScrollView className="flex-1" style={{ backgroundColor: colors.background }} contentContainerClassName="p-4 lg:p-8">
@@ -1058,87 +1054,91 @@ export default function SettingsScreen() {
 
           {activeSection === 'payments' ? (
             <SettingsPanel icon={CreditCard} title="Withdrawal Details" subtitle="Save bank and USDT TRC20 withdrawal details.">
-              <View className="rounded-xl border p-4" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
-                <Text className="mb-4 text-base font-extrabold" style={{ color: colors.text }}>Bank Account Details</Text>
-                <View className="lg:flex-row lg:gap-4">
-                  <SettingsInput
-                    className="flex-1"
-                    label="Account Holder Name"
-                    value={bankForm.bankAccountHolder}
-                    onChangeText={(bankAccountHolder) => {
-                      setBankForm((current) => ({ ...current, bankAccountHolder }));
-                      setBankMessage('');
-                    }}
-                    placeholder="Name on bank account"
-                  />
-                  <SettingsInput
-                    className="flex-1"
-                    label="Bank Name"
-                    value={bankForm.bankName}
-                    onChangeText={(bankName) => {
-                      setBankForm((current) => ({ ...current, bankName }));
-                      setBankMessage('');
-                    }}
-                    placeholder="Bank name"
-                  />
+              {showPaymentForms && showBankForm ? (
+                <View className="rounded-xl border p-4" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+                  <Text className="mb-4 text-base font-extrabold" style={{ color: colors.text }}>{savedWithdrawalDetail ? 'Edit Bank Account Details' : 'Bank Account Details'}</Text>
+                  <View className="lg:flex-row lg:gap-4">
+                    <SettingsInput
+                      className="flex-1"
+                      label="Account Holder Name"
+                      value={bankForm.bankAccountHolder}
+                      onChangeText={(bankAccountHolder) => {
+                        setBankForm((current) => ({ ...current, bankAccountHolder }));
+                        setBankMessage('');
+                      }}
+                      placeholder="Name on bank account"
+                    />
+                    <SettingsInput
+                      className="flex-1"
+                      label="Bank Name"
+                      value={bankForm.bankName}
+                      onChangeText={(bankName) => {
+                        setBankForm((current) => ({ ...current, bankName }));
+                        setBankMessage('');
+                      }}
+                      placeholder="Bank name"
+                    />
+                  </View>
+                  <View className="lg:flex-row lg:gap-4">
+                    <SettingsInput
+                      className="flex-1"
+                      label="Branch"
+                      value={bankForm.bankBranch}
+                      onChangeText={(bankBranch) => {
+                        setBankForm((current) => ({ ...current, bankBranch }));
+                        setBankMessage('');
+                      }}
+                      placeholder="Branch name"
+                    />
+                    <SettingsInput
+                      className="flex-1"
+                      label="Account Number"
+                      value={bankForm.bankAccountNumber}
+                      keyboardType="number-pad"
+                      onChangeText={(bankAccountNumber) => {
+                        setBankForm((current) => ({ ...current, bankAccountNumber }));
+                        setBankMessage('');
+                      }}
+                      placeholder="Bank account number"
+                    />
+                  </View>
+                  <Pressable disabled={bankBusy} onPress={saveBankDetails} className={`mt-2 flex-row self-start rounded-xl bg-primary px-6 py-4 ${bankBusy ? 'opacity-60' : ''}`}>
+                    <Save size={16} color="#05130d" />
+                    <Text className="ml-2 font-extrabold text-black">{bankBusy ? 'Saving...' : savedWithdrawalDetail ? 'Update Bank Details' : 'Save Bank Details'}</Text>
+                  </Pressable>
                 </View>
-                <View className="lg:flex-row lg:gap-4">
-                  <SettingsInput
-                    className="flex-1"
-                    label="Branch"
-                    value={bankForm.bankBranch}
-                    onChangeText={(bankBranch) => {
-                      setBankForm((current) => ({ ...current, bankBranch }));
-                      setBankMessage('');
-                    }}
-                    placeholder="Branch name"
-                  />
-                  <SettingsInput
-                    className="flex-1"
-                    label="Account Number"
-                    value={bankForm.bankAccountNumber}
-                    keyboardType="number-pad"
-                    onChangeText={(bankAccountNumber) => {
-                      setBankForm((current) => ({ ...current, bankAccountNumber }));
-                      setBankMessage('');
-                    }}
-                    placeholder="Bank account number"
-                  />
+              ) : null}
+              {showPaymentForms && showTrc20Form ? (
+                <View className={`${showBankForm ? 'mt-4' : ''} rounded-xl border p-4`} style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+                  <Text className="mb-4 text-base font-extrabold" style={{ color: colors.text }}>{savedWithdrawalDetail ? 'Edit USDT TRC20 Details' : 'USDT TRC20 Details'}</Text>
+                  <View className="lg:flex-row lg:gap-4">
+                    <SettingsInput
+                      className="flex-1"
+                      label="Wallet Holder Name"
+                      value={trc20Form.walletHolderName}
+                      onChangeText={(walletHolderName) => {
+                        setTrc20Form((current) => ({ ...current, walletHolderName }));
+                        setBankMessage('');
+                      }}
+                      placeholder="Name for this wallet"
+                    />
+                    <SettingsInput
+                      className="flex-1"
+                      label="TRC20 Wallet Address"
+                      value={trc20Form.walletAddress}
+                      onChangeText={(walletAddress) => {
+                        setTrc20Form((current) => ({ ...current, walletAddress }));
+                        setBankMessage('');
+                      }}
+                      placeholder="TRC20 wallet address"
+                    />
+                  </View>
+                  <Pressable disabled={bankBusy} onPress={saveTrc20Details} className={`mt-2 flex-row self-start rounded-xl bg-primary px-6 py-4 ${bankBusy ? 'opacity-60' : ''}`}>
+                    <Save size={16} color="#05130d" />
+                    <Text className="ml-2 font-extrabold text-black">{bankBusy ? 'Saving...' : savedWithdrawalDetail ? 'Update TRC20 Details' : 'Save TRC20 Details'}</Text>
+                  </Pressable>
                 </View>
-                <Pressable disabled={bankBusy} onPress={saveBankDetails} className={`mt-2 flex-row self-start rounded-xl bg-primary px-6 py-4 ${bankBusy ? 'opacity-60' : ''}`}>
-                  <Save size={16} color="#05130d" />
-                  <Text className="ml-2 font-extrabold text-black">{bankBusy ? 'Saving...' : (editingBankAccountId && editingPayoutType === 'Bank') || existingBankDetails ? 'Update Bank Details' : 'Save Bank Details'}</Text>
-                </Pressable>
-              </View>
-              <View className="mt-4 rounded-xl border p-4" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
-                <Text className="mb-4 text-base font-extrabold" style={{ color: colors.text }}>USDT TRC20 Details</Text>
-                <View className="lg:flex-row lg:gap-4">
-                  <SettingsInput
-                    className="flex-1"
-                    label="Wallet Holder Name"
-                    value={trc20Form.walletHolderName}
-                    onChangeText={(walletHolderName) => {
-                      setTrc20Form((current) => ({ ...current, walletHolderName }));
-                      setBankMessage('');
-                    }}
-                    placeholder="Name for this wallet"
-                  />
-                  <SettingsInput
-                    className="flex-1"
-                    label="TRC20 Wallet Address"
-                    value={trc20Form.walletAddress}
-                    onChangeText={(walletAddress) => {
-                      setTrc20Form((current) => ({ ...current, walletAddress }));
-                      setBankMessage('');
-                    }}
-                    placeholder="TRC20 wallet address"
-                  />
-                </View>
-                <Pressable disabled={bankBusy} onPress={saveTrc20Details} className={`mt-2 flex-row self-start rounded-xl bg-primary px-6 py-4 ${bankBusy ? 'opacity-60' : ''}`}>
-                  <Save size={16} color="#05130d" />
-                  <Text className="ml-2 font-extrabold text-black">{bankBusy ? 'Saving...' : (editingBankAccountId && editingPayoutType === 'TRC20') || existingTrc20Details ? 'Update TRC20 Details' : 'Save TRC20 Details'}</Text>
-                </Pressable>
-              </View>
+              ) : null}
               {bankMessage ? <Text className="mt-3 text-sm" style={{ color: colors.muted }}>{bankMessage}</Text> : null}
               {bankAccounts.length ? (
                 <View className="mt-4 gap-3">
@@ -1161,43 +1161,42 @@ export default function SettingsScreen() {
                           </Pressable>
                         </View>
                       </View>
-                      {account.status === 'approved' ? (
-                        <View className="gap-3">
-                          <View>
-                            <Text className="text-xs uppercase" style={{ color: colors.muted }}>{account.payoutType === 'TRC20' ? 'Wallet Holder' : 'Account Holder'}</Text>
-                            <Text className="mt-1 font-bold" style={{ color: colors.text }}>{account.bankAccountHolder || '-'}</Text>
-                          </View>
-                          <View>
-                            <Text className="text-xs uppercase" style={{ color: colors.muted }}>{account.payoutType === 'TRC20' ? 'Network' : 'Bank Name'}</Text>
-                            <Text className="mt-1 font-bold" style={{ color: colors.text }}>{account.bankName || '-'}</Text>
-                          </View>
-                          <View>
-                            <Text className="text-xs uppercase" style={{ color: colors.muted }}>{account.payoutType === 'TRC20' ? 'Token Standard' : 'Branch'}</Text>
-                            <Text className="mt-1 font-bold" style={{ color: colors.text }}>{account.bankBranch || '-'}</Text>
-                          </View>
-                          <View>
-                            <Text className="text-xs uppercase" style={{ color: colors.muted }}>{account.payoutType === 'TRC20' ? 'Wallet Address' : 'Account Number'}</Text>
-                            <Text className="mt-1 font-bold" style={{ color: colors.text }}>{account.bankAccountNumber || '-'}</Text>
-                          </View>
+                      <View className="gap-3">
+                        <View>
+                          <Text className="text-xs uppercase" style={{ color: colors.muted }}>{account.payoutType === 'TRC20' ? 'Wallet Holder' : 'Account Holder'}</Text>
+                          <Text className="mt-1 font-bold" style={{ color: colors.text }}>{account.bankAccountHolder || '-'}</Text>
                         </View>
-                      ) : (
-                        <View className={`rounded-xl border p-4 ${account.status === 'rejected' ? 'border-danger/40 bg-danger/10' : 'border-primary/40'}`} style={{ backgroundColor: account.status === 'rejected' ? undefined : colors.panel }}>
+                        <View>
+                          <Text className="text-xs uppercase" style={{ color: colors.muted }}>{account.payoutType === 'TRC20' ? 'Network' : 'Bank Name'}</Text>
+                          <Text className="mt-1 font-bold" style={{ color: colors.text }}>{account.bankName || '-'}</Text>
+                        </View>
+                        <View>
+                          <Text className="text-xs uppercase" style={{ color: colors.muted }}>{account.payoutType === 'TRC20' ? 'Token Standard' : 'Branch'}</Text>
+                          <Text className="mt-1 font-bold" style={{ color: colors.text }}>{account.bankBranch || '-'}</Text>
+                        </View>
+                        <View>
+                          <Text className="text-xs uppercase" style={{ color: colors.muted }}>{account.payoutType === 'TRC20' ? 'Wallet Address' : 'Account Number'}</Text>
+                          <Text className="mt-1 font-bold" style={{ color: colors.text }}>{account.bankAccountNumber || '-'}</Text>
+                        </View>
+                      </View>
+                      {account.status !== 'approved' ? (
+                        <View className={`mt-4 rounded-xl border p-4 ${account.status === 'rejected' ? 'border-danger/40 bg-danger/10' : 'border-primary/40'}`} style={{ backgroundColor: account.status === 'rejected' ? undefined : colors.panel }}>
                           <Text className={`font-bold ${account.status === 'rejected' ? 'text-danger' : 'text-primary'}`}>
                             {account.status === 'rejected'
-                              ? 'Bank account details rejected'
+                              ? 'Withdrawal details rejected'
                               : account.status === 'delete_pending'
-                                ? 'Bank account delete request pending admin approval'
-                                : 'Bank account details pending admin approval'}
+                                ? 'Withdrawal detail delete request pending admin approval'
+                                : 'Withdrawal details pending admin approval'}
                           </Text>
                           <Text className="mt-2 text-sm" style={{ color: colors.muted }}>
                             {account.status === 'rejected'
-                              ? 'Please edit and resubmit your bank account details.'
+                              ? 'Please edit and resubmit your withdrawal details.'
                               : account.status === 'delete_pending'
-                                ? 'This account will be removed after admin approval.'
-                                : 'Your details will be shown here after the admin approves this account.'}
+                                ? 'This detail will be removed after admin approval.'
+                                : 'These details can be used for withdrawals after admin approval.'}
                           </Text>
                         </View>
-                      )}
+                      ) : null}
                     </View>
                   ))}
                 </View>
