@@ -6,7 +6,7 @@ const navigation = [
   { id: 'overview', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'users', label: 'User Wallets', icon: UsersRound },
   { id: 'funding', label: 'Deposits & Withdrawals', icon: ReceiptText },
-  { id: 'bankAccounts', label: 'Bank Accounts', icon: CreditCard },
+  { id: 'bankAccounts', label: 'Withdrawal Details', icon: CreditCard },
   { id: 'trades', label: 'All Trades', icon: BarChart3 },
 ];
 

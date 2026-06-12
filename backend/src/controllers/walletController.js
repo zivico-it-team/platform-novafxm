@@ -1,5 +1,5 @@
 const sequelize = require('../config/db');
-const { Wallet, Deposit, Withdrawal, Transaction, Trade } = require('../models');
+const { Wallet, Deposit, Withdrawal, Transaction, Trade, BankAccount } = require('../models');
 const tradingView = require('../services/tradingViewService');
 
 const money = (value) => Number(Number(value || 0).toFixed(2));
@@ -14,6 +14,7 @@ const profitFor = (trade, price) => (
   * Number(trade.lots)
   * contractSize(trade.symbol)
 );
+const isTrc20Detail = (account) => String(`${account?.bankName || ''} ${account?.branchName || ''}`).toLowerCase().includes('trc20');
 
 exports.getWallet = async (req, res, next) => {
   try {
@@ -84,11 +85,24 @@ exports.withdraw = async (req, res, next) => {
     if (req.user.verificationStatus !== 'approved') {
       return res.status(403).json({ message: 'Complete account verification before withdrawals.' });
     }
-    const { amount, withdrawalMethod = 'Bank', bankName, accountNumber, accountHolderName } = req.body;
+    const { amount, withdrawalMethod = 'Bank', bankAccountId } = req.body;
     const method = withdrawalMethod === 'Crypto' ? 'Crypto' : 'Bank';
-    if (!(Number(amount) > 0) || !bankName || !accountNumber || !accountHolderName) {
-      return res.status(400).json({ message: 'All withdrawal details are required.' });
+    if (!(Number(amount) > 0) || !bankAccountId) {
+      return res.status(400).json({ message: 'Amount and an approved withdrawal detail are required.' });
     }
+    const savedDetail = await BankAccount.findOne({
+      where: {
+        id: bankAccountId,
+        userId: req.user.id,
+        status: 'approved',
+      },
+    });
+    if (!savedDetail || (method === 'Crypto') !== isTrc20Detail(savedDetail)) {
+      return res.status(400).json({ message: 'Select an approved withdrawal detail from Settings.' });
+    }
+    const bankName = savedDetail.bankName;
+    const accountNumber = savedDetail.accountNumber;
+    const accountHolderName = savedDetail.accountHolderName;
     let withdrawal;
     await sequelize.transaction(async (transaction) => {
       const wallet = await Wallet.findOne({ where: { userId: req.user.id }, transaction, lock: transaction.LOCK.UPDATE });

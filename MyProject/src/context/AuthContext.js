@@ -26,7 +26,12 @@ export function AuthProvider({ children }) {
           const restoredUser = mergeUser(current.user, savedUser);
           setUser(restoredUser);
           await storage.set('user', restoredUser);
-        } catch {
+        } catch (requestError) {
+          if (requestError.response?.status === 401) {
+            await storage.clearSession();
+            setUser(null);
+            return;
+          }
           setUser(savedUser);
         }
       }
