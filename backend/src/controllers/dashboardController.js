@@ -11,6 +11,9 @@ exports.dashboard = async (req, res, next) => {
 
 exports.createAccount = async (req, res, next) => {
   try {
+    if (req.body.confirmed !== true) {
+      return res.status(400).json({ message: 'Please confirm account creation first.' });
+    }
     const account = await createTradingAccount(req.user.id, req.body.type);
     return res.status(201).json({ account });
   } catch (error) {
