@@ -424,6 +424,7 @@ const normalizeBankAccount = (account) => ({
   bankBranch: account.bankBranch || account.branchName || '',
   bankAccountNumber: account.bankAccountNumber || account.accountNumber || '',
   status: account.status || 'pending',
+  payoutType: String(account.bankName || account.branchName || '').toLowerCase().includes('trc20') ? 'TRC20' : 'Bank',
 });
 
 export default function SettingsScreen() {
@@ -445,8 +446,10 @@ export default function SettingsScreen() {
   const [passwordMessage, setPasswordMessage] = useState('');
   const [passwordBusy, setPasswordBusy] = useState(false);
   const [bankForm, setBankForm] = useState({ bankAccountHolder: '', bankName: '', bankBranch: '', bankAccountNumber: '' });
+  const [trc20Form, setTrc20Form] = useState({ walletHolderName: '', walletAddress: '' });
   const [bankAccounts, setBankAccounts] = useState([]);
   const [editingBankAccountId, setEditingBankAccountId] = useState(null);
+  const [editingPayoutType, setEditingPayoutType] = useState('Bank');
   const [bankMessage, setBankMessage] = useState('');
   const [bankBusy, setBankBusy] = useState(false);
   const [profileForm, setProfileForm] = useState({
@@ -490,7 +493,9 @@ export default function SettingsScreen() {
     setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
     setPasswordMessage('');
     setBankForm({ bankAccountHolder: '', bankName: '', bankBranch: '', bankAccountNumber: '' });
+    setTrc20Form({ walletHolderName: '', walletAddress: '' });
     setEditingBankAccountId(null);
+    setEditingPayoutType('Bank');
     setBankMessage('');
     setProfileErrors({});
     setEditingProfile(false);
@@ -691,17 +696,18 @@ export default function SettingsScreen() {
         bankBranch: bankForm.bankBranch.trim(),
         bankAccountNumber: bankForm.bankAccountNumber.trim(),
       };
-      const result = editingBankAccountId
+      const result = editingBankAccountId && editingPayoutType === 'Bank'
         ? await authService.updateBankAccount(editingBankAccountId, nextBankDetails)
         : await authService.createBankAccount(nextBankDetails);
-  const savedAccount = normalizeBankAccount(result.account || { ...nextBankDetails, id: editingBankAccountId });
+      const savedAccount = normalizeBankAccount(result.account || { ...nextBankDetails, id: editingBankAccountId });
       setBankAccounts((current) => (
-        editingBankAccountId
+        editingBankAccountId && editingPayoutType === 'Bank'
           ? current.map((account) => (String(account.id) === String(editingBankAccountId) ? savedAccount : account))
           : [savedAccount, ...current]
       ));
       setBankForm({ bankAccountHolder: '', bankName: '', bankBranch: '', bankAccountNumber: '' });
       setEditingBankAccountId(null);
+      setEditingPayoutType('Bank');
       setBankMessage(result.message || (editingBankAccountId ? 'Bank account details updated successfully.' : 'Bank account details saved successfully.'));
     } catch (requestError) {
       setBankMessage(requestError.response?.data?.message || 'Bank account details could not be saved.');
@@ -710,15 +716,60 @@ export default function SettingsScreen() {
     }
   };
 
+  const saveTrc20Details = async () => {
+    setBankMessage('');
+    if (!trc20Form.walletHolderName.trim() || !trc20Form.walletAddress.trim()) {
+      setBankMessage('TRC20 wallet holder name and wallet address are required.');
+      return;
+    }
+    setBankBusy(true);
+    try {
+      const nextTrc20Details = {
+        bankAccountHolder: trc20Form.walletHolderName.trim(),
+        bankName: 'USDT TRC20',
+        bankBranch: 'TRC20',
+        bankAccountNumber: trc20Form.walletAddress.trim(),
+      };
+      const result = editingBankAccountId && editingPayoutType === 'TRC20'
+        ? await authService.updateBankAccount(editingBankAccountId, nextTrc20Details)
+        : await authService.createBankAccount(nextTrc20Details);
+      const savedAccount = normalizeBankAccount(result.account || { ...nextTrc20Details, id: editingBankAccountId });
+      setBankAccounts((current) => (
+        editingBankAccountId && editingPayoutType === 'TRC20'
+          ? current.map((account) => (String(account.id) === String(editingBankAccountId) ? savedAccount : account))
+          : [savedAccount, ...current]
+      ));
+      setTrc20Form({ walletHolderName: '', walletAddress: '' });
+      setEditingBankAccountId(null);
+      setEditingPayoutType('Bank');
+      setBankMessage(editingBankAccountId && editingPayoutType === 'TRC20' ? 'TRC20 details updated and submitted for admin approval.' : 'TRC20 details submitted for admin approval.');
+    } catch (requestError) {
+      setBankMessage(requestError.response?.data?.message || 'TRC20 details could not be saved.');
+    } finally {
+      setBankBusy(false);
+    }
+  };
+
   const editBankDetails = (account) => {
-    setBankForm({
-      bankAccountHolder: account.bankAccountHolder || '',
-      bankName: account.bankName || '',
-      bankBranch: account.bankBranch || '',
-      bankAccountNumber: account.bankAccountNumber || '',
-    });
+    if (account.payoutType === 'TRC20') {
+      setTrc20Form({
+        walletHolderName: account.bankAccountHolder || '',
+        walletAddress: account.bankAccountNumber || '',
+      });
+      setBankForm({ bankAccountHolder: '', bankName: '', bankBranch: '', bankAccountNumber: '' });
+      setEditingPayoutType('TRC20');
+    } else {
+      setBankForm({
+        bankAccountHolder: account.bankAccountHolder || '',
+        bankName: account.bankName || '',
+        bankBranch: account.bankBranch || '',
+        bankAccountNumber: account.bankAccountNumber || '',
+      });
+      setTrc20Form({ walletHolderName: '', walletAddress: '' });
+      setEditingPayoutType('Bank');
+    }
     setEditingBankAccountId(account.id);
-    setBankMessage('Edit the details above, then click Save Bank Details.');
+    setBankMessage(`Edit the details above, then click ${account.payoutType === 'TRC20' ? 'Save TRC20 Details' : 'Save Bank Details'}.`);
   };
 
   const deleteBankDetails = async (accountId) => {
@@ -731,7 +782,9 @@ export default function SettingsScreen() {
       )));
       if (String(editingBankAccountId) === String(accountId)) {
         setEditingBankAccountId(null);
+        setEditingPayoutType('Bank');
         setBankForm({ bankAccountHolder: '', bankName: '', bankBranch: '', bankAccountNumber: '' });
+        setTrc20Form({ walletHolderName: '', walletAddress: '' });
       }
       setBankMessage(result.message || 'Bank account deletion request submitted for admin approval.');
     } catch (requestError) {
@@ -992,8 +1045,9 @@ export default function SettingsScreen() {
           ) : null}
 
           {activeSection === 'payments' ? (
-            <SettingsPanel icon={CreditCard} title="Bank Account Details" subtitle="Save your withdrawal bank account details.">
+            <SettingsPanel icon={CreditCard} title="Withdrawal Details" subtitle="Save bank and USDT TRC20 withdrawal details.">
               <View className="rounded-xl border p-4" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+                <Text className="mb-4 text-base font-extrabold" style={{ color: colors.text }}>Bank Account Details</Text>
                 <View className="lg:flex-row lg:gap-4">
                   <SettingsInput
                     className="flex-1"
@@ -1041,18 +1095,47 @@ export default function SettingsScreen() {
                 </View>
                 <Pressable disabled={bankBusy} onPress={saveBankDetails} className={`mt-2 flex-row self-start rounded-xl bg-primary px-6 py-4 ${bankBusy ? 'opacity-60' : ''}`}>
                   <Save size={16} color="#05130d" />
-                  <Text className="ml-2 font-extrabold text-black">{bankBusy ? 'Saving...' : editingBankAccountId ? 'Update Bank Details' : 'Save Bank Details'}</Text>
+                  <Text className="ml-2 font-extrabold text-black">{bankBusy ? 'Saving...' : editingBankAccountId && editingPayoutType === 'Bank' ? 'Update Bank Details' : 'Save Bank Details'}</Text>
                 </Pressable>
-                {bankMessage ? <Text className="mt-3 text-sm" style={{ color: colors.muted }}>{bankMessage}</Text> : null}
               </View>
+              <View className="mt-4 rounded-xl border p-4" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+                <Text className="mb-4 text-base font-extrabold" style={{ color: colors.text }}>USDT TRC20 Details</Text>
+                <View className="lg:flex-row lg:gap-4">
+                  <SettingsInput
+                    className="flex-1"
+                    label="Wallet Holder Name"
+                    value={trc20Form.walletHolderName}
+                    onChangeText={(walletHolderName) => {
+                      setTrc20Form((current) => ({ ...current, walletHolderName }));
+                      setBankMessage('');
+                    }}
+                    placeholder="Name for this wallet"
+                  />
+                  <SettingsInput
+                    className="flex-1"
+                    label="TRC20 Wallet Address"
+                    value={trc20Form.walletAddress}
+                    onChangeText={(walletAddress) => {
+                      setTrc20Form((current) => ({ ...current, walletAddress }));
+                      setBankMessage('');
+                    }}
+                    placeholder="TRC20 wallet address"
+                  />
+                </View>
+                <Pressable disabled={bankBusy} onPress={saveTrc20Details} className={`mt-2 flex-row self-start rounded-xl bg-primary px-6 py-4 ${bankBusy ? 'opacity-60' : ''}`}>
+                  <Save size={16} color="#05130d" />
+                  <Text className="ml-2 font-extrabold text-black">{bankBusy ? 'Saving...' : editingBankAccountId && editingPayoutType === 'TRC20' ? 'Update TRC20 Details' : 'Save TRC20 Details'}</Text>
+                </Pressable>
+              </View>
+              {bankMessage ? <Text className="mt-3 text-sm" style={{ color: colors.muted }}>{bankMessage}</Text> : null}
               {bankAccounts.length ? (
                 <View className="mt-4 gap-3">
-                  <Text className="text-base font-extrabold" style={{ color: colors.text }}>Saved Bank Account Details</Text>
+                  <Text className="text-base font-extrabold" style={{ color: colors.text }}>Saved Withdrawal Details</Text>
                   {bankAccounts.map((account, index) => (
                     <View key={account.id || `${account.bankAccountNumber}-${index}`} className="rounded-xl border border-primary/30 bg-primary/10 p-4">
                       <View className="mb-4 flex-row flex-wrap items-center justify-between gap-3">
                         <View className="flex-row flex-wrap items-center gap-2">
-                          <Text className="font-extrabold" style={{ color: colors.text }}>Account {index + 1}</Text>
+                          <Text className="font-extrabold" style={{ color: colors.text }}>{account.payoutType} Details {index + 1}</Text>
                           <Text className={`rounded-full px-3 py-1 text-xs font-bold ${account.status === 'approved' ? 'bg-success/10 text-success' : account.status === 'rejected' ? 'bg-danger/10 text-danger' : 'bg-primary/10 text-primary'}`}>
                             {account.status === 'approved' ? 'Approved' : account.status === 'rejected' ? 'Rejected' : account.status === 'delete_pending' ? 'Delete Pending' : 'Pending'}
                           </Text>
@@ -1069,19 +1152,19 @@ export default function SettingsScreen() {
                       {account.status === 'approved' ? (
                         <View className="gap-3">
                           <View>
-                            <Text className="text-xs uppercase" style={{ color: colors.muted }}>Account Holder</Text>
+                            <Text className="text-xs uppercase" style={{ color: colors.muted }}>{account.payoutType === 'TRC20' ? 'Wallet Holder' : 'Account Holder'}</Text>
                             <Text className="mt-1 font-bold" style={{ color: colors.text }}>{account.bankAccountHolder || '-'}</Text>
                           </View>
                           <View>
-                            <Text className="text-xs uppercase" style={{ color: colors.muted }}>Bank Name</Text>
+                            <Text className="text-xs uppercase" style={{ color: colors.muted }}>{account.payoutType === 'TRC20' ? 'Network' : 'Bank Name'}</Text>
                             <Text className="mt-1 font-bold" style={{ color: colors.text }}>{account.bankName || '-'}</Text>
                           </View>
                           <View>
-                            <Text className="text-xs uppercase" style={{ color: colors.muted }}>Branch</Text>
+                            <Text className="text-xs uppercase" style={{ color: colors.muted }}>{account.payoutType === 'TRC20' ? 'Token Standard' : 'Branch'}</Text>
                             <Text className="mt-1 font-bold" style={{ color: colors.text }}>{account.bankBranch || '-'}</Text>
                           </View>
                           <View>
-                            <Text className="text-xs uppercase" style={{ color: colors.muted }}>Account Number</Text>
+                            <Text className="text-xs uppercase" style={{ color: colors.muted }}>{account.payoutType === 'TRC20' ? 'Wallet Address' : 'Account Number'}</Text>
                             <Text className="mt-1 font-bold" style={{ color: colors.text }}>{account.bankAccountNumber || '-'}</Text>
                           </View>
                         </View>
@@ -1108,8 +1191,8 @@ export default function SettingsScreen() {
                 </View>
               ) : (
                 <View className="mt-4 rounded-xl border p-4" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
-                  <Text className="font-bold" style={{ color: colors.text }}>Saved Bank Account Details</Text>
-                  <Text className="mt-2 text-sm" style={{ color: colors.muted }}>No bank account details saved yet.</Text>
+                  <Text className="font-bold" style={{ color: colors.text }}>Saved Withdrawal Details</Text>
+                  <Text className="mt-2 text-sm" style={{ color: colors.muted }}>No bank or TRC20 withdrawal details saved yet.</Text>
                 </View>
               )}
             </SettingsPanel>

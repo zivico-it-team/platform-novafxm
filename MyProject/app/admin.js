@@ -15,6 +15,28 @@ import { dateTime, money } from '../src/utils/formatters';
 
 const empty = { users: [], deposits: [], withdrawals: [], bankAccounts: [], trades: [], stats: {} };
 
+const payoutTypeFor = (item) => (
+  String(`${item?.bankName || ''} ${item?.branchName || ''}`).toLowerCase().includes('trc20') ? 'TRC20' : 'Bank'
+);
+
+const payoutFieldsFor = (item) => {
+  const payoutType = payoutTypeFor(item);
+  if (payoutType === 'TRC20') {
+    return [
+      ['Wallet Holder', item.accountHolderName],
+      ['Network', item.bankName || 'USDT TRC20'],
+      ['Token Standard', item.branchName || 'TRC20'],
+      ['Wallet Address', item.accountNumber],
+    ];
+  }
+  return [
+    ['Account Holder', item.accountHolderName],
+    ['Bank Name', item.bankName],
+    ['Branch', item.branchName || '-'],
+    ['Account Number', item.accountNumber],
+  ];
+};
+
 function ask(message, onConfirm) {
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
     if (window.confirm(message)) onConfirm();
@@ -179,13 +201,13 @@ export default function AdminScreen() {
     ),
   );
   const reviewBankAccount = (item, decision) => ask(
-    `${decision === 'approve' ? 'Approve' : 'Reject'} ${item.status === 'delete_pending' ? 'this delete request' : 'bank account details'} for ${item.User?.name || item.User?.email || 'this user'}?`,
+    `${decision === 'approve' ? 'Approve' : 'Reject'} ${item.status === 'delete_pending' ? 'this delete request' : `${payoutTypeFor(item)} withdrawal details`} for ${item.User?.name || item.User?.email || 'this user'}?`,
     () => action(
       item.id,
       () => api.put(`/admin/bank-accounts/${item.id}/${decision}`),
       item.status === 'delete_pending'
-        ? `Bank account delete request ${decision === 'approve' ? 'approved' : 'rejected'}.`
-        : `Bank account details ${decision}d.`,
+        ? `${payoutTypeFor(item)} delete request ${decision === 'approve' ? 'approved' : 'rejected'}.`
+        : `${payoutTypeFor(item)} withdrawal details ${decision}d.`,
     ),
   );
   const openDepositReceipt = (item) => {
@@ -292,18 +314,16 @@ export default function AdminScreen() {
         <View key={item.id} className="mb-3 rounded-xl border border-border bg-surface p-4">
           <View className="flex-row flex-wrap items-start justify-between gap-3">
             <View className="flex-1">
-              <Text className="font-semibold text-white">{item.User?.name || item.User?.email || 'User'}</Text>
+              <View className="flex-row flex-wrap items-center gap-2">
+                <Text className="font-semibold text-white">{item.User?.name || item.User?.email || 'User'}</Text>
+                <Text className="rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary">{payoutTypeFor(item)}</Text>
+              </View>
               <Text className="mt-1 text-sm text-muted">{item.User?.email || '-'} | {item.status} | {dateTime(item.createdAt)}</Text>
               {item.status === 'delete_pending' ? (
-                <Text className="mt-2 rounded-lg border border-danger/40 bg-danger/10 p-3 text-sm font-bold text-danger">User requested deletion for this bank account.</Text>
+                <Text className="mt-2 rounded-lg border border-danger/40 bg-danger/10 p-3 text-sm font-bold text-danger">User requested deletion for this {payoutTypeFor(item)} withdrawal detail.</Text>
               ) : null}
               <View className="mt-4 flex-row flex-wrap gap-3">
-                {[
-                  ['Account Holder', item.accountHolderName],
-                  ['Bank Name', item.bankName],
-                  ['Branch', item.branchName || '-'],
-                  ['Account Number', item.accountNumber],
-                ].map(([label, value]) => (
+                {payoutFieldsFor(item).map(([label, value]) => (
                   <View key={label} className="min-w-[180px] flex-1 rounded-xl border border-border bg-panel p-3">
                     <Text className="text-xs font-bold uppercase text-muted">{label}</Text>
                     <Text className="mt-1 text-sm font-semibold text-white">{value || '-'}</Text>
@@ -332,7 +352,7 @@ export default function AdminScreen() {
           </View>
         </View>
       ))}
-      {!data.bankAccounts.length ? <EmptyRow>No bank account details submitted.</EmptyRow> : null}
+      {!data.bankAccounts.length ? <EmptyRow>No bank or TRC20 withdrawal details submitted.</EmptyRow> : null}
     </View>
   );
 
@@ -369,7 +389,7 @@ export default function AdminScreen() {
       <ScrollView className="flex-1" contentContainerClassName="p-5 md:p-8">
         <View className="mb-7 flex-row items-center justify-between">
           <View>
-            <Text className="text-3xl font-bold text-white">{section === 'overview' ? 'Dashboard' : section === 'users' ? 'User Wallet Management' : section === 'funding' ? 'Funding Requests' : section === 'bankAccounts' ? 'Bank Account Approvals' : 'Trade Monitor'}</Text>
+            <Text className="text-3xl font-bold text-white">{section === 'overview' ? 'Dashboard' : section === 'users' ? 'User Wallet Management' : section === 'funding' ? 'Funding Requests' : section === 'bankAccounts' ? 'Withdrawal Detail Approvals' : 'Trade Monitor'}</Text>
             <Text className="mt-2 text-muted">Manage client balances, trading access and financial operations.</Text>
           </View>
           <Pressable onPress={load} className="rounded-xl border border-border bg-panel p-3">

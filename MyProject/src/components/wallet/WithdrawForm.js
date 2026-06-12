@@ -1,9 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import CustomButton from '../common/CustomButton';
 import CustomInput from '../common/CustomInput';
 import { dateTime, money } from '../../utils/formatters';
 import { useAppTheme } from '../../context/ThemeContext';
+import { useAuth } from '../../hooks/useAuth';
+import { authService } from '../../services/authService';
 
 function Option({ active, label, onPress, colors }) {
   return (
@@ -13,6 +15,32 @@ function Option({ active, label, onPress, colors }) {
       style={{ backgroundColor: active ? colors.primary : colors.surface, borderColor: active ? colors.primary : colors.border }}
     >
       <Text className="text-sm font-bold" style={{ color: active ? '#05130d' : colors.text }}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function DetailOption({ active, detail, onPress, colors }) {
+  const isTrc20 = detail.payoutType === 'TRC20';
+  return (
+    <Pressable
+      onPress={onPress}
+      className="rounded-xl border p-4"
+      style={{ backgroundColor: active ? colors.panel : colors.surface, borderColor: active ? colors.primary : colors.border }}
+    >
+      <View className="flex-row items-center justify-between gap-3">
+        <Text className="text-sm font-extrabold" style={{ color: colors.text }}>
+          {isTrc20 ? 'USDT TRC20' : detail.bankName}
+        </Text>
+        <Text className="rounded-full px-2 py-1 text-xs font-bold capitalize" style={{ backgroundColor: colors.panel, color: colors.muted }}>
+          {detail.status}
+        </Text>
+      </View>
+      <Text className="mt-2 text-sm" style={{ color: colors.muted }}>
+        {isTrc20 ? 'Wallet address' : 'Account number'}: {detail.bankAccountNumber}
+      </Text>
+      <Text className="mt-1 text-sm" style={{ color: colors.muted }}>
+        {isTrc20 ? 'Wallet holder' : 'Account holder'}: {detail.bankAccountHolder}
+      </Text>
     </Pressable>
   );
 }
@@ -63,22 +91,79 @@ export default function WithdrawForm({
   transactions = [],
 }) {
   const { colors } = useAppTheme();
+  const { user } = useAuth();
   const [form, setForm] = useState({
     amount: '',
     withdrawalMethod: 'Bank',
-    bankName: '',
-    accountNumber: '',
-    accountHolderName: '',
+    savedDetailId: '',
   });
   const [message, setMessage] = useState('');
+  const [savedDetails, setSavedDetails] = useState([]);
   const withdrawals = useMemo(() => transactions.filter((item) => item.type === 'withdrawal'), [transactions]);
   const pendingWithdrawals = withdrawals
     .filter((item) => item.status === 'pending')
     .reduce((sum, item) => sum + Number(item.amount || 0), 0);
   const availableBalance = Number(summary.balance || 0);
   const withdrawableBalance = Math.max(availableBalance - pendingWithdrawals, 0);
+  const methodDetails = useMemo(() => (
+    savedDetails.filter((item) => (
+      form.withdrawalMethod === 'Crypto'
+        ? item.payoutType === 'TRC20'
+        : item.payoutType === 'Bank'
+    ))
+  ), [form.withdrawalMethod, savedDetails]);
+  const approvedMethodDetails = useMemo(() => (
+    methodDetails.filter((item) => item.status === 'approved')
+  ), [methodDetails]);
+  const selectedSavedDetail = useMemo(() => (
+    approvedMethodDetails.find((item) => String(item.id) === String(form.savedDetailId)) || null
+  ), [approvedMethodDetails, form.savedDetailId]);
   const update = (key) => (value) => setForm((current) => ({ ...current, [key]: value }));
-  const setMethod = (withdrawalMethod) => setForm((current) => ({ ...current, withdrawalMethod }));
+  const setMethod = (withdrawalMethod) => {
+    const matching = savedDetails.filter((item) => (
+      withdrawalMethod === 'Crypto'
+        ? item.payoutType === 'TRC20'
+        : item.payoutType === 'Bank'
+    ));
+    const detail = matching.find((item) => item.status === 'approved') || null;
+    setForm((current) => ({
+      ...current,
+      withdrawalMethod,
+      savedDetailId: detail?.id || '',
+    }));
+  };
+
+  useEffect(() => {
+    let active = true;
+    if (!user) {
+      setSavedDetails([]);
+      return undefined;
+    }
+    authService.listBankAccounts()
+      .then((result) => {
+        if (!active) return;
+        setSavedDetails((result.accounts || []).map((account) => ({
+          id: account.id,
+          bankAccountHolder: account.bankAccountHolder || account.accountHolderName || '',
+          bankName: account.bankName || '',
+          bankBranch: account.bankBranch || account.branchName || '',
+          bankAccountNumber: account.bankAccountNumber || account.accountNumber || '',
+          status: account.status || 'pending',
+          payoutType: String(`${account.bankName || ''} ${account.bankBranch || account.branchName || ''}`).toLowerCase().includes('trc20') ? 'TRC20' : 'Bank',
+        })));
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [user]);
+
+  useEffect(() => {
+    setForm((current) => {
+      if (approvedMethodDetails.some((item) => String(item.id) === String(current.savedDetailId))) return current;
+      return { ...current, savedDetailId: approvedMethodDetails[0]?.id || '' };
+    });
+  }, [approvedMethodDetails]);
 
   const submit = async () => {
     try {
@@ -86,10 +171,17 @@ export default function WithdrawForm({
       const amount = Number(form.amount);
       if (!amount) throw new Error('Enter a valid withdrawal amount.');
       if (amount > withdrawableBalance) throw new Error('Withdrawal amount exceeds withdrawable balance.');
-      if (!form.bankName || !form.accountNumber || !form.accountHolderName) throw new Error('Complete all withdrawal fields.');
-      await onSubmit({ ...form, amount });
+      if (!selectedSavedDetail) throw new Error(`Select an approved ${form.withdrawalMethod === 'Crypto' ? 'TRC20' : 'bank'} withdrawal detail from Settings.`);
+      await onSubmit({
+        amount,
+        withdrawalMethod: form.withdrawalMethod,
+        bankAccountId: selectedSavedDetail.id,
+        bankName: selectedSavedDetail.bankName || (form.withdrawalMethod === 'Crypto' ? 'USDT TRC20' : ''),
+        accountNumber: selectedSavedDetail.bankAccountNumber,
+        accountHolderName: selectedSavedDetail.bankAccountHolder,
+      });
       setMessage('Success: withdrawal request submitted. Status is Pending until admin approval.');
-      setForm({ amount: '', withdrawalMethod: form.withdrawalMethod, bankName: '', accountNumber: '', accountHolderName: '' });
+      setForm((current) => ({ ...current, amount: '' }));
     } catch (error) {
       setMessage(`Error: ${error.message}`);
     }
@@ -106,13 +198,34 @@ export default function WithdrawForm({
       <Text className="mb-2 text-sm font-medium" style={{ color: colors.muted }}>Withdrawal Method</Text>
       <View className="mb-4 flex-row gap-3">
         <Option active={form.withdrawalMethod === 'Bank'} label="Bank" onPress={() => setMethod('Bank')} colors={colors} />
-        <Option active={form.withdrawalMethod === 'Crypto'} label="Crypto" onPress={() => setMethod('Crypto')} colors={colors} />
+        <Option active={form.withdrawalMethod === 'Crypto'} label="TRC20" onPress={() => setMethod('Crypto')} colors={colors} />
       </View>
 
       <CustomInput label="Amount (USD)" keyboardType="decimal-pad" value={form.amount} onChangeText={update('amount')} />
-      <CustomInput label={form.withdrawalMethod === 'Bank' ? 'Bank name' : 'Crypto provider / network'} value={form.bankName} onChangeText={update('bankName')} />
-      <CustomInput label={form.withdrawalMethod === 'Bank' ? 'Account number' : 'Wallet address'} value={form.accountNumber} onChangeText={update('accountNumber')} />
-      <CustomInput label={form.withdrawalMethod === 'Bank' ? 'Account holder name' : 'Wallet holder name'} value={form.accountHolderName} onChangeText={update('accountHolderName')} />
+      <Text className="mb-2 text-sm font-medium" style={{ color: colors.muted }}>
+        Select saved {form.withdrawalMethod === 'Crypto' ? 'TRC20' : 'bank'} details
+      </Text>
+      <View className="mb-4 gap-3">
+        {approvedMethodDetails.map((detail) => (
+          <DetailOption
+            key={detail.id}
+            active={String(form.savedDetailId) === String(detail.id)}
+            detail={detail}
+            onPress={() => update('savedDetailId')(detail.id)}
+            colors={colors}
+          />
+        ))}
+        {!approvedMethodDetails.length ? (
+          <Text className="rounded-xl border p-3 text-sm" style={{ borderColor: colors.border, color: colors.muted }}>
+            Add and get approval for {form.withdrawalMethod === 'Crypto' ? 'TRC20 wallet' : 'bank account'} details in Settings before requesting a withdrawal.
+          </Text>
+        ) : null}
+        {methodDetails.some((detail) => detail.status !== 'approved') ? (
+          <Text className="text-xs" style={{ color: colors.muted }}>
+            Pending or rejected details stay in Settings until admin approval.
+          </Text>
+        ) : null}
+      </View>
       <CustomButton title="Request Withdrawal" onPress={submit} loading={loading} disabled={disabled} variant="primary" />
       {disabled && disabledMessage ? <Text className="mt-3 text-sm text-danger">{disabledMessage}</Text> : null}
       {message ? <Text className={`mt-3 text-sm ${message.startsWith('Success') ? 'text-success' : 'text-danger'}`}>{message}</Text> : null}
