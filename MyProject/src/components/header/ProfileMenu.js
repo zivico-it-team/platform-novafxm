@@ -68,7 +68,7 @@ export default function ProfileMenu({ onClose, onHoverIn, onHoverOut }) {
         <Action icon={ReceiptText} title="Withdraw" onPress={() => navigate('/dashboard?section=withdraw')} colors={colors} />
         <Action icon={TrendingUp} title="Deposit" onPress={() => navigate('/dashboard?section=deposit')} colors={colors} />
         <Action icon={Award} title="My Rewards" onPress={() => navigate('/broker-rewards')} colors={colors} />
-        <Pressable
+        {/* <Pressable
           onPress={(event) => {
             event.stopPropagation?.();
             switchMode();
@@ -83,7 +83,7 @@ export default function ProfileMenu({ onClose, onHoverIn, onHoverOut }) {
             <View className="h-6 w-6 rounded-full" style={{ backgroundColor: darkMode ? colors.muted : colors.primary }} />
             {darkMode ? <Moon size={18} color="#f4ca38" /> : <Sun size={18} color="#f4ca38" />}
           </View>
-        </Pressable>
+        </Pressable> */}
         <Pressable
           onPress={(event) => {
             event.stopPropagation?.();

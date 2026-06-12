@@ -6,13 +6,46 @@ import { createDemoTick, marketService } from '../services/marketService';
 
 const hasTradingViewPrices = (symbols) => symbols?.some((item) => item.source === 'tradingview');
 
+const hasValue = (value, allowZero = false) => {
+  const number = Number(value);
+  return Number.isFinite(number) && (allowZero || number !== 0);
+};
+
+const withPreviousValue = (item, previousItem, key, allowZero = false) => (
+  hasValue(item?.[key], allowZero) || !hasValue(previousItem?.[key], allowZero)
+    ? item?.[key]
+    : previousItem[key]
+);
+
 const keepPreviousPrices = (previous, next) => {
   const previousBySymbol = new Map(previous.map((item) => [item.symbol, item]));
-  return next.map((item) => {
+  const nextSymbols = new Set();
+  const merged = next.map((item) => {
     const previousItem = previousBySymbol.get(item.symbol);
-    if (previousItem && item.source !== 'tradingview' && !Number(item.price)) return previousItem;
-    return item;
+    nextSymbols.add(item.symbol);
+    if (!previousItem) return item;
+
+    return {
+      ...previousItem,
+      ...item,
+      price: withPreviousValue(item, previousItem, 'price'),
+      bid: withPreviousValue(item, previousItem, 'bid'),
+      ask: withPreviousValue(item, previousItem, 'ask'),
+      spread: withPreviousValue(item, previousItem, 'spread', true),
+      spreadPoints: withPreviousValue(item, previousItem, 'spreadPoints', true),
+      change: withPreviousValue(item, previousItem, 'change', true),
+      decimals: item.decimals ?? previousItem.decimals,
+      previousPrice: hasValue(previousItem.price) ? previousItem.price : previousItem.previousPrice,
+      previousBid: hasValue(previousItem.bid) ? previousItem.bid : previousItem.previousBid,
+      previousAsk: hasValue(previousItem.ask) ? previousItem.ask : previousItem.previousAsk,
+    };
   });
+
+  previous.forEach((item) => {
+    if (!nextSymbols.has(item.symbol)) merged.push(item);
+  });
+
+  return merged;
 };
 
 export function useMarketPrices() {
