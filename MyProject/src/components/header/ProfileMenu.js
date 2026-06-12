@@ -17,15 +17,20 @@ import { useAuth } from '../../hooks/useAuth';
 import { useAppTheme } from '../../context/ThemeContext';
 
 function Action({ icon: Icon, title, onPress, colors }) {
+  const handlePress = (event) => {
+    event.stopPropagation?.();
+    onPress();
+  };
+
   return (
-    <Pressable onPress={onPress} className="flex-row items-center px-5 py-4">
+    <Pressable onPress={handlePress} className="flex-row items-center px-5 py-4">
       <Icon size={21} color={colors.text} />
       <Text className="ml-4 text-base font-semibold" style={{ color: colors.text }}>{title}</Text>
     </Pressable>
   );
 }
 
-export default function ProfileMenu({ onClose }) {
+export default function ProfileMenu({ onClose, onHoverIn, onHoverOut }) {
   const { user, logout } = useAuth();
   const { darkMode, toggleTheme, colors } = useAppTheme();
   const [sounds, setSounds] = useState(true);
@@ -53,22 +58,39 @@ export default function ProfileMenu({ onClose }) {
   };
 
   return (
-    <View className="absolute right-3 top-[74px] z-50 w-[360px] max-w-[92vw] overflow-hidden rounded-xl border shadow-2xl" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+    <View
+      onPointerEnter={onHoverIn}
+      onPointerLeave={onHoverOut}
+      className="absolute right-3 top-[74px] z-50 w-[360px] max-w-[92vw] overflow-hidden rounded-xl border shadow-2xl"
+      style={{ backgroundColor: colors.panel, borderColor: colors.border }}
+    >
       <View className="py-3">
         <Action icon={ReceiptText} title="Withdraw" onPress={() => navigate('/dashboard?section=withdraw')} colors={colors} />
         <Action icon={TrendingUp} title="Deposit" onPress={() => navigate('/dashboard?section=deposit')} colors={colors} />
         <Action icon={Award} title="My Rewards" onPress={() => navigate('/broker-rewards')} colors={colors} />
-        <Pressable onPress={switchMode} className="flex-row items-center justify-between px-5 py-4">
+        <Pressable
+          onPress={(event) => {
+            event.stopPropagation?.();
+            switchMode();
+          }}
+          className="relative flex-row items-center px-5 py-4"
+        >
           <View className="flex-row items-center">
             <Moon size={21} color={colors.text} />
             <Text className="ml-4 text-base font-semibold" style={{ color: colors.text }}>Mode</Text>
           </View>
-          <View className="flex-row items-center rounded-full p-1" style={{ backgroundColor: colors.surface }}>
+          <View className="absolute right-5 flex-row items-center rounded-full p-1" style={{ backgroundColor: colors.surface }}>
             <View className="h-6 w-6 rounded-full" style={{ backgroundColor: darkMode ? colors.muted : colors.primary }} />
             {darkMode ? <Moon size={18} color="#f4ca38" /> : <Sun size={18} color="#f4ca38" />}
           </View>
         </Pressable>
-        <Pressable onPress={toggleSounds} className="flex-row items-center justify-between px-5 py-4">
+        <Pressable
+          onPress={(event) => {
+            event.stopPropagation?.();
+            toggleSounds();
+          }}
+          className="flex-row items-center justify-between px-5 py-4"
+        >
           <View className="flex-row items-center">
             {sounds ? <Volume2 size={21} color={colors.text} /> : <VolumeX size={21} color={colors.muted} />}
             <Text className="ml-4 text-base font-semibold" style={{ color: colors.text }}>Sounds</Text>

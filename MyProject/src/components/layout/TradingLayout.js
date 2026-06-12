@@ -18,6 +18,7 @@ function OrderRail({ summary, user, showSummary = true, showAvailableMargin = tr
   );
 }
 
+
 export default function TradingLayout() {
   const { width } = useWindowDimensions();
   const { colors } = useAppTheme();
