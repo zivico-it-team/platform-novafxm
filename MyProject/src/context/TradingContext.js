@@ -45,18 +45,25 @@ export function TradingProvider({ children }) {
     const id = selectedTradingAccount?.id;
     return id && /^\d+$/.test(String(id)) ? id : undefined;
   }, [selectedTradingAccount?.id]);
-  const liveAccount = selectedTradingAccount?.type === 'Live';
+  const serverAccount = user && selectedAccountId;
 
   const syncAccount = useCallback(async () => {
-    if (!user || !liveAccount) return;
+    if (!user || !serverAccount) return;
     const [open, closed, account, history] = await Promise.all([
-      tradeService.openTrades(selectedAccountId), tradeService.closedTrades(selectedAccountId), walletService.getWallet(), walletService.getTransactions(),
+      tradeService.openTrades(selectedAccountId), tradeService.closedTrades(selectedAccountId), walletService.getWallet(selectedAccountId), walletService.getTransactions(),
     ]);
     setPositions(open.trades || []);
     setClosedPositions(closed.trades || []);
     setWallet({ balance: Number(account.summary.balance) });
+    if (account.tradingAccount) {
+      setSelectedTradingAccount((current) => (
+        current && String(current.id) === String(account.tradingAccount.id)
+          ? { ...current, ...account.tradingAccount }
+          : current
+      ));
+    }
     setTransactions(history.transactions || []);
-  }, [liveAccount, selectedAccountId, user]);
+  }, [selectedAccountId, serverAccount, user]);
 
   useEffect(() => {
     syncAccount().catch(() => {});
@@ -131,7 +138,7 @@ export function TradingProvider({ children }) {
         openPrice: price,
         openedAt: new Date().toISOString(),
       };
-      if (user && liveAccount) {
+      if (user && selectedAccountId) {
         const result = await tradeService.open({ symbol: selectedSymbol, side, lots: quantity, tradingAccountId: selectedAccountId });
         position = result.trade;
       } else if (selectedTradingAccount?.id) {
@@ -139,7 +146,7 @@ export function TradingProvider({ children }) {
       }
       setPositions((existing) => [position, ...existing]);
     },
-    [currentSymbol, liveAccount, selectedAccountId, selectedSymbol, selectedTradingAccount?.id, summary.freeFunds, user],
+    [currentSymbol, selectedAccountId, selectedSymbol, selectedTradingAccount?.id, summary.freeFunds, user],
   );
 
   const createPendingOrder = useCallback(
@@ -169,14 +176,22 @@ export function TradingProvider({ children }) {
     async (id) => {
       const position = livePositions.find((item) => String(item.id) === String(id));
       if (!position) return;
-      const response = user && liveAccount ? await tradeService.close(id, position.currentPrice) : null;
+      const response = user && selectedAccountId ? await tradeService.close(id, position.currentPrice) : null;
       const closed = response?.trade || { ...position, status: 'closed', closedAt: new Date().toISOString(), closePrice: position.currentPrice };
       closed.profit = Number(closed.profit ?? position.profit);
       setPositions((existing) => existing.filter((item) => String(item.id) !== String(id)));
       setClosedPositions((existing) => [closed, ...existing]);
-      setWallet((existing) => ({ ...existing, balance: existing.balance + closed.profit }));
+      const nextBalance = response?.tradingAccount?.balance ?? (wallet.balance + closed.profit);
+      setWallet((existing) => ({ ...existing, balance: Number(nextBalance) }));
+      if (response?.tradingAccount) {
+        setSelectedTradingAccount((current) => (
+          current && String(current.id) === String(response.tradingAccount.id)
+            ? { ...current, ...response.tradingAccount }
+            : current
+        ));
+      }
     },
-    [liveAccount, livePositions, user],
+    [livePositions, selectedAccountId, user, wallet.balance],
   );
 
   const submitDeposit = useCallback((values) => {

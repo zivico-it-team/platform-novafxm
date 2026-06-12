@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { Check, Copy, Plus } from 'lucide-react-native';
 import { Pressable, Text, View } from 'react-native';
 import { useAuth } from '../../hooks/useAuth';
+import { money } from '../../utils/formatters';
 
 function accountId(account) {
   return String(account?.id || '').replace(/\D/g, '').slice(-5).padStart(5, '0');
@@ -49,6 +50,7 @@ export default function DemoAccountMenu({ accounts = [], selectedAccount, onSele
                 <Text className="mr-2 text-xs text-muted">Account ID : {accountId(account)}</Text>
                 <Copy size={13} color="#8fa0bb" />
               </View>
+              <Text className="mt-1 text-xs font-bold text-primary">{money(account.balance || 0)} {account.currency || 'USD'}</Text>
             </View>
           </Pressable>
         );

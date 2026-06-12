@@ -1,5 +1,5 @@
 const sequelize = require('../config/db');
-const { Wallet, Deposit, Withdrawal, Transaction, Trade, BankAccount } = require('../models');
+const { Wallet, Deposit, Withdrawal, Transaction, Trade, BankAccount, TradingAccount } = require('../models');
 const tradingView = require('../services/tradingViewService');
 
 const money = (value) => Number(Number(value || 0).toFixed(2));
@@ -19,19 +19,25 @@ const isTrc20Detail = (account) => String(`${account?.bankName || ''} ${account?
 exports.getWallet = async (req, res, next) => {
   try {
     const wallet = await Wallet.findOne({ where: { userId: req.user.id } });
-    const trades = await Trade.findAll({ where: { userId: req.user.id, status: 'open' } });
+    const tradingAccount = req.query.tradingAccountId
+      ? await TradingAccount.findOne({ where: { id: req.query.tradingAccountId, userId: req.user.id } })
+      : null;
+    const tradeWhere = { userId: req.user.id, status: 'open' };
+    if (tradingAccount) tradeWhere.tradingAccountId = tradingAccount.id;
+    const trades = await Trade.findAll({ where: tradeWhere });
     const prices = await tradingView.getPrices();
     const openProfit = money(trades.reduce((sum, trade) => {
       const market = prices.find((item) => item.symbol === trade.symbol);
       return sum + profitFor(trade, market?.price || trade.openPrice);
     }, 0));
     const margin = money(trades.reduce((sum, trade) => sum + Number(trade.margin), 0));
-    const balance = money(wallet.balance);
+    const balance = money(tradingAccount ? tradingAccount.balance : wallet.balance);
     const equity = money(balance + openProfit);
     const freeFunds = money(equity - margin);
-    await wallet.update({ equity, margin, freeFunds });
+    if (!tradingAccount || tradingAccount.isPrimary) await wallet.update({ equity, margin, freeFunds });
     return res.json({
       wallet: { ...wallet.toJSON(), equity, margin, freeFunds },
+      tradingAccount: tradingAccount ? tradingAccount.toJSON() : null,
       summary: { balance, equity, margin, freeFunds, marginLevel: margin ? (equity / margin) * 100 : 0, openProfit },
     });
   } catch (error) {

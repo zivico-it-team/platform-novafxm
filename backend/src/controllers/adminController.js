@@ -298,6 +298,10 @@ exports.resetDemo = async (req, res, next) => {
       const before = money(wallet.balance);
       await Trade.destroy({ where: { userId: user.id, status: 'open' }, transaction });
       await wallet.update({ balance: DEMO_BALANCE, equity: DEMO_BALANCE, margin: 0, freeFunds: DEMO_BALANCE }, { transaction });
+      await TradingAccount.update(
+        { balance: DEMO_BALANCE },
+        { where: { userId: user.id, type: 'Demo' }, transaction },
+      );
       const ledger = await Transaction.create({
         userId: user.id,
         type: 'reset_demo',
@@ -396,9 +400,16 @@ exports.reviewDeposit = (status) => async (req, res, next) => {
       let after;
       if (status === 'approved') {
         const { wallet } = await storedSummary(deposit.userId, transaction);
+        const liveAccount = await TradingAccount.findOne({
+          where: { userId: deposit.userId, type: 'Live' },
+          order: [['isPrimary', 'DESC'], ['createdAt', 'ASC']],
+          transaction,
+          lock: transaction.LOCK.UPDATE,
+        });
         before = money(wallet.balance);
         after = money(before + Number(deposit.amount));
         await wallet.update({ balance: after }, { transaction });
+        if (liveAccount) await liveAccount.update({ balance: money(Number(liveAccount.balance) + Number(deposit.amount)) }, { transaction });
         await storedSummary(deposit.userId, transaction);
       }
       const [updatedTransactions] = await Transaction.update({ status: status === 'approved' ? 'completed' : 'rejected', balanceBefore: before, balanceAfter: after }, {
@@ -438,10 +449,21 @@ exports.reviewWithdrawal = (status) => async (req, res, next) => {
       let after;
       if (status === 'approved') {
         const { wallet } = await storedSummary(withdrawal.userId, transaction);
+        const liveAccount = await TradingAccount.findOne({
+          where: { userId: withdrawal.userId, type: 'Live' },
+          order: [['isPrimary', 'DESC'], ['createdAt', 'ASC']],
+          transaction,
+          lock: transaction.LOCK.UPDATE,
+        });
         before = money(wallet.balance);
         if (Number(withdrawal.amount) > before) throw apiError('User wallet does not have sufficient balance.');
         after = money(before - Number(withdrawal.amount));
         await wallet.update({ balance: after }, { transaction });
+        if (liveAccount) {
+          const liveBefore = money(liveAccount.balance);
+          if (Number(withdrawal.amount) > liveBefore) throw apiError('Live trading account does not have sufficient balance.');
+          await liveAccount.update({ balance: money(liveBefore - Number(withdrawal.amount)) }, { transaction });
+        }
         await storedSummary(withdrawal.userId, transaction);
       }
       await Transaction.update({ status: status === 'approved' ? 'completed' : 'rejected', balanceBefore: before, balanceAfter: after }, {

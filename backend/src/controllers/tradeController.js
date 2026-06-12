@@ -20,9 +20,6 @@ exports.open = async (req, res, next) => {
     if (req.user.tradingStatus === 'frozen') {
       return res.status(403).json({ message: 'Trading is temporarily disabled for this account.' });
     }
-    if (req.user.verificationStatus !== 'approved') {
-      return res.status(403).json({ message: 'Complete account verification before trading.' });
-    }
     const { symbol, side, lots, tradingAccountId } = req.body;
     if (!symbol || !['BUY', 'SELL'].includes(side) || !(Number(lots) > 0)) {
       return res.status(400).json({ message: 'Valid symbol, side and lots are required.' });
@@ -36,20 +33,25 @@ exports.open = async (req, res, next) => {
     if (tradingAccount.status !== 'active') {
       return res.status(403).json({ message: 'This trading account is not active.' });
     }
+    if (tradingAccount.type === 'Live' && req.user.verificationStatus !== 'approved') {
+      return res.status(403).json({ message: 'Complete account verification before live trading.' });
+    }
     const market = await tradingView.getPrice(symbol);
     const margin = money((Number(lots) * 10000) / Number(req.user.leverage || 100));
     let trade;
     await sequelize.transaction(async (transaction) => {
+      const account = await TradingAccount.findOne({ where: { id: tradingAccount.id, userId: req.user.id }, transaction, lock: transaction.LOCK.UPDATE });
+      if (!account) throw Object.assign(new Error('Select a valid trading account.'), { status: 400 });
       const wallet = await Wallet.findOne({ where: { userId: req.user.id }, transaction, lock: transaction.LOCK.UPDATE });
       const currentMargin = Number(await Trade.sum('margin', { where: { userId: req.user.id, tradingAccountId: tradingAccount.id, status: 'open' }, transaction }) || 0);
-      if (Number(wallet.balance) - currentMargin < margin) {
+      if (Number(account.balance) - currentMargin < margin) {
         throw Object.assign(new Error('Insufficient free funds.'), { status: 400 });
       }
       const openPrice = side === 'BUY' ? market.ask : market.bid;
       trade = await Trade.create({ userId: req.user.id, tradingAccountId: tradingAccount.id, symbol, side, lots, margin, openPrice }, { transaction });
-      const equity = Number(wallet.equity || wallet.balance);
+      const equity = Number(account.balance);
       const nextMargin = money(currentMargin + margin);
-      await wallet.update({ margin: nextMargin, freeFunds: money(equity - nextMargin) }, { transaction });
+      if (account.isPrimary) await wallet.update({ margin: nextMargin, freeFunds: money(equity - nextMargin) }, { transaction });
     });
     return res.status(201).json({ trade });
   } catch (error) {
@@ -64,13 +66,23 @@ exports.close = async (req, res, next) => {
     const market = await tradingView.getPrice(trade.symbol);
     const closePrice = trade.side === 'BUY' ? market.bid : market.ask;
     const profit = pnl(trade, closePrice);
+    let tradingAccount;
     await sequelize.transaction(async (transaction) => {
       await trade.update({ closePrice, profit, status: 'closed', closedAt: new Date() }, { transaction });
+      tradingAccount = await TradingAccount.findOne({ where: { id: trade.tradingAccountId, userId: req.user.id }, transaction, lock: transaction.LOCK.UPDATE });
+      if (!tradingAccount) throw Object.assign(new Error('Trading account not found.'), { status: 404 });
       const wallet = await Wallet.findOne({ where: { userId: req.user.id }, transaction, lock: transaction.LOCK.UPDATE });
-      const before = money(wallet.balance);
+      const before = money(tradingAccount.balance);
       const after = money(before + profit);
-      const margin = money(Math.max(0, Number(wallet.margin || 0) - Number(trade.margin)));
-      await wallet.update({ balance: after, equity: after, margin, freeFunds: money(after - margin) }, { transaction });
+      const remainingMargin = Number(await Trade.sum('margin', {
+        where: { userId: req.user.id, tradingAccountId: tradingAccount.id, status: 'open' },
+        transaction,
+      }) || 0);
+      const margin = money(Math.max(0, remainingMargin));
+      await tradingAccount.update({ balance: after }, { transaction });
+      if (tradingAccount.isPrimary) {
+        await wallet.update({ balance: after, equity: after, margin, freeFunds: money(after - margin) }, { transaction });
+      }
       await Transaction.create({
         userId: req.user.id,
         type: profit >= 0 ? 'trade_profit' : 'trade_loss',
@@ -84,7 +96,7 @@ exports.close = async (req, res, next) => {
         description: `${trade.side} ${trade.symbol} trade closed`,
       }, { transaction });
     });
-    return res.json({ trade });
+    return res.json({ trade, tradingAccount });
   } catch (error) {
     return next(error);
   }
