@@ -466,7 +466,6 @@ export default function AdminScreen() {
                     ['Email', depositDetails.User?.email || '-'],
                     ['Amount', `$${money(depositDetails.amount)}`],
                     ['Payment Method', depositDetails.paymentMethod || '-'],
-                    ['Reference Number', depositDetails.referenceNumber || '-'],
                     ['Status', depositDetails.status || '-'],
                     ['Submitted', dateTime(depositDetails.createdAt)],
                     ['Note', depositDetails.note || '-'],
@@ -519,7 +518,7 @@ export default function AdminScreen() {
             <View className="mb-4 flex-row items-center justify-between">
               <View>
                 <Text className="text-2xl font-bold text-white">Deposit Receipt</Text>
-                <Text className="mt-1 text-sm text-muted">${money(receiptModal.amount)} | {receiptModal.referenceNumber || 'No reference'}</Text>
+                <Text className="mt-1 text-sm text-muted">${money(receiptModal.amount)}</Text>
               </View>
               <Pressable onPress={() => setReceiptModal(null)}><Text className="text-muted">Close</Text></Pressable>
             </View>

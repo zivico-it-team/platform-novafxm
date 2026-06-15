@@ -155,6 +155,10 @@ async function ensureSchema() {
     allowNull: true,
     after: 'reference_number',
   });
+  await queryInterface.changeColumn('deposits', 'reference_number', {
+    type: DataTypes.STRING(120),
+    allowNull: true,
+  });
 
   await addColumnIfMissing(queryInterface, 'withdrawals', 'withdrawal_method', {
     type: DataTypes.ENUM('Bank', 'Crypto'),

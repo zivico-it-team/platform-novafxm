@@ -31,7 +31,7 @@ function readFileDataUrl(file) {
 export default function DepositForm({ onSubmit, loading, disabled, disabledMessage }) {
   const { colors } = useAppTheme();
   const receiptInputRef = useRef(null);
-  const [form, setForm] = useState({ amount: '', paymentMethod: 'BTC', referenceNumber: '', note: '' });
+  const [form, setForm] = useState({ amount: '', paymentMethod: 'BTC', note: '' });
   const [receipt, setReceipt] = useState(null);
   const [message, setMessage] = useState('');
   const [success, setSuccess] = useState(false);
@@ -39,21 +39,17 @@ export default function DepositForm({ onSubmit, loading, disabled, disabledMessa
   const openReceiptPicker = () => {
     if (Platform.OS === 'web') receiptInputRef.current?.click();
   };
-  const generateReference = () => {
-    const stamp = Date.now().toString().slice(-8);
-    update('referenceNumber')(`DEP-${stamp}`);
-  };
   const selectedMethod = paymentMethods.find((method) => method.label === form.paymentMethod) || paymentMethods[0];
   const submit = async () => {
     try {
       setSuccess(false);
       if (disabled) throw new Error(disabledMessage || 'Deposits are unavailable.');
-      if (!Number(form.amount) || Number(form.amount) < 100 || !form.referenceNumber.trim() || !receipt) throw new Error('Minimum deposit is $100. Reference number and receipt are required.');
+      if (!Number(form.amount) || Number(form.amount) < 100 || !receipt) throw new Error('Minimum deposit is $100. Receipt is required.');
       const receiptImage = receipt ? await readFileDataUrl(receipt) : null;
-      await onSubmit({ ...form, amount: Number(form.amount), receiptImage });
+      await onSubmit({ ...form, amount: Number(form.amount), referenceNumber: 'N/A', receiptImage });
       setMessage('Deposit request submitted for approval.');
       setSuccess(true);
-      setForm({ amount: '', paymentMethod: 'BTC', referenceNumber: '', note: '' });
+      setForm({ amount: '', paymentMethod: 'BTC', note: '' });
       setReceipt(null);
     } catch (error) {
       setMessage(error.message);
@@ -142,7 +138,6 @@ export default function DepositForm({ onSubmit, loading, disabled, disabledMessa
             </View>
           </View>
 
-          
           <View className="mb-4">
             <Text className="mb-2 text-sm font-medium" style={{ color: colors.muted }}>Upload Receipt</Text>
             <Pressable onPress={openReceiptPicker} className="min-h-[118px] items-center justify-center rounded-2xl border border-dashed p-5" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
@@ -207,7 +202,7 @@ export default function DepositForm({ onSubmit, loading, disabled, disabledMessa
             <Text className="mt-3 text-base font-black" style={{ color: colors.text }}>Receipt Checklist</Text>
             <Text className="mt-2 text-sm leading-5" style={{ color: colors.muted }}>Before submitting, make sure your receipt clearly shows:</Text>
             <View className="mt-4 gap-3">
-              {['Paid amount', 'Transaction reference', 'Payment date', 'Sender account details'].map((item) => (
+              {['Paid amount', 'Payment date', 'Payment method', 'Sender account details'].map((item) => (
                 <View key={item} className="flex-row items-center">
                   <CheckCircle2 size={15} color="#12cf7a" />
                   <Text className="ml-2 text-sm font-semibold" style={{ color: colors.text }}>{item}</Text>

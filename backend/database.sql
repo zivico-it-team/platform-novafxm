@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS deposits (
   user_id INT UNSIGNED NOT NULL,
   amount DECIMAL(15,2) NOT NULL,
   payment_method VARCHAR(80) NOT NULL,
-  reference_number VARCHAR(120) NOT NULL,
+  reference_number VARCHAR(120) NULL,
   note TEXT NULL,
   status ENUM('pending', 'approved', 'rejected') NOT NULL DEFAULT 'pending',
   reviewed_at DATETIME NULL,
@@ -185,6 +185,9 @@ BEGIN
     ALTER TABLE withdrawals ADD COLUMN withdrawal_method ENUM('Bank', 'Crypto') NOT NULL DEFAULT 'Bank' AFTER amount;
   END IF;
   ALTER TABLE transactions MODIFY COLUMN type ENUM('deposit', 'withdrawal', 'admin_add_balance', 'admin_deduct_balance', 'trade_profit', 'trade_loss', 'reset_demo') NOT NULL;
+  IF EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'deposits' AND COLUMN_NAME = 'reference_number') THEN
+    ALTER TABLE deposits MODIFY COLUMN reference_number VARCHAR(120) NULL;
+  END IF;
 END$$
 DELIMITER ;
 CALL upgrade_admin_wallet_schema();
