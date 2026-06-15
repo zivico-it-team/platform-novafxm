@@ -415,7 +415,7 @@ export default function AdminScreen() {
 
 
   const renderTrades = () => (
-    <View className="overflow-hidden rounded-2xl border" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+    <View className="overflow-hidden rounded-2xl border" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
       <ScrollView horizontal contentContainerStyle={{ minWidth: '100%' }}>
         <View style={{ minWidth: 800, flexGrow: 1 }}>
           <View className="flex-row border-b p-4" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
@@ -424,7 +424,7 @@ export default function AdminScreen() {
             ))}
           </View>
           {data.trades.map((trade) => (
-            <View key={trade.id} className="flex-row border-b p-4" style={{ borderColor: colors.border }}>
+            <View key={trade.id} className="flex-row border-b p-4" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
               <Text className="text-sm" style={{ width: 115, flexGrow: 1, color: colors.text }}>{trade.User?.name || '-'}</Text>
               <Text className="text-sm" style={{ width: 115, flexGrow: 1, color: colors.text }}>{trade.symbol}</Text>
               <Text className={`text-sm font-bold ${trade.side === 'BUY' ? 'text-success' : 'text-danger'}`} style={{ width: 115, flexGrow: 1 }}>{trade.side}</Text>
