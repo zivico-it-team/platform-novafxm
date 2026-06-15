@@ -4,6 +4,7 @@ import { Check, ChevronDown, ChevronRight, Minus, Plus, Search, X } from 'lucide
 import { useAppTheme } from '../../context/ThemeContext';
 import { MARKET_GROUPS } from '../../constants/symbols';
 import { useDemoTrading } from '../../hooks/useDemoTrading';
+import { useAuth } from '../../hooks/useAuth';
 import { quote } from '../../utils/formatters';
 
 const ORDER_TYPES = [
@@ -37,6 +38,7 @@ export default function NewOrderModal({ visible, onClose, initialSide = 'BUY' })
   const { width } = useWindowDimensions();
   const compact = width < 560;
   const { darkMode, colors } = useAppTheme();
+  const { user } = useAuth();
   const { prices, currentSymbol, selectedSymbol, setSelectedSymbol, openPosition, createPendingOrder } = useDemoTrading();
   const [orderType, setOrderType] = useState('spot');
   const [side, setSide] = useState('BUY');
@@ -93,6 +95,10 @@ export default function NewOrderModal({ visible, onClose, initialSide = 'BUY' })
   const orderDanger = darkMode ? colors.danger : '#f24d58';
 
   const placeOrder = async () => {
+    if (!user) {
+      setMessage('Please log in to place trades.');
+      return;
+    }
     setLoading(true);
     setMessage('');
     try {
@@ -235,8 +241,8 @@ export default function NewOrderModal({ visible, onClose, initialSide = 'BUY' })
                 </View>
               </View>
               {message ? <Text className="mb-4" style={{ color: colors.danger }}>{message}</Text> : null}
-              <Pressable disabled={loading} onPress={placeOrder} className={`${compact ? 'h-[40px] rounded' : 'h-[48px] rounded-xl'} items-center justify-center ${loading ? 'opacity-60' : ''}`} style={{ backgroundColor: side === 'SELL' ? orderDanger : orderSuccess }}>
-                <Text className="text-xs font-bold text-white">{loading ? 'PLACING ORDER...' : 'PLACE ORDER'}</Text>
+              <Pressable disabled={loading || !user} onPress={placeOrder} className={`${compact ? 'h-[40px] rounded' : 'h-[48px] rounded-xl'} items-center justify-center ${loading || !user ? 'opacity-60' : ''}`} style={{ backgroundColor: side === 'SELL' ? orderDanger : orderSuccess }}>
+                <Text className="text-xs font-bold text-white">{!user ? 'LOG IN TO TRADE' : loading ? 'PLACING ORDER...' : 'PLACE ORDER'}</Text>
               </Pressable>
               <Text className="mt-4 text-center text-xs" style={{ color: colors.text }}>Spread: {Number(currentSymbol.spreadPoints || 0).toFixed(1)}   High: {quote(Math.max(currentSymbol.bid, currentSymbol.ask), currentSymbol.decimals)}   Low: {quote(Math.min(currentSymbol.bid, currentSymbol.ask), currentSymbol.decimals)}</Text>
             </View>

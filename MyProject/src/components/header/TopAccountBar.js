@@ -92,6 +92,14 @@ export default function TopAccountBar() {
 
   const selectAccount = (account) => { setSelectedTradingAccount(account); setMenu(null); };
 
+  const openNewOrder = () => {
+    if (!user) {
+      router.push('/login');
+      return;
+    }
+    setOrderModal(true);
+  };
+
   const hoverProps = (action) => ({ onHoverIn: () => setHoveredAction(action), onHoverOut: () => setHoveredAction(null) });
 
   const cancelProfileHoverClose = () => { if (!profileHoverCloseRef.current) return; clearTimeout(profileHoverCloseRef.current); profileHoverCloseRef.current = null; };
@@ -145,10 +153,12 @@ export default function TopAccountBar() {
           ) : (
             <AuthButtons />
           )}
-          <Pressable onPress={() => setOrderModal(true)} className="h-[40px] flex-row items-center justify-center rounded-md px-3" style={{ backgroundColor: colors.primary }}>
-            <Plus color="#0B0B0B" size={16} />
-            <Text className="ml-1.5 text-xs font-bold text-black">New Order</Text>
-          </Pressable>
+          {user ? (
+            <Pressable onPress={openNewOrder} className="h-[40px] flex-row items-center justify-center rounded-md px-3" style={{ backgroundColor: colors.primary }}>
+              <Plus color="#0B0B0B" size={16} />
+              <Text className="ml-1.5 text-xs font-bold text-black">New Order</Text>
+            </Pressable>
+          ) : null}
           <Pressable {...hoverProps('mobile-theme')} onPress={toggleTheme} className="h-[40px] w-[40px] items-center justify-center rounded-md border" style={iconButtonStyle('mobile-theme', { backgroundColor: colors.panel, borderColor: colors.border })}>
             <View style={iconHoverStyle('mobile-theme')}>{darkMode ? <Sun size={18} color={iconColor('mobile-theme')} /> : <Moon size={18} color={iconColor('mobile-theme')} />}</View>
           </Pressable>
@@ -163,8 +173,8 @@ export default function TopAccountBar() {
           <NovaLogo dark={darkMode} width={180} height={44} />
         </View>
       )}
-      {!mobile ? (
-        <Pressable onPress={() => setOrderModal(true)} className="mb-3 flex-row items-center justify-center rounded-xl px-5 py-4 lg:mb-0" style={{ backgroundColor: colors.primary }}>
+      {!mobile && user ? (
+        <Pressable onPress={openNewOrder} className="mb-3 flex-row items-center justify-center rounded-xl px-5 py-4 lg:mb-0" style={{ backgroundColor: colors.primary }}>
           <Plus color="#0B0B0B" size={18} />
           <Text className="ml-2 font-bold text-black">New Order</Text>
         </Pressable>
