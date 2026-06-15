@@ -270,13 +270,13 @@ export default function AdminScreen() {
     <View>
       {['deposits', 'withdrawals'].map((type) => (
         <View key={type} className="mb-7">
-          <Text className="mb-4 text-xl font-bold capitalize text-white">{type}</Text>
-          <View className="rounded-2xl border border-border bg-panel p-4">
+          <Text className="mb-4 text-xl font-bold capitalize" style={{ color: colors.text }}>{type}</Text>
+          <View className="rounded-2xl border p-4" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
             {data[type].map((item) => (
-              <View key={item.id} className="mb-3 flex-row flex-wrap items-center justify-between rounded-xl border border-border bg-surface p-4">
+              <View key={item.id} className="mb-3 flex-row flex-wrap items-center justify-between rounded-xl border p-4" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
                 <View className="mb-2 mr-4">
-                  <Text className="font-semibold text-white">{item.User?.name || item.User?.email || 'User'}</Text>
-                  <Text className="mt-1 text-sm text-muted">${money(item.amount)} | {item.status} | {dateTime(item.createdAt)}</Text>
+                  <Text className="font-semibold" style={{ color: colors.text }}>{item.User?.name || item.User?.email || 'User'}</Text>
+                  <Text className="mt-1 text-sm" style={{ color: colors.muted }}>${money(item.amount)} | {item.status} | {dateTime(item.createdAt)}</Text>
                 </View>
                 <View className="flex-row flex-wrap items-center">
                   {type === 'deposits' ? (
@@ -292,9 +292,10 @@ export default function AdminScreen() {
                     <Pressable
                       disabled={busyId === item.id}
                       onPress={() => reviewFunding(type, item, 'approve')}
-                      className={`mr-2 min-h-[38px] justify-center rounded-lg border border-border bg-surface px-4 ${busyId === item.id ? 'opacity-50' : ''}`}
+                      className={`mr-2 min-h-[38px] justify-center rounded-lg border px-4 ${busyId === item.id ? 'opacity-50' : ''}`}
+                      style={{ backgroundColor: colors.surface, borderColor: colors.border }}
                     >
-                      <Text className="text-xs font-bold text-white">Approve</Text>
+                      <Text className="text-xs font-bold" style={{ color: colors.text }}>Approve</Text>
                     </Pressable>
                     <Pressable
                       disabled={busyId === item.id}
@@ -316,24 +317,24 @@ export default function AdminScreen() {
   );
   
   const renderBankAccounts = () => (
-    <View className="rounded-2xl border border-border bg-panel p-4">
+    <View className="rounded-2xl border p-4" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
       {data.bankAccounts.map((item) => (
-        <View key={item.id} className="mb-3 rounded-xl border border-border bg-surface p-4">
+        <View key={item.id} className="mb-3 rounded-xl border p-4" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
           <View className="flex-row flex-wrap items-start justify-between gap-3">
             <View className="flex-1">
               <View className="flex-row flex-wrap items-center gap-2">
-                <Text className="font-semibold text-white">{item.User?.name || item.User?.email || 'User'}</Text>
+                <Text className="font-semibold" style={{ color: colors.text }}>{item.User?.name || item.User?.email || 'User'}</Text>
                 <Text className="rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary">{payoutTypeFor(item)}</Text>
               </View>
-              <Text className="mt-1 text-sm text-muted">{item.User?.email || '-'} | {item.status} | {dateTime(item.createdAt)}</Text>
+              <Text className="mt-1 text-sm" style={{ color: colors.muted }}>{item.User?.email || '-'} | {item.status} | {dateTime(item.createdAt)}</Text>
               {item.status === 'delete_pending' ? (
                 <Text className="mt-2 rounded-lg border border-danger/40 bg-danger/10 p-3 text-sm font-bold text-danger">User requested deletion for this {payoutTypeFor(item)} withdrawal detail.</Text>
               ) : null}
               <View className="mt-4 flex-row flex-wrap gap-3">
                 {payoutFieldsFor(item).map(([label, value]) => (
-                  <View key={label} className="min-w-[180px] flex-1 rounded-xl border border-border bg-panel p-3">
-                    <Text className="text-xs font-bold uppercase text-muted">{label}</Text>
-                    <Text className="mt-1 text-sm font-semibold text-white">{value || '-'}</Text>
+                  <View key={label} className="min-w-[180px] flex-1 rounded-xl border p-3" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+                    <Text className="text-xs font-bold uppercase" style={{ color: colors.muted }}>{label}</Text>
+                    <Text className="mt-1 text-sm font-semibold" style={{ color: colors.text }}>{value || '-'}</Text>
                   </View>
                 ))}
               </View>
@@ -343,9 +344,10 @@ export default function AdminScreen() {
                 <Pressable
                   disabled={busyId === item.id}
                   onPress={() => reviewBankAccount(item, 'approve')}
-                  className={`mr-2 min-h-[38px] justify-center rounded-lg border border-border bg-surface px-4 ${busyId === item.id ? 'opacity-50' : ''}`}
+                  className={`mr-2 min-h-[38px] justify-center rounded-lg border px-4 ${busyId === item.id ? 'opacity-50' : ''}`}
+                  style={{ backgroundColor: colors.surface, borderColor: colors.border }}
                 >
-                  <Text className="text-xs font-bold text-white">{item.status === 'delete_pending' ? 'Approve Delete' : 'Approve'}</Text>
+                  <Text className="text-xs font-bold" style={{ color: colors.text }}>{item.status === 'delete_pending' ? 'Approve Delete' : 'Approve'}</Text>
                 </Pressable>
                 <Pressable
                   disabled={busyId === item.id}
@@ -365,26 +367,26 @@ export default function AdminScreen() {
 
 
   const renderTrades = () => (
-    <View className="overflow-hidden rounded-2xl border border-border bg-panel">
+    <View className="overflow-hidden rounded-2xl border" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
       <ScrollView horizontal>
         <View style={{ minWidth: 800 }}>
-          <View className="flex-row border-b border-border bg-surface p-4">
+          <View className="flex-row border-b p-4" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
             {['Client', 'Symbol', 'Side', 'Lots', 'Status', 'Profit / Loss', 'Created'].map((heading) => (
-              <Text key={heading} className="w-[115px] text-xs font-bold uppercase text-muted">{heading}</Text>
+              <Text key={heading} className="w-[115px] text-xs font-bold uppercase" style={{ color: colors.muted }}>{heading}</Text>
             ))}
           </View>
           {data.trades.map((trade) => (
-            <View key={trade.id} className="flex-row border-b border-border/60 p-4">
-              <Text className="w-[115px] text-sm text-white">{trade.User?.name || '-'}</Text>
-              <Text className="w-[115px] text-sm text-white">{trade.symbol}</Text>
+            <View key={trade.id} className="flex-row border-b p-4" style={{ borderColor: colors.border }}>
+              <Text className="w-[115px] text-sm" style={{ color: colors.text }}>{trade.User?.name || '-'}</Text>
+              <Text className="w-[115px] text-sm" style={{ color: colors.text }}>{trade.symbol}</Text>
               <Text className={`w-[115px] text-sm font-bold ${trade.side === 'BUY' ? 'text-success' : 'text-danger'}`}>{trade.side}</Text>
-              <Text className="w-[115px] text-sm text-white">{trade.lots}</Text>
-              <Text className="w-[115px] text-sm text-white">{trade.status}</Text>
+              <Text className="w-[115px] text-sm" style={{ color: colors.text }}>{trade.lots}</Text>
+              <Text className="w-[115px] text-sm" style={{ color: colors.text }}>{trade.status}</Text>
               <Text className={`w-[115px] text-sm ${Number(trade.profit) < 0 ? 'text-danger' : 'text-success'}`}>${money(trade.profit)}</Text>
-              <Text className="w-[150px] text-sm text-muted">{dateTime(trade.createdAt)}</Text>
+              <Text className="w-[150px] text-sm" style={{ color: colors.muted }}>{dateTime(trade.createdAt)}</Text>
             </View>
           ))}
-          {!data.trades.length ? <Text className="p-8 text-muted">No trades found.</Text> : null}
+          {!data.trades.length ? <Text className="p-8" style={{ color: colors.muted }}>No trades found.</Text> : null}
         </View>
       </ScrollView>
     </View>
@@ -461,18 +463,18 @@ export default function AdminScreen() {
       <UserTransactionsModal user={transactionsModal?.user} transactions={transactionsModal?.transactions || []} loading={transactionsModal?.loading} onClose={() => setTransactionsModal(null)} />
       {depositDetails ? (
         <View className="absolute inset-0 z-50 items-center justify-center bg-black/70 p-4">
-          <View className="max-h-[92vh] w-full max-w-[900px] rounded-2xl border border-border bg-panel p-5">
+          <View className="max-h-[92vh] w-full max-w-[900px] rounded-2xl border p-5" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
             <View className="mb-4 flex-row items-center justify-between">
               <View>
-                <Text className="text-2xl font-bold text-white">Deposit Details</Text>
-                <Text className="mt-1 text-sm text-muted">{depositDetails.User?.name || depositDetails.User?.email || 'User'} | {dateTime(depositDetails.createdAt)}</Text>
+                <Text className="text-2xl font-bold" style={{ color: colors.text }}>Deposit Details</Text>
+                <Text className="mt-1 text-sm" style={{ color: colors.muted }}>{depositDetails.User?.name || depositDetails.User?.email || 'User'} | {dateTime(depositDetails.createdAt)}</Text>
               </View>
-              <Pressable onPress={closeDepositDetails}><Text className="text-muted">Close</Text></Pressable>
+              <Pressable onPress={closeDepositDetails}><Text style={{ color: colors.muted }}>Close</Text></Pressable>
             </View>
             <ScrollView>
               <View className="gap-4 lg:flex-row">
-                <View className="flex-1 rounded-2xl border border-border bg-surface p-4">
-                  <Text className="mb-4 text-sm font-bold uppercase text-muted">Request Info</Text>
+                <View className="flex-1 rounded-2xl border p-4" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
+                  <Text className="mb-4 text-sm font-bold uppercase" style={{ color: colors.muted }}>Request Info</Text>
                   {[
                     ['Client', depositDetails.User?.name || depositDetails.User?.email || '-'],
                     ['Email', depositDetails.User?.email || '-'],
@@ -483,14 +485,14 @@ export default function AdminScreen() {
                     ['Submitted', dateTime(depositDetails.createdAt)],
                     ['Note', depositDetails.note || '-'],
                   ].map(([label, value]) => (
-                    <View key={label} className="mb-3 rounded-xl border border-border bg-panel p-3">
-                      <Text className="text-xs font-bold uppercase text-muted">{label}</Text>
-                      <Text className="mt-1 text-sm font-semibold text-white">{value}</Text>
+                    <View key={label} className="mb-3 rounded-xl border p-3" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+                      <Text className="text-xs font-bold uppercase" style={{ color: colors.muted }}>{label}</Text>
+                      <Text className="mt-1 text-sm font-semibold" style={{ color: colors.text }}>{value}</Text>
                     </View>
                   ))}
                 </View>
-                <View className="flex-1 rounded-2xl border border-border bg-surface p-4">
-                  <Text className="mb-4 text-sm font-bold uppercase text-muted">Receipt</Text>
+                <View className="flex-1 rounded-2xl border p-4" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
+                  <Text className="mb-4 text-sm font-bold uppercase" style={{ color: colors.muted }}>Receipt</Text>
                   {depositDetails.receiptImage ? (
                     <>
                       <Image source={{ uri: depositDetails.receiptImage }} className="h-[360px] w-full rounded-xl bg-black" resizeMode="contain" />
@@ -499,7 +501,7 @@ export default function AdminScreen() {
                       </View>
                     </>
                   ) : (
-                    <Text className="rounded-xl bg-panel p-6 text-muted">No receipt uploaded.</Text>
+                    <Text className="rounded-xl p-6" style={{ backgroundColor: colors.panel, color: colors.muted }}>No receipt uploaded.</Text>
                   )}
                 </View>
               </View>
@@ -508,9 +510,10 @@ export default function AdminScreen() {
                   <Pressable
                     disabled={busyId === depositDetails.id}
                     onPress={() => reviewFunding('deposits', depositDetails, 'approve')}
-                    className={`mr-2 min-h-[42px] justify-center rounded-lg border border-border bg-surface px-5 ${busyId === depositDetails.id ? 'opacity-50' : ''}`}
+                    className={`mr-2 min-h-[42px] justify-center rounded-lg border px-5 ${busyId === depositDetails.id ? 'opacity-50' : ''}`}
+                    style={{ backgroundColor: colors.surface, borderColor: colors.border }}
                   >
-                    <Text className="text-xs font-bold text-white">Approve</Text>
+                    <Text className="text-xs font-bold" style={{ color: colors.text }}>Approve</Text>
                   </Pressable>
                   <Pressable
                     disabled={busyId === depositDetails.id}
@@ -527,16 +530,16 @@ export default function AdminScreen() {
       ) : null}
       {receiptModal ? (
         <View className="absolute inset-0 z-50 items-center justify-center bg-black/70 p-4">
-          <View className="max-h-[92vh] w-full max-w-[760px] rounded-2xl border border-border bg-panel p-5">
+          <View className="max-h-[92vh] w-full max-w-[760px] rounded-2xl border p-5" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
             <View className="mb-4 flex-row items-center justify-between">
               <View>
-                <Text className="text-2xl font-bold text-white">Deposit Receipt</Text>
-                <Text className="mt-1 text-sm text-muted">${money(receiptModal.amount)} | {receiptModal.referenceNumber || 'No reference'}</Text>
+                <Text className="text-2xl font-bold" style={{ color: colors.text }}>Deposit Receipt</Text>
+                <Text className="mt-1 text-sm" style={{ color: colors.muted }}>${money(receiptModal.amount)} | {receiptModal.referenceNumber || 'No reference'}</Text>
               </View>
-              <Pressable onPress={() => setReceiptModal(null)}><Text className="text-muted">Close</Text></Pressable>
+              <Pressable onPress={() => setReceiptModal(null)}><Text style={{ color: colors.muted }}>Close</Text></Pressable>
             </View>
-            <View className="rounded-2xl border border-border bg-surface p-4">
-              <Text className="mb-3 text-sm font-bold uppercase text-muted">Receipt Preview</Text>
+            <View className="rounded-2xl border p-4" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
+              <Text className="mb-3 text-sm font-bold uppercase" style={{ color: colors.muted }}>Receipt Preview</Text>
               <Image source={{ uri: receiptModal.receiptImage }} className="h-[520px] w-full rounded-xl bg-black" resizeMode="contain" />
             </View>
             <View className="mt-4 flex-row justify-end">
@@ -547,12 +550,12 @@ export default function AdminScreen() {
       ) : null}
       {verificationUser ? (
         <View className="absolute inset-0 z-50 items-center justify-center bg-black/70 p-4">
-          <View className="max-h-[92vh] w-full max-w-[980px] rounded-2xl border border-border bg-panel p-5">
+          <View className="max-h-[92vh] w-full max-w-[980px] rounded-2xl border p-5" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
             <View className="mb-4 flex-row items-center justify-between">
               <View>
-                <Text className="text-2xl font-bold text-white">Verification Documents</Text>
+                <Text className="text-2xl font-bold" style={{ color: colors.text }}>Verification Documents</Text>
               </View>
-              <Pressable onPress={() => setVerificationUser(null)}><Text className="text-muted">Close</Text></Pressable>
+              <Pressable onPress={() => setVerificationUser(null)}><Text style={{ color: colors.muted }}>Close</Text></Pressable>
             </View>
             <ScrollView>
               
@@ -561,12 +564,12 @@ export default function AdminScreen() {
                   ['ID Proof', verificationUser.idProofImage],
                   ['Address Proof', verificationUser.addressProofImage],
                 ].map(([title, source]) => (
-                  <View key={title} className="flex-1 rounded-xl border border-border bg-surface p-4">
-                    <Text className="mb-3 font-bold text-white">{title}</Text>
+                  <View key={title} className="flex-1 rounded-xl border p-4" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
+                    <Text className="mb-3 font-bold" style={{ color: colors.text }}>{title}</Text>
                     {source ? (
                       <Image source={{ uri: source }} className="h-[320px] w-full rounded-lg bg-black" resizeMode="contain" />
                     ) : (
-                      <Text className="rounded-lg bg-black p-6 text-muted">No image uploaded.</Text>
+                      <Text className="rounded-lg p-6" style={{ backgroundColor: colors.panel, color: colors.muted }}>No image uploaded.</Text>
                     )}
                   </View>
                 ))}

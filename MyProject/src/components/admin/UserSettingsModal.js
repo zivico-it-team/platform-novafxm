@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Alert, Platform, Pressable, Text, View } from 'react-native';
 import CustomButton from '../common/CustomButton';
 import CustomInput from '../common/CustomInput';
+import { useAppTheme } from '../../context/ThemeContext';
 
 function ask(message, onConfirm) {
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
@@ -12,6 +13,7 @@ function ask(message, onConfirm) {
 }
 
 export default function UserSettingsModal({ user, loading, onClose, onSave, onStatus, onReset }) {
+  const { colors } = useAppTheme();
   const [leverage, setLeverage] = useState('');
   const [adminNotes, setAdminNotes] = useState('');
   const [error, setError] = useState('');
@@ -36,12 +38,12 @@ export default function UserSettingsModal({ user, loading, onClose, onSave, onSt
 
   return (
     <View className="absolute inset-0 z-50 items-center justify-center bg-black/70 px-4">
-      <View className="w-full max-w-xl rounded-2xl border border-border bg-panel p-6">
+      <View className="w-full max-w-xl rounded-2xl border p-6" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
         <View className="mb-5 flex-row justify-between">
-          <Text className="text-xl font-bold text-white">Account Controls</Text>
-          <Pressable onPress={onClose}><Text className="text-xl text-muted">x</Text></Pressable>
+          <Text className="text-xl font-bold" style={{ color: colors.text }}>Account Controls</Text>
+          <Pressable onPress={onClose}><Text className="text-xl" style={{ color: colors.muted }}>x</Text></Pressable>
         </View>
-        <Text className="mb-5 text-muted">{user.name} | {user.accountType} | {frozen ? 'Frozen' : 'Active'}</Text>
+        <Text className="mb-5" style={{ color: colors.muted }}>{user.name} | {user.accountType} | {frozen ? 'Frozen' : 'Active'}</Text>
         <CustomInput label="Leverage (1:x)" value={leverage} onChangeText={setLeverage} keyboardType="number-pad" error={error} />
         <CustomInput label="Admin notes" value={adminNotes} onChangeText={setAdminNotes} placeholder="Internal note visible only to admin" multiline />
         <CustomButton title="Save Leverage and Notes" loading={loading} onPress={save} className="mb-3" />
