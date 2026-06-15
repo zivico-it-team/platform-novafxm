@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useRouter } from 'expo-router';
 import { Alert, Image, Platform, Pressable, ScrollView, Text, View } from 'react-native';
-import { RefreshCw } from 'lucide-react-native';
+import { Moon, RefreshCw, Sun } from 'lucide-react-native';
 import api from '../src/services/api';
 import CustomButton from '../src/components/common/CustomButton';
 import AdminSidebar from '../src/components/admin/AdminSidebar';
@@ -11,6 +11,7 @@ import UserWalletDetails from '../src/components/admin/UserWalletDetails';
 import UserTransactionsModal from '../src/components/admin/UserTransactionsModal';
 import UserSettingsModal from '../src/components/admin/UserSettingsModal';
 import { useAuth } from '../src/hooks/useAuth';
+import { useAppTheme } from '../src/context/ThemeContext';
 import { dateTime, money } from '../src/utils/formatters';
 
 const empty = { users: [], deposits: [], withdrawals: [], bankAccounts: [], trades: [], stats: {} };
@@ -46,20 +47,26 @@ function ask(message, onConfirm) {
 }
 
 function StatCard({ title, value, accent }) {
+  const { colors } = useAppTheme();
+  const valueColor = accent === 'text-danger' ? colors.danger : accent === 'text-success' ? colors.success : accent === 'text-primary' ? colors.primary : colors.text;
+
   return (
-    <View className="mb-4 mr-4 min-w-[190px] flex-1 rounded-2xl border border-border bg-panel p-5">
-      <Text className="text-xs font-semibold uppercase text-muted">{title}</Text>
-      <Text className={`mt-3 text-3xl font-bold ${accent || 'text-white'}`}>{value}</Text>
+    <View className="mb-4 mr-4 min-w-[190px] flex-1 rounded-2xl border p-5" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+      <Text className="text-xs font-semibold uppercase" style={{ color: colors.muted }}>{title}</Text>
+      <Text className="mt-3 text-3xl font-bold" style={{ color: valueColor }}>{value}</Text>
     </View>
   );
 }
 
 function EmptyRow({ children }) {
-  return <Text className="rounded-xl bg-surface p-5 text-muted">{children}</Text>;
+  const { colors } = useAppTheme();
+
+  return <Text className="rounded-xl p-5" style={{ backgroundColor: colors.surface, color: colors.muted }}>{children}</Text>;
 }
 
 export default function AdminScreen() {
   const { isAdmin, logout } = useAuth();
+  const { darkMode, colors, toggleTheme } = useAppTheme();
   const router = useRouter();
   const [section, setSection] = useState('overview');
   const [data, setData] = useState(empty);
@@ -242,9 +249,9 @@ export default function AdminScreen() {
 
   if (!isAdmin) {
     return (
-      <View className="flex-1 items-center justify-center bg-[#0B0B0B] px-6">
-        <Text className="mb-3 text-2xl font-bold text-white">Administrator Access</Text>
-        <Text className="mb-6 text-center text-muted">Please login with an administrator account.</Text>
+      <View className="flex-1 items-center justify-center px-6" style={{ backgroundColor: colors.background }}>
+        <Text className="mb-3 text-2xl font-bold" style={{ color: colors.text }}>Administrator Access</Text>
+        <Text className="mb-6 text-center" style={{ color: colors.muted }}>Please login with an administrator account.</Text>
         <Link href="/login" asChild><Pressable className="rounded-xl bg-primary px-8 py-4"><Text className="font-bold text-black">Login</Text></Pressable></Link>
       </View>
     );
@@ -384,17 +391,22 @@ export default function AdminScreen() {
   );
 
   return (
-    <View className="flex-1 bg-[#0B0B0B] md:flex-row">
+    <View className="flex-1 md:flex-row" style={{ backgroundColor: colors.background }}>
       <AdminSidebar section={section} onChange={setSection} stats={data.stats} pendingCount={pendingCount} bankPendingCount={bankPendingCount} onSignOut={signOut} />
-      <ScrollView className="flex-1" contentContainerClassName="p-5 md:p-8">
+      <ScrollView className="flex-1" contentContainerClassName="p-5 md:p-8" style={{ backgroundColor: colors.background }}>
         <View className="mb-7 flex-row items-center justify-between">
           <View>
-            <Text className="text-3xl font-bold text-white">{section === 'overview' ? 'Dashboard' : section === 'users' ? 'User Wallet Management' : section === 'funding' ? 'Funding Requests' : section === 'bankAccounts' ? 'Withdrawal Detail Approvals' : 'Trade Monitor'}</Text>
-            <Text className="mt-2 text-muted">Manage client balances, trading access and financial operations.</Text>
+            <Text className="text-3xl font-bold" style={{ color: colors.text }}>{section === 'overview' ? 'Dashboard' : section === 'users' ? 'User Wallet Management' : section === 'funding' ? 'Funding Requests' : section === 'bankAccounts' ? 'Withdrawal Detail Approvals' : 'Trade Monitor'}</Text>
+            <Text className="mt-2" style={{ color: colors.muted }}>Manage client balances, trading access and financial operations.</Text>
           </View>
-          <Pressable onPress={load} className="rounded-xl border border-border bg-panel p-3">
-            <RefreshCw size={20} color={loading ? '#27a8e9' : '#8fa0bb'} />
-          </Pressable>
+          <View className="flex-row items-center gap-2">
+            <Pressable onPress={toggleTheme} className="rounded-xl border p-3" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+              {darkMode ? <Sun size={20} color={colors.text} /> : <Moon size={20} color={colors.text} />}
+            </Pressable>
+            <Pressable onPress={load} className="rounded-xl border p-3" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+              <RefreshCw size={20} color={loading ? '#27a8e9' : colors.muted} />
+            </Pressable>
+          </View>
         </View>
         {message ? <Text className="mb-5 rounded-xl border border-success/40 bg-success/10 p-4 text-success">{message}</Text> : null}
         {error ? <Text className="mb-5 rounded-xl border border-danger/40 bg-danger/10 p-4 text-danger">{error}</Text> : null}
@@ -403,20 +415,20 @@ export default function AdminScreen() {
             {renderCards()}
             <View className="mt-4 flex-col lg:flex-row">
               <View className="mb-6 flex-1 lg:mr-6">
-                <Text className="mb-4 text-xl font-bold text-white">Pending Funding</Text>
-                <View className="rounded-2xl border border-border bg-panel p-4">
+                <Text className="mb-4 text-xl font-bold" style={{ color: colors.text }}>Pending Funding</Text>
+                <View className="rounded-2xl border p-4" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
                   <Text className="text-4xl font-bold text-primary">{pendingCount}</Text>
-                  <Text className="mb-4 mt-1 text-muted">Requests waiting for review</Text>
+                  <Text className="mb-4 mt-1" style={{ color: colors.muted }}>Requests waiting for review</Text>
                   <CustomButton title="Review Requests" onPress={() => setSection('funding')} />
                 </View>
               </View>
               <View className="mb-6 flex-1">
-                <Text className="mb-4 text-xl font-bold text-white">Recent Trades</Text>
-                <View className="rounded-2xl border border-border bg-panel p-4">
+                <Text className="mb-4 text-xl font-bold" style={{ color: colors.text }}>Recent Trades</Text>
+                <View className="rounded-2xl border p-4" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
                   {data.trades.slice(0, 4).map((trade) => (
-                    <Text key={trade.id} className="mb-3 text-sm text-muted">{trade.symbol} {trade.side} | {trade.status} | ${money(trade.profit)}</Text>
+                    <Text key={trade.id} className="mb-3 text-sm" style={{ color: colors.muted }}>{trade.symbol} {trade.side} | {trade.status} | ${money(trade.profit)}</Text>
                   ))}
-                  {!data.trades.length ? <Text className="text-muted">No trading activity.</Text> : null}
+                  {!data.trades.length ? <Text style={{ color: colors.muted }}>No trading activity.</Text> : null}
                 </View>
               </View>
             </View>
