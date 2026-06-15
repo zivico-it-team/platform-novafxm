@@ -56,14 +56,14 @@ exports.transactions = async (req, res, next) => {
 
 exports.deposit = async (req, res, next) => {
   try {
-    const { amount, paymentMethod, receiptImage, note } = req.body;
-    if (!(Number(amount) >= 100) || !paymentMethod) {
-      return res.status(400).json({ message: 'Minimum deposit is $100. Payment method is required.' });
+    const { amount, paymentMethod, referenceNumber, receiptImage, note } = req.body;
+    if (!(Number(amount) >= 100) || !paymentMethod || !referenceNumber) {
+      return res.status(400).json({ message: 'Minimum deposit is $100. Payment method and reference number are required.' });
     }
     let deposit;
     await sequelize.transaction(async (transaction) => {
       const wallet = await Wallet.findOne({ where: { userId: req.user.id }, transaction });
-      deposit = await Deposit.create({ userId: req.user.id, amount, paymentMethod, receiptImage, note }, { transaction });
+      deposit = await Deposit.create({ userId: req.user.id, amount, paymentMethod, referenceNumber, receiptImage, note }, { transaction });
       await Transaction.create({
         userId: req.user.id,
         type: 'deposit',

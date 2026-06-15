@@ -1,31 +1,26 @@
 import { Pressable, ScrollView, Text, View } from 'react-native';
-import { useAppTheme } from '../../context/ThemeContext';
 import { dateTime, money } from '../../utils/formatters';
 
 function Cell({ width, children, header, muted }) {
-  const { colors } = useAppTheme();
-
-  return <Text style={{ width, color: header || muted ? colors.muted : colors.text }} className={`px-3 py-4 ${header ? 'text-xs font-bold uppercase' : 'text-sm'}`}>{children}</Text>;
+  return <Text style={{ width }} className={`px-3 py-4 ${header ? 'text-xs font-bold uppercase text-muted' : `text-sm ${muted ? 'text-muted' : 'text-white'}`}`}>{children}</Text>;
 }
 
 export default function UserTransactionsModal({ user, transactions, loading, onClose }) {
-  const { colors } = useAppTheme();
-
   if (!user) return null;
   return (
     <View className="absolute inset-0 z-50 items-center justify-center bg-black/70 px-4">
-      <View className="max-h-[90%] w-full max-w-6xl rounded-2xl border p-6" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+      <View className="max-h-[90%] w-full max-w-6xl rounded-2xl border border-border bg-panel p-6">
         <View className="mb-5 flex-row justify-between">
           <View>
-            <Text className="text-xl font-bold" style={{ color: colors.text }}>Transaction History</Text>
-            <Text className="mt-1" style={{ color: colors.muted }}>{user.name}</Text>
+            <Text className="text-xl font-bold text-white">Transaction History</Text>
+            <Text className="mt-1 text-muted">{user.name}</Text>
           </View>
-          <Pressable onPress={onClose}><Text className="text-xl" style={{ color: colors.muted }}>x</Text></Pressable>
+          <Pressable onPress={onClose}><Text className="text-xl text-muted">x</Text></Pressable>
         </View>
-        {loading ? <Text className="py-10 text-center" style={{ color: colors.muted }}>Loading transactions...</Text> : (
+        {loading ? <Text className="py-10 text-center text-muted">Loading transactions...</Text> : (
           <ScrollView horizontal>
             <View style={{ minWidth: 1030 }}>
-              <View className="flex-row border-b" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
+              <View className="flex-row border-b border-border bg-surface">
                 <Cell width={80} header>ID</Cell>
                 <Cell width={185} header>Type</Cell>
                 <Cell width={120} header>Amount</Cell>
@@ -35,7 +30,7 @@ export default function UserTransactionsModal({ user, transactions, loading, onC
                 <Cell width={160} header>Created Date</Cell>
               </View>
               {transactions.map((item) => (
-                <View key={item.id} className="flex-row border-b" style={{ borderColor: colors.border }}>
+                <View key={item.id} className="flex-row border-b border-border/60">
                   <Cell width={80}>#{item.id}</Cell>
                   <Cell width={185}>{item.type.replace(/_/g, ' ')}</Cell>
                   <Cell width={120}>${money(item.amount)}</Cell>
@@ -45,7 +40,7 @@ export default function UserTransactionsModal({ user, transactions, loading, onC
                   <Cell width={160}>{dateTime(item.createdAt)}</Cell>
                 </View>
               ))}
-              {!transactions.length ? <Text className="p-8 text-center" style={{ color: colors.muted }}>No transaction history.</Text> : null}
+              {!transactions.length ? <Text className="p-8 text-center text-muted">No transaction history.</Text> : null}
             </View>
           </ScrollView>
         )}

@@ -152,11 +152,6 @@ const bankPayload = (body) => ({
   branchName: String(body.branchName || body.bankBranch || '').trim() || null,
   accountNumber: String(body.accountNumber || body.bankAccountNumber || '').trim(),
 });
-const isTrc20Account = (account) => String(`${account?.bankName || ''} ${account?.branchName || ''}`).toLowerCase().includes('trc20');
-const payoutTypeForPayload = (payload) => (isTrc20Account(payload) ? 'TRC20' : 'Bank');
-const limitWithdrawalDetails = (accounts) => ['Bank', 'TRC20']
-  .map((payoutType) => accounts.find((account) => payoutTypeForPayload(account) === payoutType))
-  .filter(Boolean);
 const validateBankPayload = (payload) => {
   if (!payload.accountHolderName || !payload.bankName || !payload.accountNumber) {
     return 'Account holder, bank name and account number are required.';
@@ -195,7 +190,7 @@ exports.listBankAccounts = async (req, res, next) => {
         });
       }
     }
-    return res.json({ accounts: limitWithdrawalDetails(accounts) });
+    return res.json({ accounts });
   } catch (error) {
     return next(error);
   }
@@ -206,20 +201,18 @@ exports.createBankAccount = async (req, res, next) => {
     const payload = bankPayload(req.body);
     const validationError = validateBankPayload(payload);
     if (validationError) return res.status(400).json({ message: validationError });
-    const payoutType = payoutTypeForPayload(payload);
 
-    const accounts = await BankAccount.findAll({
+    const existingAccount = await BankAccount.findOne({
       where: { userId: req.user.id },
       order: [['createdAt', 'DESC']],
     });
-    const existingAccount = accounts.find((account) => payoutTypeForPayload(account) === payoutType);
     if (existingAccount) {
       await existingAccount.update({ ...payload, status: 'pending', reviewedAt: null, reviewedBy: null });
-      return res.json({ account: existingAccount, message: `${payoutType} details updated and submitted for admin approval.` });
+      return res.json({ account: existingAccount, message: 'Withdrawal details updated and submitted for admin approval.' });
     }
 
     const account = await BankAccount.create({ ...payload, userId: req.user.id, status: 'pending', reviewedAt: null, reviewedBy: null });
-    return res.status(201).json({ account, message: `${payoutType} details submitted for admin approval.` });
+    return res.status(201).json({ account, message: 'Withdrawal details submitted for admin approval.' });
   } catch (error) {
     return next(error);
   }
@@ -233,13 +226,8 @@ exports.updateBankAccount = async (req, res, next) => {
 
     const account = await BankAccount.findOne({ where: { id: req.params.id, userId: req.user.id } });
     if (!account) return res.status(404).json({ message: 'Bank account not found.' });
-    const nextPayoutType = payoutTypeForPayload(payload);
-    const currentPayoutType = payoutTypeForPayload(account);
-    if (nextPayoutType !== currentPayoutType) {
-      return res.status(400).json({ message: `${currentPayoutType} details cannot be changed into ${nextPayoutType} details.` });
-    }
     await account.update({ ...payload, status: 'pending', reviewedAt: null, reviewedBy: null });
-    return res.json({ account, message: `${currentPayoutType} details updated and submitted for admin approval.` });
+    return res.json({ account, message: 'Bank account details updated and submitted for admin approval.' });
   } catch (error) {
     return next(error);
   }

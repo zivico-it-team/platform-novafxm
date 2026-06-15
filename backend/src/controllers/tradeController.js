@@ -33,6 +33,9 @@ exports.open = async (req, res, next) => {
     if (tradingAccount.status !== 'active') {
       return res.status(403).json({ message: 'This trading account is not active.' });
     }
+    if (tradingAccount.type === 'Live' && req.user.verificationStatus !== 'approved') {
+      return res.status(403).json({ message: 'Complete account verification before live trading.' });
+    }
     const market = await tradingView.getPrice(symbol);
     const margin = money((Number(lots) * 10000) / Number(req.user.leverage || 100));
     let trade;
