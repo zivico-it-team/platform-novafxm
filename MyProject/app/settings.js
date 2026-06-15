@@ -427,7 +427,10 @@ const normalizeBankAccount = (account) => ({
   payoutType: String(account.bankName || account.branchName || '').toLowerCase().includes('trc20') ? 'TRC20' : 'Bank',
 });
 
-const existingWithdrawalDetail = (accounts) => accounts[0] || null;
+const withdrawalDetailByType = (accounts, payoutType) => accounts.find((account) => account.payoutType === payoutType) || null;
+const limitWithdrawalDetails = (accounts) => ['Bank', 'TRC20']
+  .map((payoutType) => withdrawalDetailByType(accounts, payoutType))
+  .filter(Boolean);
 
 export default function SettingsScreen() {
   const { user, logout, updateProfile } = useAuth();
@@ -470,7 +473,7 @@ export default function SettingsScreen() {
     }
     try {
       const result = await authService.listBankAccounts();
-      setBankAccounts((result.accounts || []).map(normalizeBankAccount));
+      setBankAccounts(limitWithdrawalDetails((result.accounts || []).map(normalizeBankAccount)));
       if (!silent) setBankMessage('');
     } catch {
       if (!silent) setBankMessage('Bank account details could not be loaded.');
@@ -698,12 +701,14 @@ export default function SettingsScreen() {
         bankBranch: bankForm.bankBranch.trim(),
         bankAccountNumber: bankForm.bankAccountNumber.trim(),
       };
-      const targetBankAccountId = editingBankAccountId || existingWithdrawalDetail(bankAccounts)?.id;
+      const targetBankAccountId = editingPayoutType === 'Bank' && editingBankAccountId
+        ? editingBankAccountId
+        : withdrawalDetailByType(bankAccounts, 'Bank')?.id;
       const result = targetBankAccountId
         ? await authService.updateBankAccount(targetBankAccountId, nextBankDetails)
         : await authService.createBankAccount(nextBankDetails);
       const savedAccount = normalizeBankAccount(result.account || { ...nextBankDetails, id: targetBankAccountId });
-      setBankAccounts((current) => (
+      setBankAccounts((current) => limitWithdrawalDetails(
         targetBankAccountId
           ? current.map((account) => (String(account.id) === String(targetBankAccountId) ? savedAccount : account))
           : [savedAccount, ...current]
@@ -733,12 +738,14 @@ export default function SettingsScreen() {
         bankBranch: 'TRC20',
         bankAccountNumber: trc20Form.walletAddress.trim(),
       };
-      const targetTrc20AccountId = editingBankAccountId || existingWithdrawalDetail(bankAccounts)?.id;
+      const targetTrc20AccountId = editingPayoutType === 'TRC20' && editingBankAccountId
+        ? editingBankAccountId
+        : withdrawalDetailByType(bankAccounts, 'TRC20')?.id;
       const result = targetTrc20AccountId
         ? await authService.updateBankAccount(targetTrc20AccountId, nextTrc20Details)
         : await authService.createBankAccount(nextTrc20Details);
       const savedAccount = normalizeBankAccount(result.account || { ...nextTrc20Details, id: targetTrc20AccountId });
-      setBankAccounts((current) => (
+      setBankAccounts((current) => limitWithdrawalDetails(
         targetTrc20AccountId
           ? current.map((account) => (String(account.id) === String(targetTrc20AccountId) ? savedAccount : account))
           : [savedAccount, ...current]
@@ -805,10 +812,10 @@ export default function SettingsScreen() {
     .map((part) => part[0]?.toUpperCase())
     .join('');
   const activeSettings = settingsSections.find((section) => section.key === activeSection) || settingsSections[0];
-  const savedWithdrawalDetail = existingWithdrawalDetail(bankAccounts);
-  const showPaymentForms = !savedWithdrawalDetail || Boolean(editingBankAccountId);
-  const showBankForm = !savedWithdrawalDetail || editingPayoutType === 'Bank';
-  const showTrc20Form = !savedWithdrawalDetail || editingPayoutType === 'TRC20';
+  const savedBankDetail = withdrawalDetailByType(bankAccounts, 'Bank');
+  const savedTrc20Detail = withdrawalDetailByType(bankAccounts, 'TRC20');
+  const showBankForm = !savedBankDetail || (editingPayoutType === 'Bank' && Boolean(editingBankAccountId));
+  const showTrc20Form = !savedTrc20Detail || (editingPayoutType === 'TRC20' && Boolean(editingBankAccountId));
 
   return (
     <ScrollView className="flex-1" style={{ backgroundColor: colors.background }} contentContainerClassName="p-4 lg:p-8">
@@ -931,8 +938,8 @@ export default function SettingsScreen() {
               <View className="flex-1">
                 <SettingsInput label="Full Name" value={profileForm.name} editable={editingProfile} error={profileErrors.name} onChangeText={(name) => setProfileForm((current) => ({ ...current, name }))} placeholder="Your full name" />
                 <SettingsInput label="Email Address" value={profileForm.email} editable={editingProfile} error={profileErrors.email} keyboardType="email-address" onChangeText={(email) => setProfileForm((current) => ({ ...current, email }))} placeholder="email@example.com" />
-                <SettingsInput label="Phone Number" value={profileForm.phone} editable={editingProfile} error={profileErrors.phone} keyboardType="phone-pad" onChangeText={(phone) => setProfileForm((current) => ({ ...current, phone }))} placeholder="+94 77 123 4567" />
                 <CountrySelect value={profileForm.country} editable={editingProfile} error={profileErrors.country} onChange={updateCountry} />
+                <SettingsInput label="Phone Number" value={profileForm.phone} editable={editingProfile} error={profileErrors.phone} keyboardType="phone-pad" onChangeText={(phone) => setProfileForm((current) => ({ ...current, phone }))} placeholder="+94 77 123 4567" />
                 <SettingsInput label="Date of Birth" value={profileForm.dateOfBirth} editable={editingProfile} error={profileErrors.dateOfBirth} onChangeText={(dateOfBirth) => setProfileForm((current) => ({ ...current, dateOfBirth }))} placeholder="DD / MM / YYYY" />
               </View>
             </View>
@@ -1054,9 +1061,9 @@ export default function SettingsScreen() {
 
           {activeSection === 'payments' ? (
             <SettingsPanel icon={CreditCard} title="Withdrawal Details" subtitle="Save bank and USDT TRC20 withdrawal details.">
-              {showPaymentForms && showBankForm ? (
+              {showBankForm ? (
                 <View className="rounded-xl border p-4" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
-                  <Text className="mb-4 text-base font-extrabold" style={{ color: colors.text }}>{savedWithdrawalDetail ? 'Edit Bank Account Details' : 'Bank Account Details'}</Text>
+                  <Text className="mb-4 text-base font-extrabold" style={{ color: colors.text }}>{savedBankDetail ? 'Edit Bank Account Details' : 'Bank Account Details'}</Text>
                   <View className="lg:flex-row lg:gap-4">
                     <SettingsInput
                       className="flex-1"
@@ -1104,13 +1111,13 @@ export default function SettingsScreen() {
                   </View>
                   <Pressable disabled={bankBusy} onPress={saveBankDetails} className={`mt-2 flex-row self-start rounded-xl bg-primary px-6 py-4 ${bankBusy ? 'opacity-60' : ''}`}>
                     <Save size={16} color="#05130d" />
-                    <Text className="ml-2 font-extrabold text-black">{bankBusy ? 'Saving...' : savedWithdrawalDetail ? 'Update Bank Details' : 'Save Bank Details'}</Text>
+                    <Text className="ml-2 font-extrabold text-black">{bankBusy ? 'Saving...' : savedBankDetail ? 'Update Bank Details' : 'Save Bank Details'}</Text>
                   </Pressable>
                 </View>
               ) : null}
-              {showPaymentForms && showTrc20Form ? (
+              {showTrc20Form ? (
                 <View className={`${showBankForm ? 'mt-4' : ''} rounded-xl border p-4`} style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
-                  <Text className="mb-4 text-base font-extrabold" style={{ color: colors.text }}>{savedWithdrawalDetail ? 'Edit USDT TRC20 Details' : 'USDT TRC20 Details'}</Text>
+                  <Text className="mb-4 text-base font-extrabold" style={{ color: colors.text }}>{savedTrc20Detail ? 'Edit USDT TRC20 Details' : 'USDT TRC20 Details'}</Text>
                   <View className="lg:flex-row lg:gap-4">
                     <SettingsInput
                       className="flex-1"
@@ -1135,8 +1142,14 @@ export default function SettingsScreen() {
                   </View>
                   <Pressable disabled={bankBusy} onPress={saveTrc20Details} className={`mt-2 flex-row self-start rounded-xl bg-primary px-6 py-4 ${bankBusy ? 'opacity-60' : ''}`}>
                     <Save size={16} color="#05130d" />
-                    <Text className="ml-2 font-extrabold text-black">{bankBusy ? 'Saving...' : savedWithdrawalDetail ? 'Update TRC20 Details' : 'Save TRC20 Details'}</Text>
+                    <Text className="ml-2 font-extrabold text-black">{bankBusy ? 'Saving...' : savedTrc20Detail ? 'Update TRC20 Details' : 'Save TRC20 Details'}</Text>
                   </Pressable>
+                </View>
+              ) : null}
+              {!showBankForm && !showTrc20Form ? (
+                <View className="rounded-xl border p-4" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+                  <Text className="font-bold" style={{ color: colors.text }}>Withdrawal detail limit reached.</Text>
+                  <Text className="mt-2 text-sm" style={{ color: colors.muted }}>You can keep one Bank Account Details record and one USDT TRC20 Details record. Use Edit below to change saved details.</Text>
                 </View>
               ) : null}
               {bankMessage ? <Text className="mt-3 text-sm" style={{ color: colors.muted }}>{bankMessage}</Text> : null}

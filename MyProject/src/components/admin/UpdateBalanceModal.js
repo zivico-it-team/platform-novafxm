@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Alert, Platform, Pressable, Text, View } from 'react-native';
 import CustomButton from '../common/CustomButton';
 import CustomInput from '../common/CustomInput';
+import { useAppTheme } from '../../context/ThemeContext';
 import { money } from '../../utils/formatters';
 
 function ask(message, onConfirm) {
@@ -13,6 +14,7 @@ function ask(message, onConfirm) {
 }
 
 export default function UpdateBalanceModal({ user, account, initialOperation, loading, onClose, onConfirm }) {
+  const { colors } = useAppTheme();
   const [operation, setOperation] = useState(initialOperation || 'add_balance');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
@@ -44,12 +46,12 @@ export default function UpdateBalanceModal({ user, account, initialOperation, lo
 
   return (
     <View className="absolute inset-0 z-50 items-center justify-center bg-black/70 px-4">
-      <View className="w-full max-w-lg rounded-2xl border border-border bg-panel p-6">
+      <View className="w-full max-w-lg rounded-2xl border p-6" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
         <View className="mb-5 flex-row items-center justify-between">
-          <Text className="text-xl font-bold text-white">Update Balance</Text>
-          <Pressable onPress={onClose}><Text className="text-xl text-muted">x</Text></Pressable>
+          <Text className="text-xl font-bold" style={{ color: colors.text }}>Update Balance</Text>
+          <Pressable onPress={onClose}><Text className="text-xl" style={{ color: colors.muted }}>x</Text></Pressable>
         </View>
-        <Text className="mb-1 text-sm text-muted">{user.name} | Wallet ${money(user.wallet?.balance)}</Text>
+        <Text className="mb-1 text-sm" style={{ color: colors.muted }}>{user.name} | Wallet ${money(user.wallet?.balance)}</Text>
         <Text className="mb-5 text-sm text-primary">
           Target: {account?.name || 'Wallet / primary account'} | Available ${money(account?.balance ?? user.wallet?.balance)}
         </Text>
@@ -58,8 +60,13 @@ export default function UpdateBalanceModal({ user, account, initialOperation, lo
             ['add_balance', 'Deposit'],
             ['deduct_balance', 'Deduct Balance'],
           ].map(([value, title]) => (
-            <Pressable key={value} onPress={() => setOperation(value)} className={`mr-3 rounded-xl border px-4 py-3 ${operation === value ? 'border-primary bg-primary/20' : 'border-border bg-surface'}`}>
-              <Text className={operation === value ? 'font-semibold text-primary' : 'text-white'}>{title}</Text>
+            <Pressable
+              key={value}
+              onPress={() => setOperation(value)}
+              className={`mr-3 rounded-xl border px-4 py-3 ${operation === value ? 'border-primary bg-primary/20' : ''}`}
+              style={operation === value ? null : { backgroundColor: colors.surface, borderColor: colors.border }}
+            >
+              <Text className={operation === value ? 'font-semibold text-primary' : ''} style={operation === value ? null : { color: colors.text }}>{title}</Text>
             </Pressable>
           ))}
         </View>
