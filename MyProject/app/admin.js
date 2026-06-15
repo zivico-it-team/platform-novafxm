@@ -6,6 +6,7 @@ import api from '../src/services/api';
 import CustomButton from '../src/components/common/CustomButton';
 import AdminSidebar from '../src/components/admin/AdminSidebar';
 import AdminUsersTable from '../src/components/admin/AdminUsersTable';
+import UserManagement from '../src/components/admin/UserManagement';
 import UpdateBalanceModal from '../src/components/admin/UpdateBalanceModal';
 import UserWalletDetails from '../src/components/admin/UserWalletDetails';
 import UserTransactionsModal from '../src/components/admin/UserTransactionsModal';
@@ -180,6 +181,53 @@ export default function AdminScreen() {
     'User account settings saved.',
     () => setSettingsUser(null),
   );
+
+  const createManagedUser = async (values) => {
+    setBusyId('create-user');
+    setMessage('');
+    setError('');
+    try {
+      await api.post('/admin/users', values);
+      await load();
+      setMessage('User account created.');
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || 'Unable to create user account.');
+      throw requestError;
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const updateManagedUser = async (id, values) => {
+    setBusyId(id);
+    setMessage('');
+    setError('');
+    try {
+      await api.put(`/admin/users/${id}`, values);
+      await load();
+      setMessage('User details updated.');
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || 'Unable to update user details.');
+      throw requestError;
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const removeManagedUser = async (user) => {
+    setBusyId(user.id);
+    setMessage('');
+    setError('');
+    try {
+      await api.delete(`/admin/users/${user.id}`);
+      await load();
+      setMessage('User account removed.');
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || 'Unable to remove user account.');
+    } finally {
+      setBusyId(null);
+    }
+  };
 
   const reviewFunding = (type, item, decision) => ask(
     `${decision === 'approve' ? 'Approve' : 'Reject'} this ${type === 'deposits' ? 'deposit' : 'withdrawal'} for $${money(item.amount)}?`,
@@ -389,7 +437,7 @@ export default function AdminScreen() {
       <ScrollView className="flex-1" contentContainerClassName="p-5 md:p-8">
         <View className="mb-7 flex-row items-center justify-between">
           <View>
-            <Text className="text-3xl font-bold text-white">{section === 'overview' ? 'Dashboard' : section === 'users' ? 'User Wallet Management' : section === 'funding' ? 'Funding Requests' : section === 'bankAccounts' ? 'Withdrawal Detail Approvals' : 'Trade Monitor'}</Text>
+            <Text className="text-3xl font-bold text-white">{section === 'overview' ? 'Dashboard' : section === 'users' ? 'User Wallet Management' : section === 'userManagement' ? 'User Management' : section === 'funding' ? 'Funding Requests' : section === 'bankAccounts' ? 'Withdrawal Detail Approvals' : 'Trade Monitor'}</Text>
             <Text className="mt-2 text-muted">Manage client balances, trading access and financial operations.</Text>
           </View>
           <Pressable onPress={load} className="rounded-xl border border-border bg-panel p-3">
@@ -438,6 +486,16 @@ export default function AdminScreen() {
               onSettings={setSettingsUser}
             />
           </View>
+        ) : null}
+        {section === 'userManagement' ? (
+          <UserManagement
+            users={data.users}
+            loading={loading}
+            busyId={busyId}
+            onCreate={createManagedUser}
+            onUpdate={updateManagedUser}
+            onRemove={removeManagedUser}
+          />
         ) : null}
         {section === 'funding' ? renderFunding() : null}
         {section === 'bankAccounts' ? renderBankAccounts() : null}

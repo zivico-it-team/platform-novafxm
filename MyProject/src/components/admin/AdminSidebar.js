@@ -5,6 +5,7 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 const navigation = [
   { id: 'overview', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'users', label: 'User Wallets', icon: UsersRound },
+  { id: 'userManagement', label: 'User Management', icon: UsersRound },
   { id: 'funding', label: 'Deposits & Withdrawals', icon: ReceiptText },
   { id: 'bankAccounts', label: 'Withdrawal Details', icon: CreditCard },
   { id: 'trades', label: 'All Trades', icon: BarChart3 },

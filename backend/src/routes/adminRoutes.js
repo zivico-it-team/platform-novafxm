@@ -5,6 +5,9 @@ const admin = require('../middleware/adminMiddleware');
 
 router.use(auth, admin);
 router.get('/users', controller.users);
+router.post('/users', controller.createUser);
+router.put('/users/:id', controller.updateUserDetails);
+router.delete('/users/:id', controller.deleteUser);
 router.get('/users/:id/wallet', controller.userWallet);
 router.get('/users/:id/transactions', controller.userTransactions);
 router.put('/users/:id/add-balance', controller.updateBalance('admin_add_balance'));

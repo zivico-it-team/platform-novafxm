@@ -1,7 +1,9 @@
 const sequelize = require('../config/db');
+const bcrypt = require('bcryptjs');
 const { Op } = require('sequelize');
 const { User, Wallet, Deposit, Withdrawal, Transaction, Trade, TradingAccount, BankAccount } = require('../models');
 const tradingView = require('../services/tradingViewService');
+const { ensureReferralCode } = require('../services/dashboardService');
 
 const DEMO_BALANCE = 5000;
 const publicAttributes = { exclude: ['password'] };
@@ -27,6 +29,18 @@ async function getUser(id, transaction) {
   if (!user) throw apiError('User account not found.', 404);
   return user;
 }
+
+const normalizeEmail = (email) => String(email || '').trim().toLowerCase();
+const clean = (value) => {
+  const text = String(value || '').trim();
+  return text || null;
+};
+const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || '').trim());
+const phoneDigits = (phone) => String(phone || '').replace(/\D/g, '');
+const isValidPhone = (phone) => {
+  const text = String(phone || '').trim();
+  return /^\+\d{1,4}\s+\d[\d\s().-]{5,18}$/.test(text) && phoneDigits(text).length >= 8 && phoneDigits(text).length <= 15;
+};
 
 function buildSummary(wallet, trades, prices = new Map()) {
   const openProfit = money(trades.reduce((sum, trade) => {
@@ -134,6 +148,148 @@ exports.users = async (req, res, next) => {
         totalOpenPositions: trades.length,
       },
     });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+exports.createUser = async (req, res, next) => {
+  try {
+    const {
+      name,
+      email,
+      password,
+      phone,
+      country,
+      dateOfBirth,
+      accountType,
+      leverage,
+      tradingStatus,
+      verificationStatus,
+      adminNotes,
+    } = req.body;
+    const normalizedEmail = normalizeEmail(email);
+    const selectedAccountType = accountType === 'Live' ? 'Live' : 'Demo';
+    const selectedLeverage = Number(leverage || 100);
+    if (!clean(name) || !normalizedEmail || !String(password || '').trim()) {
+      return res.status(400).json({ message: 'Name, email and password are required.' });
+    }
+    if (!isValidEmail(normalizedEmail)) return res.status(400).json({ message: 'Enter a valid email address.' });
+    if (!clean(country)) return res.status(400).json({ message: 'Country is required.' });
+    if (!isValidPhone(phone)) return res.status(400).json({ message: 'Enter a valid phone number with country code.' });
+    if (String(password).length < 8) return res.status(400).json({ message: 'Password must be at least 8 characters.' });
+    if (!Number.isInteger(selectedLeverage) || selectedLeverage < 1 || selectedLeverage > 1000) {
+      return res.status(400).json({ message: 'Leverage must be between 1:1 and 1:1000.' });
+    }
+    if (await User.findOne({ where: { email: normalizedEmail } })) return res.status(409).json({ message: 'Email already registered.' });
+
+    let created;
+    await sequelize.transaction(async (transaction) => {
+      const startingBalance = selectedAccountType === 'Demo' ? DEMO_BALANCE : 0;
+      created = await User.create({
+        name: clean(name),
+        email: normalizedEmail,
+        phone: clean(phone),
+        country: clean(country),
+        dateOfBirth: clean(dateOfBirth),
+        password: await bcrypt.hash(String(password), 12),
+        role: 'user',
+        accountType: selectedAccountType,
+        leverage: selectedLeverage,
+        tradingStatus: tradingStatus === 'frozen' ? 'frozen' : 'active',
+        verificationStatus: ['unverified', 'pending', 'approved', 'rejected'].includes(verificationStatus) ? verificationStatus : 'unverified',
+        adminNotes: clean(adminNotes),
+      }, { transaction });
+      await Wallet.create({ userId: created.id, balance: startingBalance, equity: startingBalance, freeFunds: startingBalance }, { transaction });
+      await TradingAccount.create({
+        userId: created.id,
+        type: selectedAccountType,
+        name: `${selectedAccountType} account 1`,
+        balance: startingBalance,
+        status: 'active',
+        isPrimary: true,
+      }, { transaction });
+    });
+    await ensureReferralCode(created);
+    const user = await User.findByPk(created.id, { attributes: publicAttributes, include: [{ model: Wallet, as: 'wallet' }, { model: TradingAccount, as: 'tradingAccounts' }] });
+    return res.status(201).json({ user });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+exports.updateUserDetails = async (req, res, next) => {
+  try {
+    const user = await User.findByPk(req.params.id);
+    if (!user) throw apiError('User account not found.', 404);
+    if (user.role === 'admin') throw apiError('Admin accounts cannot be edited here.', 403);
+    const {
+      name,
+      email,
+      password,
+      phone,
+      country,
+      dateOfBirth,
+      accountType,
+      leverage,
+      tradingStatus,
+      verificationStatus,
+      adminNotes,
+    } = req.body;
+    const selectedLeverage = Number(leverage || user.leverage || 100);
+    const updates = {
+      name: clean(name) || user.name,
+      phone: clean(phone),
+      country: clean(country),
+      dateOfBirth: clean(dateOfBirth),
+      accountType: accountType === 'Live' ? 'Live' : 'Demo',
+      leverage: selectedLeverage,
+      tradingStatus: tradingStatus === 'frozen' ? 'frozen' : 'active',
+      verificationStatus: ['unverified', 'pending', 'approved', 'rejected'].includes(verificationStatus) ? verificationStatus : user.verificationStatus,
+      adminNotes: clean(adminNotes),
+    };
+    const normalizedEmail = normalizeEmail(email);
+    if (!updates.name || !normalizedEmail) return res.status(400).json({ message: 'Name and email are required.' });
+    if (!isValidEmail(normalizedEmail)) return res.status(400).json({ message: 'Enter a valid email address.' });
+    if (!updates.country) return res.status(400).json({ message: 'Country is required.' });
+    if (!isValidPhone(updates.phone)) return res.status(400).json({ message: 'Enter a valid phone number with country code.' });
+    if (!Number.isInteger(selectedLeverage) || selectedLeverage < 1 || selectedLeverage > 1000) {
+      return res.status(400).json({ message: 'Leverage must be between 1:1 and 1:1000.' });
+    }
+    if (normalizedEmail !== user.email) {
+      if (await User.findOne({ where: { email: normalizedEmail, id: { [Op.ne]: user.id } } })) return res.status(409).json({ message: 'Email already registered.' });
+      updates.email = normalizedEmail;
+    }
+    if (String(password || '').trim()) {
+      if (String(password).length < 8) return res.status(400).json({ message: 'Password must be at least 8 characters.' });
+      updates.password = await bcrypt.hash(String(password), 12);
+    }
+    await user.update(updates);
+    const updated = await User.findByPk(user.id, { attributes: publicAttributes, include: [{ model: Wallet, as: 'wallet' }, { model: TradingAccount, as: 'tradingAccounts' }] });
+    return res.json({ user: updated });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+exports.deleteUser = async (req, res, next) => {
+  try {
+    await sequelize.transaction(async (transaction) => {
+      const user = await User.findByPk(req.params.id, { transaction });
+      if (!user) throw apiError('User account not found.', 404);
+      if (user.id === req.user.id) throw apiError('You cannot remove your own admin account.', 403);
+      if (user.role === 'admin') throw apiError('Admin accounts cannot be removed here.', 403);
+      await User.update({ referredById: null }, { where: { referredById: user.id }, transaction });
+      await Trade.destroy({ where: { userId: user.id }, transaction });
+      await Transaction.destroy({ where: { userId: user.id }, transaction });
+      await Deposit.destroy({ where: { userId: user.id }, transaction });
+      await Withdrawal.destroy({ where: { userId: user.id }, transaction });
+      await BankAccount.destroy({ where: { userId: user.id }, transaction });
+      await TradingAccount.destroy({ where: { userId: user.id }, transaction });
+      await Wallet.destroy({ where: { userId: user.id }, transaction });
+      await user.destroy({ transaction });
+    });
+    return res.json({ deleted: true });
   } catch (error) {
     return next(error);
   }
