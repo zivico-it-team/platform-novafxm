@@ -1,15 +1,18 @@
 import { useState } from 'react';
 import { Pressable, Text, View, useWindowDimensions } from 'react-native';
+import { router } from 'expo-router';
 import CustomButton from '../common/CustomButton';
 import CustomInput from '../common/CustomInput';
 import { useAppTheme } from '../../context/ThemeContext';
 import { useDemoTrading } from '../../hooks/useDemoTrading';
+import { useAuth } from '../../hooks/useAuth';
 import { quote } from '../../utils/formatters';
 import NewOrderModal from './NewOrderModal';
 
 export default function OrderPanel({ showAvailableMargin = true }) {
   const { width } = useWindowDimensions();
   const { currentSymbol, openPosition, summary } = useDemoTrading();
+  const { user } = useAuth();
   const { darkMode, colors } = useAppTheme();
   const [lots, setLots] = useState('0.01');
   const [message, setMessage] = useState('');
@@ -24,6 +27,10 @@ export default function OrderPanel({ showAvailableMargin = true }) {
   const mobileActionWidth = Math.min(width - 48, 300);
 
   const open = async (side) => {
+    if (!user) {
+      router.push('/login');
+      return;
+    }
     setLoading(true);
     try {
       await openPosition(side, lots);
@@ -36,6 +43,10 @@ export default function OrderPanel({ showAvailableMargin = true }) {
   };
 
   const openOrderModal = (side) => {
+    if (!user) {
+      router.push('/login');
+      return;
+    }
     setOrderSide(side);
     setOrderModal(true);
   };
@@ -62,6 +73,7 @@ export default function OrderPanel({ showAvailableMargin = true }) {
               <Text className="mt-0.5 text-sm font-extrabold text-white">{quote(currentSymbol.ask, currentSymbol.decimals)}</Text>
             </Pressable>
           </View>
+          {message ? <Text className="mt-2 text-center text-xs" style={{ color: colors.muted }}>{message}</Text> : null}
         </View>
         <NewOrderModal visible={orderModal} initialSide={orderSide} onClose={() => setOrderModal(false)} />
       </>
@@ -87,7 +99,7 @@ export default function OrderPanel({ showAvailableMargin = true }) {
         <CustomButton title="SELL" variant="danger" className="flex-1" onPress={() => open('SELL')} loading={loading} />
         <CustomButton title="BUY" variant="success" className="flex-1" onPress={() => open('BUY')} loading={loading} />
       </View>
-      {message ? <Text className="mt-3 text-xs" style={{ color: colors.muted }}>{message}</Text> : null}
+      {message || !user ? <Text className="mt-3 text-xs" style={{ color: colors.muted }}>{message || 'Log in to place trades.'}</Text> : null}
       {showAvailableMargin ? (
         <View className="mt-6 border-t pt-4" style={{ borderColor: colors.border }}>
           <Text className="mb-2 text-sm" style={{ color: colors.muted }}>Available Margin</Text>

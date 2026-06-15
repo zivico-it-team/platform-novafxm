@@ -1,7 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
-const THEME_STORAGE_KEY = 'novafxm.theme';
+const LEGACY_THEME_STORAGE_KEY = 'novafxm.theme';
+const THEME_STORAGE_KEY = 'novafxm.theme.v2';
 
 const palettes = {
   light: {
@@ -39,19 +40,20 @@ const palettes = {
 };
 
 const ThemeContext = createContext({
-  darkMode: true,
-  colors: palettes.dark,
+  darkMode: false,
+  colors: palettes.light,
   toggleTheme: () => {},
   setThemeMode: () => {},
 });
 
 export function ThemeProvider({ children }) {
-  const [darkMode, setDarkMode] = useState(true);
+  const [darkMode, setDarkMode] = useState(false);
 
   useEffect(() => {
     let mounted = true;
     AsyncStorage.getItem(THEME_STORAGE_KEY)
       .then((storedTheme) => {
+        AsyncStorage.removeItem(LEGACY_THEME_STORAGE_KEY).catch(() => {});
         if (!mounted || !storedTheme) return;
         setDarkMode(storedTheme !== 'light');
       })

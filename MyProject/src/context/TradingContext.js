@@ -11,7 +11,7 @@ export const TradingContext = createContext(null);
 const INITIAL_BALANCE = 5000;
 
 export function TradingProvider({ children }) {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { prices, connected } = useMarketPrices();
   const [selectedSymbol, setSelectedSymbol] = useState(DEFAULT_SYMBOL);
   const [positions, setPositions] = useState([]);
@@ -69,6 +69,16 @@ export function TradingProvider({ children }) {
     syncAccount().catch(() => {});
   }, [syncAccount]);
 
+  useEffect(() => {
+    if (authLoading || user) return;
+    setPositions([]);
+    setClosedPositions([]);
+    setPendingOrders([]);
+    setWallet({ balance: INITIAL_BALANCE });
+    setTransactions([]);
+    setSelectedTradingAccount(null);
+  }, [authLoading, user]);
+
   const livePositions = useMemo(
     () =>
       positions.map((position) => {
@@ -125,6 +135,7 @@ export function TradingProvider({ children }) {
 
   const openPosition = useCallback(
     async (side, lots) => {
+      if (!user) throw new Error('Please log in to place trades.');
       const quantity = Number(lots);
       if (!quantity || quantity <= 0) throw new Error('Enter a valid lot size.');
       const requiredMargin = quantity * 100;
@@ -138,19 +149,16 @@ export function TradingProvider({ children }) {
         openPrice: price,
         openedAt: new Date().toISOString(),
       };
-      if (user && selectedAccountId) {
-        const result = await tradeService.open({ symbol: selectedSymbol, side, lots: quantity, tradingAccountId: selectedAccountId });
-        position = result.trade;
-      } else if (selectedTradingAccount?.id) {
-        position.tradingAccountId = selectedTradingAccount.id;
-      }
+      const result = await tradeService.open({ symbol: selectedSymbol, side, lots: quantity, tradingAccountId: selectedAccountId });
+      position = result.trade;
       setPositions((existing) => [position, ...existing]);
     },
-    [currentSymbol, selectedAccountId, selectedSymbol, selectedTradingAccount?.id, summary.freeFunds, user],
+    [currentSymbol, selectedAccountId, selectedSymbol, summary.freeFunds, user],
   );
 
   const createPendingOrder = useCallback(
     (values) => {
+      if (!user) throw new Error('Please log in to place trades.');
       const quantity = Number(values.lots);
       if (!quantity || quantity <= 0) throw new Error('Enter a valid lot size.');
       const order = {
@@ -169,14 +177,15 @@ export function TradingProvider({ children }) {
       setPendingOrders((existing) => [order, ...existing]);
       return order;
     },
-    [selectedSymbol, selectedTradingAccount?.id],
+    [selectedSymbol, selectedTradingAccount?.id, user],
   );
 
   const closePosition = useCallback(
     async (id) => {
+      if (!user) throw new Error('Please log in to manage trades.');
       const position = livePositions.find((item) => String(item.id) === String(id));
       if (!position) return;
-      const response = user && selectedAccountId ? await tradeService.close(id, position.currentPrice) : null;
+      const response = await tradeService.close(id, position.currentPrice);
       const closed = response?.trade || { ...position, status: 'closed', closedAt: new Date().toISOString(), closePrice: position.currentPrice };
       closed.profit = Number(closed.profit ?? position.profit);
       setPositions((existing) => existing.filter((item) => String(item.id) !== String(id)));
