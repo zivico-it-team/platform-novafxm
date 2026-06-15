@@ -368,22 +368,22 @@ export default function AdminScreen() {
 
   const renderTrades = () => (
     <View className="overflow-hidden rounded-2xl border" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
-      <ScrollView horizontal>
-        <View style={{ minWidth: 800 }}>
+      <ScrollView horizontal contentContainerStyle={{ minWidth: '100%' }}>
+        <View style={{ minWidth: 800, flexGrow: 1 }}>
           <View className="flex-row border-b p-4" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
             {['Client', 'Symbol', 'Side', 'Lots', 'Status', 'Profit / Loss', 'Created'].map((heading) => (
-              <Text key={heading} className="w-[115px] text-xs font-bold uppercase" style={{ color: colors.muted }}>{heading}</Text>
+              <Text key={heading} className="text-xs font-bold uppercase" style={{ width: heading === 'Created' ? 150 : 115, flexGrow: 1, color: colors.muted }}>{heading}</Text>
             ))}
           </View>
           {data.trades.map((trade) => (
             <View key={trade.id} className="flex-row border-b p-4" style={{ borderColor: colors.border }}>
-              <Text className="w-[115px] text-sm" style={{ color: colors.text }}>{trade.User?.name || '-'}</Text>
-              <Text className="w-[115px] text-sm" style={{ color: colors.text }}>{trade.symbol}</Text>
-              <Text className={`w-[115px] text-sm font-bold ${trade.side === 'BUY' ? 'text-success' : 'text-danger'}`}>{trade.side}</Text>
-              <Text className="w-[115px] text-sm" style={{ color: colors.text }}>{trade.lots}</Text>
-              <Text className="w-[115px] text-sm" style={{ color: colors.text }}>{trade.status}</Text>
-              <Text className={`w-[115px] text-sm ${Number(trade.profit) < 0 ? 'text-danger' : 'text-success'}`}>${money(trade.profit)}</Text>
-              <Text className="w-[150px] text-sm" style={{ color: colors.muted }}>{dateTime(trade.createdAt)}</Text>
+              <Text className="text-sm" style={{ width: 115, flexGrow: 1, color: colors.text }}>{trade.User?.name || '-'}</Text>
+              <Text className="text-sm" style={{ width: 115, flexGrow: 1, color: colors.text }}>{trade.symbol}</Text>
+              <Text className={`text-sm font-bold ${trade.side === 'BUY' ? 'text-success' : 'text-danger'}`} style={{ width: 115, flexGrow: 1 }}>{trade.side}</Text>
+              <Text className="text-sm" style={{ width: 115, flexGrow: 1, color: colors.text }}>{trade.lots}</Text>
+              <Text className="text-sm" style={{ width: 115, flexGrow: 1, color: colors.text }}>{trade.status}</Text>
+              <Text className={`text-sm ${Number(trade.profit) < 0 ? 'text-danger' : 'text-success'}`} style={{ width: 115, flexGrow: 1 }}>${money(trade.profit)}</Text>
+              <Text className="text-sm" style={{ width: 150, flexGrow: 1, color: colors.muted }}>{dateTime(trade.createdAt)}</Text>
             </View>
           ))}
           {!data.trades.length ? <Text className="p-8" style={{ color: colors.muted }}>No trades found.</Text> : null}
