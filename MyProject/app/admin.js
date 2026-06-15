@@ -154,7 +154,7 @@ export default function AdminScreen() {
     return action(
       balanceModal.user.id,
       () => api.put(`/admin/users/${balanceModal.user.id}/${endpoint}`, { amount, note }),
-      operation === 'add_balance' ? 'Balance added successfully.' : 'Balance deducted successfully.',
+      operation === 'add_balance' ? 'Deposit added successfully.' : 'Balance deducted successfully.',
       () => setBalanceModal(null),
     );
   };

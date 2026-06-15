@@ -39,7 +39,7 @@ export default function UpdateBalanceModal({ user, account, initialOperation, lo
       return;
     }
     setError('');
-    ask(`Confirm ${operation === 'add_balance' ? 'add' : 'deduct'} $${money(numeric)} for ${user.name}?`, () => onConfirm({ operation, amount: numeric, note }));
+    ask(`Confirm ${operation === 'add_balance' ? 'deposit' : 'deduct'} $${money(numeric)} for ${user.name}?`, () => onConfirm({ operation, amount: numeric, note }));
   };
 
   return (
@@ -55,7 +55,7 @@ export default function UpdateBalanceModal({ user, account, initialOperation, lo
         </Text>
         <View className="mb-5 flex-row">
           {[
-            ['add_balance', 'Add Balance'],
+            ['add_balance', 'Deposit'],
             ['deduct_balance', 'Deduct Balance'],
           ].map(([value, title]) => (
             <Pressable key={value} onPress={() => setOperation(value)} className={`mr-3 rounded-xl border px-4 py-3 ${operation === value ? 'border-primary bg-primary/20' : 'border-border bg-surface'}`}>

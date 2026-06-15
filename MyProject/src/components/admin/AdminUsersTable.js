@@ -195,7 +195,7 @@ export default function AdminUsersTable({ users, busyId, onBalance, onStatus, on
                             <Text className="text-sm text-muted">Expand account details to manage accounts.</Text>
                           ) : (
                             <>
-                              <Button title="Add Balance" disabled={blocked} onPress={() => onBalance(user, 'add_balance', account)} />
+                              <Button title="Deposit" disabled={blocked} onPress={() => onBalance(user, 'add_balance', account)} />
                               <Button title="Deduct Balance" danger disabled={blocked} onPress={() => onBalance(user, 'deduct_balance', account)} />
                               <Button title={user.tradingStatus === 'frozen' ? 'Unfreeze Trading' : 'Freeze Trading'} danger={user.tradingStatus !== 'frozen'} disabled={blocked} onPress={() => ask(`${user.tradingStatus === 'frozen' ? 'Unfreeze' : 'Freeze'} trading for ${user.name}?`, () => onStatus(user))} />
                               <Button title="Reset Demo" disabled={blocked || account.type !== 'Demo'} onPress={() => ask(`Reset ${user.name}'s demo account to $5,000 and clear open positions?`, () => onReset(user))} />
