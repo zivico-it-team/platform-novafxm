@@ -1,5 +1,5 @@
 const { Op } = require('sequelize');
-const { User, Wallet, Transaction, TradingAccount } = require('../models');
+const { User, Wallet, Transaction, TradingAccount, Trade } = require('../models');
 
 const money = (value) => Number(Number(value || 0).toFixed(2));
 
@@ -72,9 +72,8 @@ async function dashboardForUser(userId, origin = '') {
   await syncExistingAccountBalances(userId, user.wallet);
   await TradingAccount.update({ status: 'active' }, { where: { userId, type: 'Live', status: 'pending' } });
 
-  const [accounts, transactions, referrals, referrer] = await Promise.all([
+  const [accounts, referrals, referrer] = await Promise.all([
     TradingAccount.findAll({ where: { userId }, order: [['createdAt', 'ASC']] }),
-    Transaction.findAll({ where: { userId }, order: [['createdAt', 'DESC']], limit: 25 }),
     User.findAll({
       where: { referredById: userId },
       attributes: ['id', 'name', 'email', 'accountType', 'createdAt'],
@@ -84,6 +83,32 @@ async function dashboardForUser(userId, origin = '') {
       ? User.findByPk(user.referredById, { attributes: ['id', 'name', 'email', 'referralCode'] })
       : null,
   ]);
+  const liveAccountIds = accounts.filter((account) => account.type === 'Live').map((account) => account.id);
+  const liveAccountNames = new Map(accounts.map((account) => [Number(account.id), account.name]));
+  const [allRecentTransactions, liveTradesForTransactions, recentLiveTrades] = liveAccountIds.length
+    ? await Promise.all([
+      Transaction.findAll({ where: { userId }, order: [['createdAt', 'DESC']], limit: 50 }),
+      Trade.findAll({ where: { userId, tradingAccountId: { [Op.in]: liveAccountIds } }, attributes: ['id'] }),
+      Trade.findAll({
+        where: { userId, tradingAccountId: { [Op.in]: liveAccountIds } },
+        order: [['createdAt', 'DESC']],
+        limit: 10,
+      }),
+    ])
+    : [[], [], []];
+  const liveTradeIds = new Set(liveTradesForTransactions.map((trade) => Number(trade.id)));
+  const liveTransactions = allRecentTransactions
+    .filter((transaction) => {
+      if (['deposit', 'withdrawal'].includes(transaction.type)) return true;
+      if (transaction.referenceType === 'trading_account') return liveAccountIds.includes(Number(transaction.referenceId));
+      if (transaction.referenceType === 'trade') return liveTradeIds.has(Number(transaction.referenceId));
+      return false;
+    })
+    .slice(0, 25);
+  const liveTrades = recentLiveTrades.map((trade) => ({
+    ...trade.toJSON(),
+    accountName: liveAccountNames.get(Number(trade.tradingAccountId)) || 'Live account',
+  }));
 
   const referralIds = referrals.map((item) => item.id);
   const [approvedDeposits, pendingDeposits] = referralIds.length
@@ -104,7 +129,8 @@ async function dashboardForUser(userId, origin = '') {
     user: user.toJSON(),
     wallet: user.wallet,
     accounts,
-    transactions,
+    transactions: liveTransactions,
+    liveTrades,
     referral: {
       code: referralCode,
       url: `${baseUrl.replace(/\/$/, '')}/register?ref=${encodeURIComponent(referralCode)}`,

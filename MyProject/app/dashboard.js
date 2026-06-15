@@ -18,6 +18,7 @@ import { dashboardService } from '../src/services/dashboardService';
 import { useAuth } from '../src/hooks/useAuth';
 import { useWallet } from '../src/hooks/useWallet';
 import { useAppTheme } from '../src/context/ThemeContext';
+import { dateTime, money } from '../src/utils/formatters';
 
 const DEMO_ACCOUNT_LIMIT = 2;
 const LIVE_ACCOUNT_LIMIT = 3;
@@ -119,6 +120,133 @@ function AccountGroup({ title, subtitle, accounts, emptyText, colors }) {
   );
 }
 
+function EmptyActivity({ title, description, colors }) {
+  return (
+    <View className="rounded-xl border border-dashed p-5" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
+      <Text className="font-bold" style={{ color: colors.text }}>{title}</Text>
+      <Text className="mt-1 text-sm" style={{ color: colors.muted }}>{description}</Text>
+    </View>
+  );
+}
+
+function TradeActivityList({ trades = [], colors }) {
+  return (
+    <View>
+      {trades.length ? trades.map((trade) => {
+        const profit = Number(trade.profit || 0);
+        return (
+          <View key={trade.id} className="mb-3 rounded-xl border p-4" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
+            <View className="flex-row items-center justify-between">
+              <View>
+                <Text className="font-bold" style={{ color: colors.text }}>{trade.side} {trade.symbol}</Text>
+                <Text className="mt-1 text-xs" style={{ color: colors.muted }}>{trade.accountName || 'Live account'} | {dateTime(trade.createdAt)}</Text>
+              </View>
+              <View className="items-end">
+                <Text className="font-semibold" style={{ color: colors.text }}>{Number(trade.lots || 0)} lots</Text>
+                <Text className="mt-1 text-xs capitalize" style={{ color: trade.status === 'closed' ? colors.muted : colors.success }}>{trade.status}</Text>
+              </View>
+            </View>
+            <View className="mt-2 flex-row flex-wrap justify-between gap-3">
+              <Text className="text-xs" style={{ color: colors.muted }}>Open: {Number(trade.openPrice || 0).toFixed(5)}</Text>
+              {trade.closePrice ? <Text className="text-xs" style={{ color: colors.muted }}>Close: {Number(trade.closePrice || 0).toFixed(5)}</Text> : null}
+              <Text className="text-xs font-bold" style={{ color: profit < 0 ? colors.danger : colors.success }}>P/L: {money(profit)} USD</Text>
+            </View>
+          </View>
+        );
+      }) : (
+        <EmptyActivity
+          title="No live trades yet"
+          description="Live account trades will appear here after orders are opened from a Live account."
+          colors={colors}
+        />
+      )}
+    </View>
+  );
+}
+
+function LiveTransactionActivityList({ transactions = [], colors }) {
+  return (
+    <View>
+      {transactions.length ? transactions.map((item) => (
+        <View key={item.id} className="mb-3 flex-row items-center justify-between rounded-xl border p-4" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
+          <View className="min-w-0 flex-1">
+            <Text className="capitalize font-bold" style={{ color: colors.text }}>{String(item.type || '').replace(/_/g, ' ')}</Text>
+            <Text className="mt-1 text-xs" style={{ color: colors.muted }}>{dateTime(item.createdAt)}</Text>
+          </View>
+          <View className="items-end">
+            <Text className="font-semibold" style={{ color: colors.text }}>{money(item.amount)} USD</Text>
+            <Text
+              className="mt-1 capitalize text-xs font-bold"
+              style={{ color: ['approved', 'completed'].includes(item.status) ? colors.success : item.status === 'rejected' ? colors.danger : colors.primary }}
+            >
+              {item.status}
+            </Text>
+          </View>
+        </View>
+      )) : (
+        <EmptyActivity
+          title="No live transactions yet"
+          description="Approved deposits, withdrawals, balance updates, and live trade results will appear here."
+          colors={colors}
+        />
+      )}
+    </View>
+  );
+}
+
+function ActivitySelector({ active, tradesCount, transactionsCount, onChange, colors }) {
+  const items = [
+    { key: 'trades', label: 'Trades', count: tradesCount },
+    { key: 'transactions', label: 'Transactions', count: transactionsCount },
+  ];
+  return (
+    <View className="mb-4 flex-row rounded-xl border p-1" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
+      {items.map((item) => {
+        const selected = active === item.key;
+        return (
+          <Pressable
+            key={item.key}
+            onPress={() => onChange(item.key)}
+            className="flex-1 flex-row items-center justify-center rounded-lg px-3 py-2"
+            style={{ backgroundColor: selected ? colors.primary : 'transparent' }}
+          >
+            <Text className="text-sm font-bold" style={{ color: selected ? '#0B0B0B' : colors.text }}>{item.label}</Text>
+            <View className="ml-2 rounded-full px-2 py-0.5" style={{ backgroundColor: selected ? 'rgba(11,11,11,0.12)' : colors.panel }}>
+              <Text className="text-[10px] font-black" style={{ color: selected ? '#0B0B0B' : colors.muted }}>{item.count}</Text>
+            </View>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+function LiveActivityPanel({ activeView, onChangeView, trades, transactions, colors }) {
+  return (
+    <View>
+      <ActivitySelector
+        active={activeView}
+        tradesCount={trades.length}
+        transactionsCount={transactions.length}
+        onChange={onChangeView}
+        colors={colors}
+      />
+      <View className="rounded-2xl border" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+        <ScrollView
+          nestedScrollEnabled
+          showsVerticalScrollIndicator={false}
+          className="max-h-[440px]"
+          contentContainerClassName="p-3"
+        >
+          {activeView === 'trades'
+            ? <TradeActivityList trades={trades} colors={colors} />
+            : <LiveTransactionActivityList transactions={transactions} colors={colors} />}
+        </ScrollView>
+      </View>
+    </View>
+  );
+}
+
 function CreateAccountConfirm({ type, loading, onCancel, onConfirm, colors }) {
   return (
     <Modal visible={Boolean(type)} transparent animationType="fade" onRequestClose={loading ? undefined : onCancel}>
@@ -150,6 +278,7 @@ export default function DashboardScreen() {
   const [accountError, setAccountError] = useState('');
   const [pendingAccountType, setPendingAccountType] = useState(null);
   const [accountCreating, setAccountCreating] = useState(false);
+  const [activityView, setActivityView] = useState('trades');
 
   const loadDashboard = async () => {
     if (!user) return;
@@ -192,6 +321,7 @@ export default function DashboardScreen() {
   const demoAccountCount = demoAccounts.length;
   const liveAccountCount = liveAccounts.length;
   const transactions = dashboard?.transactions || [];
+  const liveTrades = dashboard?.liveTrades || [];
   const depositTransactions = transactions.filter((item) => item.type === 'deposit');
   const referrals = referral.referrals || [];
   const referralText = useMemo(() => referral.url || '', [referral.url]);
@@ -276,11 +406,6 @@ export default function DashboardScreen() {
               <Text className="mt-2" style={{ color: colors.text }}>Phone: {dashboard?.user?.phone || '-'}</Text>
               <Text className="mt-2" style={{ color: colors.text }}>Trading Status: {dashboard?.user?.tradingStatus || 'active'}</Text>
             </Card>
-            <Card title="Recent Transactions" colors={colors}>
-              <TransactionList transactions={transactions} />
-            </Card>
-          </View>
-          <View className="flex-1">
             <Card title="Broker Referral" colors={colors}>
               <Text style={{ color: colors.muted }}>Share this URL. New users who register from it are linked to you.</Text>
               <TextInput
@@ -290,6 +415,17 @@ export default function DashboardScreen() {
                 style={{ backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }}
               />
               <CustomButton title={copied ? 'Copied' : 'Copy Referral URL'} onPress={copyReferral} className="mt-4" />
+            </Card>
+          </View>
+          <View className="flex-1">
+            <Card title="Live Account Activity" colors={colors}>
+              <LiveActivityPanel
+                activeView={activityView}
+                onChangeView={setActivityView}
+                trades={liveTrades}
+                transactions={transactions}
+                colors={colors}
+              />
             </Card>
           </View>
         </View>
