@@ -841,6 +841,7 @@ export default function TradingChart() {
   const symbolPanelWidth = mobile ? Math.min(width - 20, 330) : compactToolbar ? 285 : 310;
   const symbolPanelTop = mobile ? toolbarMenuTop : toolbarMenuTop - 14;
   const chartOffsetLeft = symbolMenuOpen && !mobile && !chartFullscreen ? symbolPanelWidth + chartListGap : 0;
+  const chartPopoverLeft = chartOffsetLeft > 0 ? chartOffsetLeft + chartCardInset : 4;
   const [hoveredSymbol, setHoveredSymbol] = useState(null);
   const [symbolSearch, setSymbolSearch] = useState('');
   const [symbolTab, setSymbolTab] = useState('Popular');
@@ -1469,7 +1470,7 @@ export default function TradingChart() {
         ) : null}
 
         {chartMenuOpen ? (
-          <View className="absolute left-1 w-[132px] rounded-xl border p-1.5 shadow-2xl" style={{ top: toolbarMenuTop, backgroundColor: ui.menu, borderColor: ui.menuBorder, zIndex: 3000, elevation: 3000 }}>
+          <View className="absolute w-[132px] rounded-xl border p-1.5 shadow-2xl" style={{ left: chartPopoverLeft, top: toolbarMenuTop, backgroundColor: ui.menu, borderColor: ui.menuBorder, zIndex: 3000, elevation: 3000 }}>
             {CHART_TYPES.map(([key, label, Icon]) => (
               <Pressable
                 key={key}
@@ -1485,7 +1486,7 @@ export default function TradingChart() {
         ) : null}
 
         {indicatorOpen ? (
-          <View className="absolute left-1 w-[560px] max-w-full flex-row overflow-hidden rounded-lg border shadow-2xl" style={{ top: toolbarMenuTop, height: indicatorPanelHeight, backgroundColor: ui.panel, borderColor: ui.menuBorder, zIndex: 3000, elevation: 3000 }}>
+          <View className="absolute w-[560px] max-w-full flex-row overflow-hidden rounded-lg border shadow-2xl" style={{ left: chartPopoverLeft, top: toolbarMenuTop, height: indicatorPanelHeight, backgroundColor: ui.panel, borderColor: ui.menuBorder, zIndex: 3000, elevation: 3000 }}>
             <View className="w-[210px] border-r" style={{ borderColor: ui.border }}>
               <View className="h-9 justify-center border-b px-3" style={{ borderColor: ui.border }}>
                 <Text className="text-[11px] font-extrabold uppercase" style={{ color: ui.text }}>Indicators</Text>
@@ -1928,6 +1929,7 @@ export default function TradingChart() {
 
         {settingsOpen ? (
           <ChartGraphSettingsPanel
+            left={chartPopoverLeft}
             top={toolbarMenuTop}
             tools={tools}
             toggleTool={toggleTool}
@@ -1935,7 +1937,7 @@ export default function TradingChart() {
           />
         ) : null}
       {drawingOpen ? (
-        <View className="absolute left-[104px] w-[194px] rounded-xl border p-2 shadow-2xl" style={{ top: toolbarMenuTop, backgroundColor: ui.menu, borderColor: ui.menuBorder, zIndex: 3000, elevation: 3000 }}>
+        <View className="absolute w-[194px] rounded-xl border p-2 shadow-2xl" style={{ left: chartPopoverLeft, top: toolbarMenuTop, backgroundColor: ui.menu, borderColor: ui.menuBorder, zIndex: 3000, elevation: 3000 }}>
           {DRAWING_TOOLS.map(([key, label]) => {
             const danger = key === 'clear';
             const active = key === activeDrawingTool;

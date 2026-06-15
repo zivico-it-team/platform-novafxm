@@ -24,11 +24,11 @@ function ToggleSwitch({ active, onPress, ui }) {
   );
 }
 
-export default function ChartGraphSettingsPanel({ top, tools, toggleTool, ui }) {
+export default function ChartGraphSettingsPanel({ left = 70, top, tools, toggleTool, ui }) {
   return (
     <View
-      className="absolute left-[70px] w-[236px] rounded-xl border p-3 shadow-2xl"
-      style={{ top, backgroundColor: ui.menu, borderColor: ui.menuBorder, zIndex: 3000, elevation: 3000 }}
+      className="absolute w-[236px] rounded-xl border p-3 shadow-2xl"
+      style={{ left, top, backgroundColor: ui.menu, borderColor: ui.menuBorder, zIndex: 3000, elevation: 3000 }}
     >
       <Text className="mb-2 border-b pb-2 text-xs font-extrabold" style={{ color: ui.text, borderColor: ui.border }}>GRAPH SETTINGS</Text>
       {GRAPH_SETTINGS.map(([key, label]) => (
