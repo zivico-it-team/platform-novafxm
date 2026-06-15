@@ -1,12 +1,11 @@
 import { useState } from 'react';
 import { Pressable, Text, View, useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
-import CustomButton from '../common/CustomButton';
 import CustomInput from '../common/CustomInput';
 import { useAppTheme } from '../../context/ThemeContext';
 import { useDemoTrading } from '../../hooks/useDemoTrading';
 import { useAuth } from '../../hooks/useAuth';
-import { quote } from '../../utils/formatters';
+import { money, quote } from '../../utils/formatters';
 import NewOrderModal from './NewOrderModal';
 
 export default function OrderPanel({ showAvailableMargin = true }) {
@@ -25,6 +24,14 @@ export default function OrderPanel({ showAvailableMargin = true }) {
   const orderSuccess = '#12cf7a';
   const orderDanger = '#f24d58';
   const mobileActionWidth = Math.min(width - 48, 300);
+  const lotSize = Number(lots) || 0;
+  const spread = Number(currentSymbol.ask || 0) - Number(currentSymbol.bid || 0);
+  const spreadText = Number.isFinite(spread) ? quote(Math.max(spread, 0), currentSymbol.decimals) : quote(0, currentSymbol.decimals);
+  const snapshotRows = [
+    ['Spread', spreadText],
+    ['Volume', `${money(lotSize)} lots`],
+    ['Free margin', `${quote(summary.freeFunds, 2)} USD`],
+  ];
 
   const open = async (side) => {
     if (!user) {
@@ -81,31 +88,85 @@ export default function OrderPanel({ showAvailableMargin = true }) {
   }
 
   return (
-    <View className="rounded-2xl border p-4 lg:w-[270px]" style={{ backgroundColor: panelBackground, borderColor: colors.border }}>
-      <Text className="text-lg font-bold" style={{ color: colors.text }}>New Order</Text>
-      <Text className="mb-5 mt-1" style={{ color: colors.muted }}>{currentSymbol.symbol}</Text>
-      <CustomInput label="Volume (lots)" value={lots} onChangeText={setLots} keyboardType="decimal-pad" />
-      <View className="mb-4 flex-row justify-between rounded-xl p-3" style={{ backgroundColor: priceBackground }}>
-        <View>
-          <Text className="text-xs" style={{ color: colors.muted }}>Bid</Text>
-          <Text className="font-bold" style={{ color: colors.danger }}>{quote(currentSymbol.bid, currentSymbol.decimals)}</Text>
+    <View className="h-full rounded-2xl border lg:w-[270px]" style={{ backgroundColor: panelBackground, borderColor: colors.border }}>
+      <View className="h-full justify-between p-3.5">
+        <Text className="text-base font-bold" style={{ color: colors.text }}>New Order</Text>
+        <Text className="mb-3 mt-0.5 text-xs" style={{ color: colors.muted }}>{currentSymbol.symbol}</Text>
+        <CustomInput
+          label="Volume (lots)"
+          value={lots}
+          onChangeText={setLots}
+          keyboardType="decimal-pad"
+          className="mb-3"
+          labelStyle={{ fontSize: 11, marginBottom: 6 }}
+          style={{ height: 38, fontSize: 12 }}
+        />
+        <View className="mb-3 flex-row justify-between rounded-xl px-3 py-2.5" style={{ backgroundColor: priceBackground }}>
+          <View>
+            <Text className="text-[10px]" style={{ color: colors.muted }}>Bid</Text>
+            <Text className="text-xs font-bold" style={{ color: colors.danger }}>{quote(currentSymbol.bid, currentSymbol.decimals)}</Text>
+          </View>
+          <View>
+            <Text className="text-right text-[10px]" style={{ color: colors.muted }}>Ask</Text>
+            <Text className="text-xs font-bold" style={{ color: colors.success }}>{quote(currentSymbol.ask, currentSymbol.decimals)}</Text>
+          </View>
         </View>
-        <View>
-          <Text className="text-right text-xs" style={{ color: colors.muted }}>Ask</Text>
-          <Text className="font-bold" style={{ color: colors.success }}>{quote(currentSymbol.ask, currentSymbol.decimals)}</Text>
+        <View className="flex-row gap-2">
+          <Pressable
+            disabled={loading}
+            onPress={() => open('SELL')}
+            className={`h-9 flex-1 items-center justify-center rounded-lg ${loading ? 'opacity-60' : ''}`}
+            style={{ backgroundColor: orderDanger }}
+          >
+            <Text className="text-xs font-extrabold text-white">{loading ? '...' : 'SELL'}</Text>
+          </Pressable>
+          <Pressable
+            disabled={loading}
+            onPress={() => open('BUY')}
+            className={`h-9 flex-1 items-center justify-center rounded-lg ${loading ? 'opacity-60' : ''}`}
+            style={{ backgroundColor: orderSuccess }}
+          >
+            <Text className="text-xs font-extrabold text-white">{loading ? '...' : 'BUY'}</Text>
+          </Pressable>
         </View>
+        <View className="mt-3 rounded-xl border p-2.5" style={{ backgroundColor: priceBackground, borderColor: colors.border }}>
+          <View className="mb-1.5 flex-row items-center justify-between">
+            <Text className="text-[11px] font-bold uppercase" style={{ color: colors.muted }}>Trade snapshot</Text>
+            <View className="h-2 w-2 rounded-full" style={{ backgroundColor: colors.success }} />
+          </View>
+          {snapshotRows.map(([label, value]) => (
+            <View key={label} className="mb-1 flex-row items-center justify-between">
+              <Text className="text-[10px]" style={{ color: colors.muted }}>{label}</Text>
+              <Text className="text-[10px] font-bold" style={{ color: colors.text }}>{value}</Text>
+            </View>
+          ))}
+          <View className="mt-1 rounded-lg px-2.5 py-1.5" style={{ backgroundColor: darkMode ? colors.background : '#ffffff' }}>
+            <Text className="text-[9px] leading-3" style={{ color: colors.muted }}>
+              Choose Sell or Buy to place a quick market order for the selected symbol.
+            </Text>
+          </View>
+        </View>
+        <View className="mt-3 rounded-xl border p-2.5" style={{ backgroundColor: darkMode ? colors.background : '#ffffff', borderColor: colors.border }}>
+          <Text className="text-[11px] font-bold uppercase" style={{ color: colors.muted }}>Before you trade</Text>
+          {[
+            'Check the spread before opening.',
+            'Start small when markets move fast.',
+            'Review open positions below.',
+          ].map((item) => (
+            <View key={item} className="mt-1.5 flex-row items-start">
+              <View className="mr-2 mt-1 h-1.5 w-1.5 rounded-full" style={{ backgroundColor: colors.primary }} />
+              <Text className="flex-1 text-[9px] leading-3" style={{ color: colors.muted }}>{item}</Text>
+            </View>
+          ))}
+        </View>
+        {message || !user ? <Text className="mt-2 text-[10px]" style={{ color: colors.muted }}>{message || 'Log in to place trades.'}</Text> : null}
+        {showAvailableMargin ? (
+          <View className="mt-3 border-t pt-2" style={{ borderColor: colors.border }}>
+            <Text className="mb-1 text-xs" style={{ color: colors.muted }}>Available Margin</Text>
+            <Text className="text-sm font-semibold" style={{ color: colors.text }}>{quote(summary.freeFunds, 2)} USD</Text>
+          </View>
+        ) : null}
       </View>
-      <View className="flex-row gap-2">
-        <CustomButton title="SELL" variant="danger" className="flex-1" onPress={() => open('SELL')} loading={loading} />
-        <CustomButton title="BUY" variant="success" className="flex-1" onPress={() => open('BUY')} loading={loading} />
-      </View>
-      {message || !user ? <Text className="mt-3 text-xs" style={{ color: colors.muted }}>{message || 'Log in to place trades.'}</Text> : null}
-      {showAvailableMargin ? (
-        <View className="mt-6 border-t pt-4" style={{ borderColor: colors.border }}>
-          <Text className="mb-2 text-sm" style={{ color: colors.muted }}>Available Margin</Text>
-          <Text className="font-semibold" style={{ color: colors.text }}>{quote(summary.freeFunds, 2)} USD</Text>
-        </View>
-      ) : null}
     </View>
   );
 }
