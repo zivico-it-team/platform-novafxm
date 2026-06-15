@@ -6,7 +6,10 @@ import {
   BarChart3,
   CandlestickChart,
   ChevronDown,
+  ChevronLeft,
   LineChart,
+  Maximize2,
+  Minimize2,
   Minus,
   Mountain,
   Plus,
@@ -830,11 +833,18 @@ export default function TradingChart() {
   const indicatorPanelHeight = mobile ? Math.min(Math.max(Math.round(height * 0.54), 300), 430) : 330;
   const [timeframe, setTimeframe] = useState('15m');
   const [chartType, setChartType] = useState('candles');
+  const [chartFullscreen, setChartFullscreen] = useState(false);
   const [chartMenuOpen, setChartMenuOpen] = useState(false);
-  const [symbolMenuOpen, setSymbolMenuOpen] = useState(false);
+  const [symbolMenuOpen, setSymbolMenuOpen] = useState(true);
+  const chartCardInset = 10;
+  const chartListGap = 10;
+  const symbolPanelWidth = mobile ? Math.min(width - 20, 330) : compactToolbar ? 285 : 310;
+  const symbolPanelTop = mobile ? toolbarMenuTop : toolbarMenuTop - 14;
+  const chartOffsetLeft = symbolMenuOpen && !mobile && !chartFullscreen ? symbolPanelWidth + chartListGap : 0;
   const [hoveredSymbol, setHoveredSymbol] = useState(null);
   const [symbolSearch, setSymbolSearch] = useState('');
   const [symbolTab, setSymbolTab] = useState('Popular');
+  const [symbolTabMenuOpen, setSymbolTabMenuOpen] = useState(false);
   const [indicatorOpen, setIndicatorOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [drawingOpen, setDrawingOpen] = useState(false);
@@ -1018,6 +1028,8 @@ export default function TradingChart() {
     drawings: drawings.length,
     activeDrawingTool,
     tools,
+    chartOffsetLeft,
+    chartFullscreen,
   });
   const positive = priceDirection ? priceDirection > 0 : Number(currentSymbol.change) >= 0;
   const priceTone = positive ? ui.success : ui.danger;
@@ -1077,20 +1089,14 @@ export default function TradingChart() {
   };
   const toggleChartMenu = () => {
     setChartMenuOpen((value) => !value);
-    setSymbolMenuOpen(false);
+    setSymbolTabMenuOpen(false);
     setIndicatorOpen(false);
     setSettingsOpen(false);
     setDrawingOpen(false);
   };
   const toggleSymbolMenu = () => {
     setSymbolMenuOpen((value) => !value);
-    setChartMenuOpen(false);
-    setIndicatorOpen(false);
-    setSettingsOpen(false);
-    setDrawingOpen(false);
-  };
-  const openSymbolMenu = () => {
-    setSymbolMenuOpen(true);
+    setSymbolTabMenuOpen(false);
     setChartMenuOpen(false);
     setIndicatorOpen(false);
     setSettingsOpen(false);
@@ -1098,24 +1104,36 @@ export default function TradingChart() {
   };
   const toggleIndicatorMenu = () => {
     setIndicatorOpen((value) => !value);
-    setSymbolMenuOpen(false);
+    setSymbolTabMenuOpen(false);
     setChartMenuOpen(false);
     setSettingsOpen(false);
     setDrawingOpen(false);
   };
   const toggleSettingsMenu = () => {
     setSettingsOpen((value) => !value);
-    setSymbolMenuOpen(false);
+    setSymbolTabMenuOpen(false);
     setChartMenuOpen(false);
     setIndicatorOpen(false);
     setDrawingOpen(false);
   };
   const toggleDrawingMenu = () => {
     setDrawingOpen((value) => !value);
-    setSymbolMenuOpen(false);
+    setSymbolTabMenuOpen(false);
     setChartMenuOpen(false);
     setIndicatorOpen(false);
     setSettingsOpen(false);
+  };
+  const toggleChartFullscreen = () => {
+    setChartFullscreen((value) => !value);
+    setSymbolTabMenuOpen(false);
+    setChartMenuOpen(false);
+    setIndicatorOpen(false);
+    setSettingsOpen(false);
+    setDrawingOpen(false);
+  };
+  const selectSymbolTab = (entry) => {
+    setSymbolTab(entry);
+    setSymbolTabMenuOpen(false);
   };
   const selectTimeframe = (entry) => {
     setTimeframe(entry);
@@ -1124,7 +1142,6 @@ export default function TradingChart() {
   const selectSymbol = (symbol) => {
     setSelectedSymbol(symbol);
     setViewRange('Full');
-    setSymbolMenuOpen(false);
     setHoveredSymbol(null);
   };
   const applyDrawingTool = (key) => {
@@ -1198,13 +1215,29 @@ export default function TradingChart() {
     return () => window.removeEventListener('message', handleChartMessage);
   }, [handleChartMessage]);
 
+  const chartRootStyle = chartFullscreen
+    ? {
+      position: Platform.OS === 'web' ? 'fixed' : 'absolute',
+      top: 0,
+      right: 0,
+      bottom: 0,
+      left: 0,
+      minHeight: Platform.OS === 'web' ? '100vh' : height,
+      width: Platform.OS === 'web' ? '100vw' : width,
+      backgroundColor: ui.background,
+      borderColor: ui.border,
+      zIndex: 9000,
+      elevation: 9000,
+    }
+    : { minHeight: chartMinHeight, backgroundColor: ui.background, borderColor: ui.border };
+
   return (
-    <View className="relative flex-1 overflow-hidden border" style={{ minHeight: chartMinHeight, backgroundColor: ui.background, borderColor: ui.border }}>
+    <View className="relative flex-1 overflow-hidden border" style={chartRootStyle}>
       <View className="relative border-b px-2 py-1.5 sm:px-3" style={{ backgroundColor: ui.toolbar, borderColor: ui.border, zIndex: 1000, elevation: 1000 }}>
         {mobile ? (
           <View className="px-0.5 pt-0.5">
             <View className="flex-row items-center justify-between">
-              <Pressable onHoverIn={openSymbolMenu} onPress={toggleSymbolMenu} className="min-w-0 flex-row items-center rounded-md px-1.5 py-1" style={{ backgroundColor: symbolMenuOpen ? ui.soft : 'transparent', cursor: 'pointer' }}>
+              <Pressable onPress={toggleSymbolMenu} className="min-w-0 flex-row items-center rounded-md px-1.5 py-1" style={{ backgroundColor: symbolMenuOpen ? ui.soft : 'transparent', cursor: 'pointer' }}>
                 <Star size={14} color={symbolMenuOpen ? ui.accent : ui.muted} />
                 <View className="mx-1.5 h-5 w-5 items-center justify-center rounded-full" style={{ backgroundColor: ui.accent }}>
                   <Text className="text-[10px] font-black" style={{ color: ui.activeText }}>{currentSymbol.symbol?.[0] || '$'}</Text>
@@ -1283,7 +1316,7 @@ export default function TradingChart() {
         ) : (
           <>
             <View className="flex-row flex-wrap items-center" style={{ columnGap: compactToolbar ? 6 : 10, rowGap: 3 }}>
-              <Pressable onHoverIn={openSymbolMenu} onPress={toggleSymbolMenu} className="flex-row items-center rounded-md px-1.5" style={{ height: compactToolbar ? 24 : 28, backgroundColor: symbolMenuOpen ? ui.soft : 'transparent', cursor: 'pointer', gap: compactToolbar ? 5 : 7 }}>
+              <Pressable onPress={toggleSymbolMenu} className="flex-row items-center rounded-md px-1.5" style={{ height: compactToolbar ? 24 : 28, backgroundColor: symbolMenuOpen ? ui.soft : 'transparent', cursor: 'pointer', gap: compactToolbar ? 5 : 7 }}>
                 <Star size={compactToolbar ? 12 : 14} color={symbolMenuOpen ? ui.accent : ui.muted} />
                 <View className="items-center justify-center rounded-full" style={{ width: compactToolbar ? 18 : 21, height: compactToolbar ? 18 : 21, backgroundColor: ui.accent }}>
                   <Text className="font-black" style={{ color: ui.activeText, fontSize: compactToolbar ? 9 : 10 }}>{currentSymbol.symbol?.[0] || '$'}</Text>
@@ -1317,9 +1350,7 @@ export default function TradingChart() {
                     <Text className="font-bold" style={{ color: entry === viewRange ? ui.activeText : ui.muted, fontSize: compactToolbar ? 10 : 12 }}>{entry}</Text>
                   </Pressable>
                 ))}
-              </View>
-            </View>
-            <View className="mt-1 flex-row flex-wrap items-center" style={{ columnGap: compactToolbar ? 3 : 4, rowGap: 3 }}>
+                <View className="mx-2 h-5 w-px" style={{ backgroundColor: ui.border }} />
                 <IconButton active={chartMenuOpen} ui={ui} size={iconButtonSize} onPress={toggleChartMenu}>
                   <ActiveChartIcon size={compactToolbar ? 14 : 17} color={chartMenuOpen ? ui.activeText : ui.text} />
                 </IconButton>
@@ -1332,61 +1363,73 @@ export default function TradingChart() {
                 <IconButton active={drawingOpen || Boolean(activeDrawingTool)} ui={ui} size={iconButtonSize} onPress={toggleDrawingMenu}>
                   <LineChart size={compactToolbar ? 14 : 16} color={drawingOpen || activeDrawingTool ? ui.activeText : ui.text} />
                 </IconButton>
+              </View>
             </View>
           </>
         )}
       </View>
 
-        {symbolMenuOpen ? (
-          <View className="absolute left-2 w-[532px] max-w-[96vw] overflow-hidden rounded-lg border shadow-2xl" style={{ top: toolbarMenuTop, maxHeight: mobile ? 390 : 504, backgroundColor: ui.menu, borderColor: ui.menuBorder, zIndex: 3200, elevation: 3200 }}>
-            <View className="border-b px-4 py-3" style={{ borderColor: ui.border }}>
-              <View className="flex-row items-center justify-between">
-                <View className="min-w-0 flex-1 flex-row items-center">
-                  <Star size={17} color={ui.accent} />
-                  <View className="mx-2 h-6 w-6 items-center justify-center rounded-full" style={{ backgroundColor: ui.accent }}>
-                    <Text className="text-[11px] font-black" style={{ color: ui.activeText }}>{currentSymbol.symbol?.[0] || '$'}</Text>
-                  </View>
-                  <Text className="text-lg font-extrabold" numberOfLines={1} style={{ color: ui.text }}>{currentSymbol.symbol}</Text>
-                  <Text className="ml-1 rounded px-1 py-0.5 text-[10px] font-extrabold" style={{ backgroundColor: ui.control, color: ui.muted }}>Perp</Text>
-                  <ChevronDown size={13} color={ui.muted} />
+        {symbolMenuOpen && !chartFullscreen ? (
+          <View className="absolute max-w-[96vw] overflow-hidden rounded-lg border shadow-2xl" style={{ left: chartCardInset, top: symbolPanelTop, bottom: chartCardInset, width: symbolPanelWidth, backgroundColor: ui.menu, borderColor: ui.menuBorder, zIndex: 3200, elevation: 3200 }}>
+            <View className="border-b px-3 py-3" style={{ borderColor: ui.border, zIndex: 3300, elevation: 3300 }}>
+              <View className="flex-row items-center gap-2">
+                <View className="relative" style={{ zIndex: 3400, elevation: 3400 }}>
+                  <Pressable
+                    onPress={() => setSymbolTabMenuOpen((value) => !value)}
+                    className="h-9 w-[108px] flex-row items-center justify-between rounded-md border px-3"
+                    style={{ backgroundColor: symbolTabMenuOpen ? ui.soft : ui.control, borderColor: symbolTabMenuOpen ? ui.accent : ui.border, cursor: 'pointer' }}
+                  >
+                    <Text className="text-xs font-extrabold" numberOfLines={1} style={{ color: symbolTabMenuOpen ? ui.accent : ui.text }}>{symbolTab}</Text>
+                    <ChevronDown size={13} color={symbolTabMenuOpen ? ui.accent : ui.muted} />
+                  </Pressable>
+                  {symbolTabMenuOpen ? (
+                    <View className="absolute left-0 w-[132px] rounded-md border p-1 shadow-2xl" style={{ top: 42, backgroundColor: ui.menu, borderColor: ui.menuBorder, zIndex: 3500, elevation: 3500 }}>
+                      {symbolTabs.map((entry) => (
+                        <Pressable
+                          key={entry}
+                          onPress={() => selectSymbolTab(entry)}
+                          className="h-8 justify-center rounded px-2"
+                          style={{ backgroundColor: entry === symbolTab ? ui.soft : 'transparent', cursor: 'pointer' }}
+                        >
+                          <Text className="text-xs font-extrabold" style={{ color: entry === symbolTab ? ui.accent : ui.text }}>{entry}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  ) : null}
                 </View>
-                <View className="items-end">
-                  <Text className="text-lg font-extrabold" numberOfLines={1} style={{ color: priceTone }}>{quote(currentSymbol.price, currentSymbol.decimals)}</Text>
-                  <Text className="text-[11px] font-bold" numberOfLines={1} style={{ color: priceTone }}>{percent(currentSymbol.change)}</Text>
+                <View className="h-9 flex-1 flex-row items-center rounded-md border px-3" style={{ backgroundColor: ui.control, borderColor: ui.border }}>
+                  <Search size={16} color={ui.muted} />
+                  <TextInput
+                    value={symbolSearch}
+                    onChangeText={setSymbolSearch}
+                    placeholder="Search"
+                    placeholderTextColor={ui.muted}
+                    className="ml-2 h-9 flex-1 text-sm"
+                    style={{ color: ui.text }}
+                  />
                 </View>
-              </View>
-              <View className="mt-3 h-9 flex-row items-center rounded-md border px-3" style={{ backgroundColor: ui.control, borderColor: ui.border }}>
-                <Search size={16} color={ui.muted} />
-                <TextInput
-                  value={symbolSearch}
-                  onChangeText={setSymbolSearch}
-                  placeholder="Search"
-                  placeholderTextColor={ui.muted}
-                  className="ml-2 h-9 flex-1 text-sm"
-                  style={{ color: ui.text }}
-                />
-              </View>
-              <View className="mt-3 flex-row items-center justify-between">
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ columnGap: 18 }}>
-                  {symbolTabs.map((entry) => (
-                    <Pressable key={entry} onPress={() => setSymbolTab(entry)} className="border-b-2 pb-1" style={{ borderColor: entry === symbolTab ? ui.accent : 'transparent', cursor: 'pointer' }}>
-                      <Text className="text-sm font-extrabold" style={{ color: entry === symbolTab ? ui.text : ui.muted }}>{entry}</Text>
-                    </Pressable>
-                  ))}
-                </ScrollView>
-                <Pressable className="flex-row items-center">
-                  <Text className="text-xs font-bold" style={{ color: ui.muted }}>All</Text>
-                  <ChevronDown size={13} color={ui.muted} />
+                <Pressable
+                  onPress={() => {
+                    setSymbolTabMenuOpen(false);
+                    setSymbolMenuOpen(false);
+                  }}
+                  className="h-9 w-9 items-center justify-center rounded-md border"
+                  style={{ backgroundColor: ui.control, borderColor: ui.border }}
+                >
+                  <ChevronLeft size={16} color={ui.muted} />
                 </Pressable>
               </View>
             </View>
             <View className="flex-row border-b px-4 py-2" style={{ borderColor: ui.border }}>
-              <Text className="flex-1 text-[11px] font-bold" style={{ color: ui.muted }}>Symbols / Vol</Text>
+              <Text className="flex-1 text-[11px] font-bold" numberOfLines={1} style={{ color: ui.muted }}>Symbols / Vol</Text>
               <Text className="w-[92px] text-right text-[11px] font-bold" style={{ color: ui.muted }}>Last Price</Text>
-              <Text className="w-[82px] text-right text-[11px] font-bold" style={{ color: ui.muted }}>24h Chg</Text>
-              <Text className="w-[92px] text-right text-[11px] font-bold" style={{ color: ui.muted }}>Funding Rate</Text>
             </View>
-            <ScrollView showsVerticalScrollIndicator>
+            <ScrollView
+              className="min-h-0 flex-1"
+              showsVerticalScrollIndicator
+              persistentScrollbar
+              style={Platform.OS === 'web' ? { overflowY: 'scroll', scrollbarGutter: 'stable' } : null}
+            >
               {filteredSymbols.map((item) => {
                 const itemPositive = Number(item.change) >= 0;
                 const itemTone = itemPositive ? ui.success : ui.danger;
@@ -1414,9 +1457,10 @@ export default function TradingChart() {
                         <Text className="text-[11px]" style={{ color: ui.muted }}>{item.group || 'Market'}</Text>
                       </View>
                     </View>
-                    <Text className="w-[92px] text-right text-sm font-semibold" numberOfLines={1} style={{ color: ui.text }}>{quote(item.price, item.decimals)}</Text>
-                    <Text className="w-[82px] text-right text-sm font-bold" numberOfLines={1} style={{ color: itemTone }}>{percent(item.change)}</Text>
-                    <Text className="w-[92px] text-right text-sm font-semibold" numberOfLines={1} style={{ color: ui.text }}>{Number(item.spreadPoints ?? item.spread ?? 0).toFixed(5)}%</Text>
+                    <View className="w-[92px] items-end">
+                      <Text className="text-sm font-semibold" numberOfLines={1} style={{ color: ui.text }}>{quote(item.price, item.decimals)}</Text>
+                      <Text className="text-[11px] font-bold" numberOfLines={1} style={{ color: itemTone }}>{percent(item.change)}</Text>
+                    </View>
                   </Pressable>
                 );
               })}
@@ -1930,27 +1974,40 @@ export default function TradingChart() {
           })}
         </View>
       ) : null}
-      <View className="flex-1" style={{ zIndex: 0, elevation: 0 }}>
-        {Platform.OS === 'web' ? (
-          <iframe
-            key={chartRenderKey}
-            ref={iframeRef}
-            title="Market chart"
-            srcDoc={html}
-            style={{ width: '100%', height: '100%', border: 0, position: 'relative', zIndex: 0 }}
-          />
-        ) : (
-          <WebView
-            key={chartRenderKey}
-            ref={webViewRef}
-            originWhitelist={['*']}
-            domStorageEnabled
-            javaScriptEnabled
-            onMessage={handleChartMessage}
-            source={{ html }}
-            style={{ backgroundColor: colors.chartBackground, zIndex: 0, elevation: 0 }}
-          />
-        )}
+      <View className="flex-1 p-2.5" style={{ marginLeft: chartOffsetLeft, backgroundColor: ui.background, zIndex: 0, elevation: 0 }}>
+        <View className="flex-1 overflow-hidden rounded-lg border shadow-2xl" style={{ backgroundColor: ui.menu, borderColor: ui.menuBorder }}>
+          {Platform.OS === 'web' ? (
+            <iframe
+              key={chartRenderKey}
+              ref={iframeRef}
+              title="Market chart"
+              srcDoc={html}
+              style={{ width: '100%', height: '100%', border: 0, position: 'relative', zIndex: 0 }}
+            />
+          ) : (
+            <WebView
+              key={chartRenderKey}
+              ref={webViewRef}
+              originWhitelist={['*']}
+              domStorageEnabled
+              javaScriptEnabled
+              onMessage={handleChartMessage}
+              source={{ html }}
+              style={{ backgroundColor: colors.chartBackground, zIndex: 0, elevation: 0 }}
+            />
+          )}
+          <Pressable
+            onPress={toggleChartFullscreen}
+            className="absolute items-center justify-center rounded-md border"
+            style={{ top: 10, right: 72, width: iconButtonSize, height: iconButtonSize, backgroundColor: chartFullscreen ? ui.controlActive : ui.control, borderColor: chartFullscreen ? ui.controlActive : ui.border, zIndex: 50, elevation: 50, cursor: 'pointer' }}
+          >
+            {chartFullscreen ? (
+              <Minimize2 size={compactToolbar ? 14 : 16} color={ui.activeText} />
+            ) : (
+              <Maximize2 size={compactToolbar ? 14 : 16} color={ui.text} />
+            )}
+          </Pressable>
+        </View>
       </View>
     </View>
   );
