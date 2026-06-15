@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Alert, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { ChevronDown, Eye } from 'lucide-react-native';
+import { useAppTheme } from '../../context/ThemeContext';
 import { money } from '../../utils/formatters';
 
 function ask(message, onConfirm) {
@@ -12,33 +13,48 @@ function ask(message, onConfirm) {
 }
 
 function Button({ title, icon: Icon, onPress, danger, disabled }) {
+  const { colors } = useAppTheme();
+
   return (
-    <Pressable onPress={onPress} disabled={disabled} className={`mb-2 mr-2 rounded-lg border px-3 py-2 ${danger ? 'border-danger/60 bg-danger/10' : 'border-border bg-surface'} ${disabled ? 'opacity-40' : ''}`}>
-      {Icon ? <Icon size={15} color={danger ? '#f24d58' : '#f3f7ff'} /> : <Text className={`text-xs font-semibold ${danger ? 'text-danger' : 'text-white'}`}>{title}</Text>}
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      className={`mb-2 mr-2 rounded-lg border px-3 py-2 ${danger ? 'border-danger/60 bg-danger/10' : ''} ${disabled ? 'opacity-40' : ''}`}
+      style={danger ? null : { backgroundColor: colors.surface, borderColor: colors.border }}
+    >
+      {Icon ? <Icon size={15} color={danger ? colors.danger : colors.text} /> : <Text className="text-xs font-semibold" style={{ color: danger ? colors.danger : colors.text }}>{title}</Text>}
     </Pressable>
   );
 }
 
 function TextCell({ width, children, className = '' }) {
-  return <Text style={{ width }} className={`px-3 py-4 text-sm text-white ${className}`}>{children}</Text>;
+  const { colors } = useAppTheme();
+  const color = className.includes('text-success') ? colors.success : className.includes('text-danger') ? colors.danger : className.includes('text-primary') ? colors.primary : className.includes('text-muted') ? colors.muted : colors.text;
+
+  return <Text style={{ width, color }} className="px-3 py-4 text-sm">{children}</Text>;
 }
 
 function Header({ width, children }) {
-  return <Text style={{ width }} className="px-3 py-3 text-xs font-bold uppercase text-muted">{children}</Text>;
+  const { colors } = useAppTheme();
+
+  return <Text style={{ width, color: colors.muted }} className="px-3 py-3 text-xs font-bold uppercase">{children}</Text>;
 }
 
 function AccountsDropdown({ count, expanded, onPress }) {
+  const { colors } = useAppTheme();
+
   return (
     <Pressable
       onPress={onPress}
-      className={`mt-3 rounded-xl border px-3 py-2 ${expanded ? 'border-primary/50 bg-primary/10' : 'border-border bg-surface'}`}
+      className={`mt-3 rounded-xl border px-3 py-2 ${expanded ? 'border-primary/50 bg-primary/10' : ''}`}
+      style={expanded ? null : { backgroundColor: colors.surface, borderColor: colors.border }}
     >
       <View className="flex-row items-center justify-between">
         <View>
-          <Text className="text-xs font-semibold text-white">{expanded ? 'Hide account details' : 'Show account details'}</Text>
-          <Text className="mt-1 text-[11px] text-muted">{expanded ? `${count} of ${count} shown` : 'Details hidden'}</Text>
+          <Text className="text-xs font-semibold" style={{ color: colors.text }}>{expanded ? 'Hide account details' : 'Show account details'}</Text>
+          <Text className="mt-1 text-[11px]" style={{ color: colors.muted }}>{expanded ? `${count} of ${count} shown` : 'Details hidden'}</Text>
         </View>
-        <View className="ml-3 h-7 w-7 items-center justify-center rounded-full bg-panel">
+        <View className="ml-3 h-7 w-7 items-center justify-center rounded-full" style={{ backgroundColor: colors.panel }}>
           <ChevronDown size={16} color="#27a8e9" style={{ transform: [{ rotate: expanded ? '180deg' : '0deg' }] }} />
         </View>
       </View>
@@ -47,17 +63,20 @@ function AccountsDropdown({ count, expanded, onPress }) {
 }
 
 function ReferralsDropdown({ count, expanded, onPress }) {
+  const { colors } = useAppTheme();
+
   return (
     <Pressable
       onPress={onPress}
-      className={`mt-2 rounded-xl border px-3 py-2 ${expanded ? 'border-primary/50 bg-primary/10' : 'border-border bg-surface'}`}
+      className={`mt-2 rounded-xl border px-3 py-2 ${expanded ? 'border-primary/50 bg-primary/10' : ''}`}
+      style={expanded ? null : { backgroundColor: colors.surface, borderColor: colors.border }}
     >
       <View className="flex-row items-center justify-between">
         <View>
-          <Text className="text-xs font-semibold text-white">{expanded ? 'Hide referrals' : 'Show referrals'}</Text>
-          <Text className="mt-1 text-[11px] text-muted">{count} linked client{count === 1 ? '' : 's'}</Text>
+          <Text className="text-xs font-semibold" style={{ color: colors.text }}>{expanded ? 'Hide referrals' : 'Show referrals'}</Text>
+          <Text className="mt-1 text-[11px]" style={{ color: colors.muted }}>{count} linked client{count === 1 ? '' : 's'}</Text>
         </View>
-        <View className="ml-3 h-7 w-7 items-center justify-center rounded-full bg-panel">
+        <View className="ml-3 h-7 w-7 items-center justify-center rounded-full" style={{ backgroundColor: colors.panel }}>
           <ChevronDown size={16} color="#D4AF37" style={{ transform: [{ rotate: expanded ? '180deg' : '0deg' }] }} />
         </View>
       </View>
@@ -66,17 +85,19 @@ function ReferralsDropdown({ count, expanded, onPress }) {
 }
 
 function ReferralList({ referrals }) {
+  const { colors } = useAppTheme();
+
   if (!referrals?.length) {
-    return <Text className="mt-2 rounded-lg border border-dashed border-border bg-panel p-2 text-xs text-muted">No referrals linked.</Text>;
+    return <Text className="mt-2 rounded-lg border border-dashed p-2 text-xs" style={{ backgroundColor: colors.panel, borderColor: colors.border, color: colors.muted }}>No referrals linked.</Text>;
   }
 
   return (
     <View className="mt-2 gap-2">
       {referrals.map((referral) => (
-        <View key={referral.id} className="rounded-lg border border-border bg-panel p-2">
-          <Text className="text-xs font-bold text-white" numberOfLines={1}>{referral.name || 'Client'}</Text>
-          <Text className="mt-1 text-[11px] text-muted" numberOfLines={1}>{referral.email || '-'}</Text>
-          <Text className="mt-1 text-[11px] text-muted">
+        <View key={referral.id} className="rounded-lg border p-2" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+          <Text className="text-xs font-bold" numberOfLines={1} style={{ color: colors.text }}>{referral.name || 'Client'}</Text>
+          <Text className="mt-1 text-[11px]" numberOfLines={1} style={{ color: colors.muted }}>{referral.email || '-'}</Text>
+          <Text className="mt-1 text-[11px]" style={{ color: colors.muted }}>
             {referral.accountType || 'Demo'} | {referral.verificationStatus || 'pending'}
           </Text>
           <Text className="mt-1 text-[11px] text-primary">
@@ -89,6 +110,7 @@ function ReferralList({ referrals }) {
 }
 
 export default function AdminUsersTable({ users, busyId, onBalance, onStatus, onReset, onWallet, onTransactions, onSettings, onVerification, onVerificationDecision }) {
+  const { colors } = useAppTheme();
   const [expandedUsers, setExpandedUsers] = useState({});
   const [expandedReferrals, setExpandedReferrals] = useState({});
 
@@ -101,10 +123,10 @@ export default function AdminUsersTable({ users, busyId, onBalance, onStatus, on
   };
 
   return (
-    <View className="overflow-hidden rounded-2xl border border-border bg-panel">
+    <View className="overflow-hidden rounded-2xl border" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
       <ScrollView horizontal>
         <View style={{ minWidth: 2050 }}>
-          <View className="flex-row border-b border-border bg-surface">
+          <View className="flex-row border-b" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
             <Header width={220}>Client Account</Header>
             <Header width={150}>Account Type</Header>
             <Header width={130}>Wallet Balance</Header>
@@ -147,11 +169,11 @@ export default function AdminUsersTable({ users, busyId, onBalance, onStatus, on
             const visibleAccounts = expanded ? accounts : [summaryAccount];
 
             return (
-              <View key={user.id} className="flex-row border-b border-border/60">
+              <View key={user.id} className="flex-row border-b" style={{ borderColor: colors.border }}>
                 <View style={{ width: 220 }} className="px-3 py-4">
-                  <Text className="font-semibold text-white">{user.name}</Text>
-                  <Text className="mt-1 text-xs text-muted">{user.email}</Text>
-                  <Text className="mt-2 text-[11px] text-muted">Referral Code: {user.referralCode || '-'}</Text>
+                  <Text className="font-semibold" style={{ color: colors.text }}>{user.name}</Text>
+                  <Text className="mt-1 text-xs" style={{ color: colors.muted }}>{user.email}</Text>
+                  <Text className="mt-2 text-[11px]" style={{ color: colors.muted }}>Referral Code: {user.referralCode || '-'}</Text>
                   <Text className="mt-1 text-[11px] text-primary">
                     Referred by: {user.referrer?.name || user.referrer?.email || 'Direct signup'}
                   </Text>
@@ -169,10 +191,10 @@ export default function AdminUsersTable({ users, busyId, onBalance, onStatus, on
                     const status = account.status || user.tradingStatus;
 
                     return (
-                      <View key={account.id} className={`flex-row ${accountIndex > 0 ? 'border-t border-border/60' : ''}`}>
+                      <View key={account.id} className={`flex-row ${accountIndex > 0 ? 'border-t' : ''}`} style={{ borderColor: colors.border }}>
                         <View style={{ width: 150 }} className="px-3 py-4">
-                          <Text className="text-sm font-semibold text-white">{account.name}</Text>
-                          <Text className="mt-1 text-xs text-muted">{account.isSummary ? account.type : `${account.type} Account`}</Text>
+                          <Text className="text-sm font-semibold" style={{ color: colors.text }}>{account.name}</Text>
+                          <Text className="mt-1 text-xs" style={{ color: colors.muted }}>{account.isSummary ? account.type : `${account.type} Account`}</Text>
                         </View>
                         <TextCell width={130}>{`$${money(accountBalance)}`}</TextCell>
                         <TextCell width={120}>{`$${money(equity)}`}</TextCell>
@@ -187,12 +209,12 @@ export default function AdminUsersTable({ users, busyId, onBalance, onStatus, on
                               <Button title="Approve" disabled={blocked || !user.idProofImage || !user.addressProofImage} onPress={() => onVerificationDecision(user, 'approve')} />
                               <Button title="Reject" danger disabled={blocked || !user.idProofImage || !user.addressProofImage} onPress={() => onVerificationDecision(user, 'reject')} />
                             </>
-                          ) : <Text className="text-sm text-muted">-</Text>}
+                          ) : <Text className="text-sm" style={{ color: colors.muted }}>-</Text>}
                         </View>
                         <TextCell width={220} className="text-muted">{user.adminNotes || '-'}</TextCell>
                         <View style={{ width: 570 }} className="flex-row flex-wrap px-3 py-3">
                           {account.isSummary ? (
-                            <Text className="text-sm text-muted">Expand account details to manage accounts.</Text>
+                            <Text className="text-sm" style={{ color: colors.muted }}>Expand account details to manage accounts.</Text>
                           ) : (
                             <>
                               <Button title="Add Balance" disabled={blocked} onPress={() => onBalance(user, 'add_balance', account)} />
@@ -212,7 +234,7 @@ export default function AdminUsersTable({ users, busyId, onBalance, onStatus, on
               </View>
             );
           })}
-          {!users.length ? <Text className="p-8 text-center text-muted">No user accounts found.</Text> : null}
+          {!users.length ? <Text className="p-8 text-center" style={{ color: colors.muted }}>No user accounts found.</Text> : null}
         </View>
       </ScrollView>
     </View>
