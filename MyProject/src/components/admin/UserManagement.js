@@ -3,6 +3,7 @@ import { Alert, Image, Platform, Pressable, ScrollView, Text, View } from 'react
 import { ChevronDown, Edit3, Eye, Trash2, X } from 'lucide-react-native';
 import CustomButton from '../common/CustomButton';
 import CustomInput from '../common/CustomInput';
+import { useAppTheme } from '../../context/ThemeContext';
 import { dateTime, money } from '../../utils/formatters';
 
 const emptyForm = {
@@ -138,15 +139,17 @@ function pillClass(active) {
 }
 
 function PillGroup({ label, options, value, onChange }) {
+  const { colors } = useAppTheme();
+
   return (
     <View className="mb-4">
-      <Text className="mb-2 text-sm font-semibold text-muted">{label}</Text>
+      <Text className="mb-2 text-sm font-semibold" style={{ color: colors.muted }}>{label}</Text>
       <View className="flex-row flex-wrap gap-2">
         {options.map((option) => {
           const active = value === option;
           return (
-            <Pressable key={option} onPress={() => onChange(option)} className={`rounded-xl border px-4 py-3 ${pillClass(active)}`}>
-              <Text className={`text-xs font-bold capitalize ${active ? 'text-black' : 'text-white'}`}>{option}</Text>
+            <Pressable key={option} onPress={() => onChange(option)} className={`rounded-xl border px-4 py-3 ${pillClass(active)}`} style={active ? null : { backgroundColor: colors.surface, borderColor: colors.border }}>
+              <Text className={`text-xs font-bold capitalize ${active ? 'text-black' : ''}`} style={active ? null : { color: colors.text }}>{option}</Text>
             </Pressable>
           );
         })}
@@ -156,6 +159,7 @@ function PillGroup({ label, options, value, onChange }) {
 }
 
 function CountrySelect({ value, onChange }) {
+  const { colors } = useAppTheme();
   const [open, setOpen] = useState(false);
   const selected = countryByName(value);
 
@@ -166,20 +170,21 @@ function CountrySelect({ value, onChange }) {
 
   return (
     <View className="mb-4">
-      <Text className="mb-2 text-sm font-medium text-muted">Country</Text>
-      <Pressable onPress={() => setOpen((current) => !current)} className="h-12 flex-row items-center justify-between rounded-xl border border-border bg-surface px-4">
-        <Text className={selected ? 'text-white' : 'text-muted'}>{selected ? `${selected.name} (${selected.code})` : 'Select country'}</Text>
-        <ChevronDown size={17} color="#8fa0bb" style={{ transform: [{ rotate: open ? '180deg' : '0deg' }] }} />
+      <Text className="mb-2 text-sm font-medium" style={{ color: colors.muted }}>Country</Text>
+      <Pressable onPress={() => setOpen((current) => !current)} className="h-12 flex-row items-center justify-between rounded-xl border px-4" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
+        <Text style={{ color: selected ? colors.text : colors.muted }}>{selected ? `${selected.name} (${selected.code})` : 'Select country'}</Text>
+        <ChevronDown size={17} color={colors.muted} style={{ transform: [{ rotate: open ? '180deg' : '0deg' }] }} />
       </Pressable>
       {open ? (
-        <ScrollView nestedScrollEnabled className="mt-2 rounded-xl border border-border bg-panel" style={{ maxHeight: 260 }}>
+        <ScrollView nestedScrollEnabled className="mt-2 rounded-xl border" style={{ maxHeight: 260, backgroundColor: colors.panel, borderColor: colors.border }}>
           {countries.map((country) => (
             <Pressable
               key={country.name}
               onPress={() => selectCountry(country)}
-              className={`border-b border-border px-4 py-3 ${country.name === value ? 'bg-primary/10' : ''}`}
+              className={`border-b px-4 py-3 ${country.name === value ? 'bg-primary/10' : ''}`}
+              style={{ borderColor: colors.border }}
             >
-              <Text className={country.name === value ? 'font-bold text-primary' : 'text-white'}>{country.name} ({country.code})</Text>
+              <Text className={country.name === value ? 'font-bold text-primary' : ''} style={country.name === value ? null : { color: colors.text }}>{country.name} ({country.code})</Text>
             </Pressable>
           ))}
         </ScrollView>
@@ -193,10 +198,12 @@ function FieldError({ children }) {
 }
 
 function ProfileField({ label, value }) {
+  const { colors } = useAppTheme();
+
   return (
-    <View className="mb-3 min-w-[180px] flex-1 rounded-xl border border-border bg-surface p-4">
-      <Text className="text-xs font-bold uppercase text-muted">{label}</Text>
-      <Text className="mt-1 text-sm font-semibold text-white">{value || '-'}</Text>
+    <View className="mb-3 min-w-[180px] flex-1 rounded-xl border p-4" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
+      <Text className="text-xs font-bold uppercase" style={{ color: colors.muted }}>{label}</Text>
+      <Text className="mt-1 text-sm font-semibold" style={{ color: colors.text }}>{value || '-'}</Text>
     </View>
   );
 }
@@ -218,6 +225,7 @@ function userToForm(user) {
 }
 
 function UserFormModal({ mode, user, saving, onClose, onSubmit }) {
+  const { colors } = useAppTheme();
   const [form, setForm] = useState(user ? userToForm(user) : freshEmptyForm());
   const [errors, setErrors] = useState({});
   const update = (key) => (value) => {
@@ -242,14 +250,14 @@ function UserFormModal({ mode, user, saving, onClose, onSubmit }) {
 
   return (
     <View className="absolute inset-0 z-50 items-center justify-start bg-black/70 p-4 pt-6 md:pt-8">
-      <View className="max-h-[92vh] w-full max-w-[860px] rounded-2xl border border-border bg-panel p-5">
+      <View className="max-h-[92vh] w-full max-w-[860px] rounded-2xl border p-5" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
         <View className="mb-4 flex-row items-center justify-between">
           <View>
-            <Text className="text-2xl font-bold text-white">{title}</Text>
-            <Text className="mt-1 text-sm text-muted">{mode === 'edit' ? 'Update client profile and account settings.' : 'Create a client login with a wallet and primary trading account.'}</Text>
+            <Text className="text-2xl font-bold" style={{ color: colors.text }}>{title}</Text>
+            <Text className="mt-1 text-sm" style={{ color: colors.muted }}>{mode === 'edit' ? 'Update client profile and account settings.' : 'Create a client login with a wallet and primary trading account.'}</Text>
           </View>
-          <Pressable onPress={onClose} className="rounded-full bg-surface p-2">
-            <X size={18} color="#8fa0bb" />
+          <Pressable onPress={onClose} className="rounded-full p-2" style={{ backgroundColor: colors.surface }}>
+            <X size={18} color={colors.muted} />
           </Pressable>
         </View>
         <ScrollView>
@@ -289,30 +297,31 @@ function UserFormModal({ mode, user, saving, onClose, onSubmit }) {
 }
 
 function ProfileModal({ user, onClose, onEdit }) {
+  const { colors } = useAppTheme();
   const wallet = user?.wallet || {};
   return (
     <View className="absolute inset-0 z-50 items-center justify-start bg-black/70 p-4 pt-6 md:pt-8">
-      <View className="max-h-[92vh] w-full max-w-[920px] rounded-2xl border border-border bg-panel p-5">
+      <View className="max-h-[92vh] w-full max-w-[920px] rounded-2xl border p-5" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
         <View className="mb-4 flex-row items-center justify-between">
           <View>
-            <Text className="text-2xl font-bold text-white">{user.name}</Text>
-            <Text className="mt-1 text-sm text-muted">{user.email}</Text>
+            <Text className="text-2xl font-bold" style={{ color: colors.text }}>{user.name}</Text>
+            <Text className="mt-1 text-sm" style={{ color: colors.muted }}>{user.email}</Text>
           </View>
           <View className="flex-row gap-2">
             <CustomButton title="Edit" variant="secondary" className="min-w-[90px]" onPress={() => onEdit(user)} />
-            <Pressable onPress={onClose} className="rounded-full bg-surface p-3">
-              <X size={18} color="#8fa0bb" />
+            <Pressable onPress={onClose} className="rounded-full p-3" style={{ backgroundColor: colors.surface }}>
+              <X size={18} color={colors.muted} />
             </Pressable>
           </View>
         </View>
         <ScrollView>
-          <View className="mb-4 rounded-2xl border border-border bg-surface p-4">
-            <Text className="mb-3 text-sm font-bold uppercase text-muted">Profile Image</Text>
+          <View className="mb-4 rounded-2xl border p-4" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
+            <Text className="mb-3 text-sm font-bold uppercase" style={{ color: colors.muted }}>Profile Image</Text>
             {user.profileImage ? (
               <Image source={{ uri: user.profileImage }} className="h-[220px] w-full rounded-xl bg-black" resizeMode="contain" />
             ) : (
-              <View className="h-[180px] items-center justify-center rounded-xl border border-dashed border-border bg-panel">
-                <Text className="text-sm font-semibold text-muted">No profile image uploaded.</Text>
+              <View className="h-[180px] items-center justify-center rounded-xl border border-dashed" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+                <Text className="text-sm font-semibold" style={{ color: colors.muted }}>No profile image uploaded.</Text>
               </View>
             )}
           </View>
@@ -328,28 +337,28 @@ function ProfileModal({ user, onClose, onEdit }) {
             <ProfileField label="Referral Code" value={user.referralCode} />
             <ProfileField label="Created" value={dateTime(user.createdAt)} />
           </View>
-          <Text className="mb-3 text-lg font-bold text-white">Wallet Summary</Text>
+          <Text className="mb-3 text-lg font-bold" style={{ color: colors.text }}>Wallet Summary</Text>
           <View className="mb-4 flex-row flex-wrap gap-3">
             <ProfileField label="Balance" value={`$${money(wallet.balance)}`} />
             <ProfileField label="Equity" value={`$${money(wallet.equity)}`} />
             <ProfileField label="Margin" value={`$${money(wallet.margin)}`} />
             <ProfileField label="Free Funds" value={`$${money(wallet.freeFunds)}`} />
           </View>
-          <Text className="mb-3 text-lg font-bold text-white">Trading Accounts</Text>
+          <Text className="mb-3 text-lg font-bold" style={{ color: colors.text }}>Trading Accounts</Text>
           <View className="mb-4 gap-2">
             {(user.tradingAccounts || []).map((account) => (
-              <View key={account.id} className="flex-row flex-wrap items-center justify-between rounded-xl border border-border bg-surface p-4">
+              <View key={account.id} className="flex-row flex-wrap items-center justify-between rounded-xl border p-4" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
                 <View>
-                  <Text className="font-bold text-white">{account.name}</Text>
-                  <Text className="mt-1 text-sm text-muted">{account.type} | {account.status} | {account.isPrimary ? 'Primary' : 'Secondary'}</Text>
+                  <Text className="font-bold" style={{ color: colors.text }}>{account.name}</Text>
+                  <Text className="mt-1 text-sm" style={{ color: colors.muted }}>{account.type} | {account.status} | {account.isPrimary ? 'Primary' : 'Secondary'}</Text>
                 </View>
                 <Text className="font-bold text-primary">${money(account.balance)}</Text>
               </View>
             ))}
-            {!user.tradingAccounts?.length ? <Text className="rounded-xl bg-surface p-4 text-muted">No trading accounts found.</Text> : null}
+            {!user.tradingAccounts?.length ? <Text className="rounded-xl p-4" style={{ backgroundColor: colors.surface, color: colors.muted }}>No trading accounts found.</Text> : null}
           </View>
-          <Text className="mb-3 text-lg font-bold text-white">Admin Notes</Text>
-          <Text className="rounded-xl border border-border bg-surface p-4 text-muted">{user.adminNotes || 'No admin notes.'}</Text>
+          <Text className="mb-3 text-lg font-bold" style={{ color: colors.text }}>Admin Notes</Text>
+          <Text className="rounded-xl border p-4" style={{ backgroundColor: colors.surface, borderColor: colors.border, color: colors.muted }}>{user.adminNotes || 'No admin notes.'}</Text>
         </ScrollView>
       </View>
     </View>
@@ -357,6 +366,7 @@ function ProfileModal({ user, onClose, onEdit }) {
 }
 
 export default function UserManagement({ users, loading, busyId, onCreate, onUpdate, onRemove }) {
+  const { colors } = useAppTheme();
   const [query, setQuery] = useState('');
   const [profileUser, setProfileUser] = useState(null);
   const [formState, setFormState] = useState(null);
@@ -388,39 +398,39 @@ export default function UserManagement({ users, loading, busyId, onCreate, onUpd
     <View>
       <View className="mb-5 flex-row flex-wrap items-center justify-between gap-3">
         <View className="flex-1">
-          <Text className="text-xl font-bold text-white">User Management</Text>
-          <Text className="mt-1 text-sm text-muted">View profiles, add users, edit details, and remove client accounts.</Text>
+          <Text className="text-xl font-bold" style={{ color: colors.text }}>User Management</Text>
+          <Text className="mt-1 text-sm" style={{ color: colors.muted }}>View profiles, add users, edit details, and remove client accounts.</Text>
         </View>
         <CustomButton title="Add User" onPress={openAddForm} className="min-w-[130px]" />
       </View>
       <CustomInput label="Search Users" value={query} onChangeText={setQuery} placeholder="Search by name, email, phone or country" />
-      <View className="overflow-hidden rounded-2xl border border-border bg-panel">
-        <ScrollView horizontal>
-          <View style={{ minWidth: 1050 }}>
-            <View className="flex-row border-b border-border bg-surface p-4">
+      <View className="overflow-hidden rounded-2xl border" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+        <ScrollView horizontal contentContainerStyle={{ minWidth: '100%' }}>
+          <View style={{ minWidth: 1050, flexGrow: 1 }}>
+            <View className="flex-row border-b p-4" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
               {['User', 'Phone', 'Country', 'Account', 'Verification', 'Wallet', 'Created', 'Actions'].map((heading, index) => (
-                <Text key={heading} style={{ width: [250, 130, 130, 120, 130, 120, 130, 140][index] }} className="text-xs font-bold uppercase text-muted">{heading}</Text>
+                <Text key={heading} style={{ width: [250, 130, 130, 120, 130, 120, 130, 140][index], color: colors.muted }} className="text-xs font-bold uppercase">{heading}</Text>
               ))}
             </View>
             {filteredUsers.map((user) => {
               const blocked = loading || busyId === user.id;
               return (
-                <View key={user.id} className="flex-row items-center border-b border-border/60 p-4">
+                <View key={user.id} className="flex-row items-center border-b p-4" style={{ borderColor: colors.border }}>
                   <View style={{ width: 250 }}>
-                    <Text className="font-bold text-white">{user.name}</Text>
-                    <Text className="mt-1 text-xs text-muted">{user.email}</Text>
+                    <Text className="font-bold" style={{ color: colors.text }}>{user.name}</Text>
+                    <Text className="mt-1 text-xs" style={{ color: colors.muted }}>{user.email}</Text>
                   </View>
-                  <Text style={{ width: 130 }} className="text-sm text-muted">{user.phone || '-'}</Text>
-                  <Text style={{ width: 130 }} className="text-sm text-muted">{user.country || '-'}</Text>
-                  <Text style={{ width: 120 }} className="text-sm text-white">{user.accountType || '-'}</Text>
-                  <Text style={{ width: 130 }} className="text-sm text-white">{user.verificationStatus || '-'}</Text>
+                  <Text style={{ width: 130, color: colors.muted }} className="text-sm">{user.phone || '-'}</Text>
+                  <Text style={{ width: 130, color: colors.muted }} className="text-sm">{user.country || '-'}</Text>
+                  <Text style={{ width: 120, color: colors.text }} className="text-sm">{user.accountType || '-'}</Text>
+                  <Text style={{ width: 130, color: colors.text }} className="text-sm">{user.verificationStatus || '-'}</Text>
                   <Text style={{ width: 120 }} className="text-sm font-bold text-primary">${money(user.wallet?.balance)}</Text>
-                  <Text style={{ width: 130 }} className="text-sm text-muted">{dateTime(user.createdAt)}</Text>
+                  <Text style={{ width: 130, color: colors.muted }} className="text-sm">{dateTime(user.createdAt)}</Text>
                   <View style={{ width: 140 }} className="flex-row gap-2">
-                    <Pressable disabled={blocked} onPress={() => setProfileUser(user)} className={`rounded-lg border border-border bg-surface p-2 ${blocked ? 'opacity-40' : ''}`}>
-                      <Eye size={16} color="#f3f7ff" />
+                    <Pressable disabled={blocked} onPress={() => setProfileUser(user)} className={`rounded-lg border p-2 ${blocked ? 'opacity-40' : ''}`} style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
+                      <Eye size={16} color={colors.text} />
                     </Pressable>
-                    <Pressable disabled={blocked} onPress={() => editUser(user)} className={`rounded-lg border border-border bg-surface p-2 ${blocked ? 'opacity-40' : ''}`}>
+                    <Pressable disabled={blocked} onPress={() => editUser(user)} className={`rounded-lg border p-2 ${blocked ? 'opacity-40' : ''}`} style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
                       <Edit3 size={16} color="#D4AF37" />
                     </Pressable>
                     <Pressable
@@ -434,7 +444,7 @@ export default function UserManagement({ users, loading, busyId, onCreate, onUpd
                 </View>
               );
             })}
-            {!filteredUsers.length ? <Text className="p-8 text-center text-muted">No users found.</Text> : null}
+            {!filteredUsers.length ? <Text className="p-8 text-center" style={{ color: colors.muted }}>No users found.</Text> : null}
           </View>
         </ScrollView>
       </View>
