@@ -845,6 +845,8 @@ export default function TradingChart() {
   const [hoveredSymbol, setHoveredSymbol] = useState(null);
   const [symbolSearch, setSymbolSearch] = useState('');
   const [symbolTab, setSymbolTab] = useState('Popular');
+  const [favoriteSymbols, setFavoriteSymbols] = useState(() => prices.filter((item) => item.popular).map((item) => item.symbol));
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [symbolTabMenuOpen, setSymbolTabMenuOpen] = useState(false);
   const [indicatorOpen, setIndicatorOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -1045,19 +1047,21 @@ export default function TradingChart() {
     ['Spread', quote(currentSymbol.spread, currentSymbol.decimals), ui.muted],
   ];
   const symbolTabs = ['Popular', 'Crypto', 'Forex', 'Indices', 'Metals', 'Energies'];
+  const favoriteSymbolSet = useMemo(() => new Set(favoriteSymbols), [favoriteSymbols]);
   const filteredSymbols = useMemo(() => {
     const query = symbolSearch.trim().toLowerCase();
     return prices.filter((item) => {
       const group = String(item.group || '').toLowerCase();
       const matchesSearch = !query || item.symbol.toLowerCase().includes(query) || group.includes(query);
+      const matchesFavorite = !favoritesOnly || favoriteSymbolSet.has(item.symbol);
       const matchesTab = symbolTab === 'Popular'
         ? item.popular
         : symbolTab === 'Crypto'
           ? group.includes('crypto')
           : group.includes(symbolTab.toLowerCase());
-      return matchesSearch && matchesTab;
+      return matchesSearch && matchesFavorite && matchesTab;
     });
-  }, [prices, symbolSearch, symbolTab]);
+  }, [favoriteSymbolSet, favoritesOnly, prices, symbolSearch, symbolTab]);
   const activeChartType = CHART_TYPES.find(([key]) => key === chartType) || CHART_TYPES[0];
   const ActiveChartIcon = activeChartType[2];
   const activeIndicatorAddLabel = ({
@@ -1148,6 +1152,13 @@ export default function TradingChart() {
     setSelectedSymbol(symbol);
     setViewRange('Full');
     setHoveredSymbol(null);
+  };
+  const toggleFavoriteSymbol = (symbol) => {
+    setFavoriteSymbols((current) => (
+      current.includes(symbol)
+        ? current.filter((entry) => entry !== symbol)
+        : [...current, symbol]
+    ));
   };
   const applyDrawingTool = (key) => {
     if (key === 'clear') {
@@ -1378,13 +1389,23 @@ export default function TradingChart() {
           <View className="absolute max-w-[96vw] overflow-hidden rounded-lg border shadow-2xl" style={{ left: chartCardInset, top: symbolPanelTop, bottom: chartCardInset, width: symbolPanelWidth, backgroundColor: ui.menu, borderColor: ui.menuBorder, zIndex: 3200, elevation: 3200 }}>
             <View className="border-b px-3 py-3" style={{ borderColor: ui.border, zIndex: 3300, elevation: 3300 }}>
               <View className="flex-row items-center gap-2">
+                <Pressable
+                  onPress={() => {
+                    setFavoritesOnly((value) => !value);
+                    setSymbolTabMenuOpen(false);
+                  }}
+                  className="h-9 w-9 items-center justify-center rounded-md border"
+                  style={{ backgroundColor: favoritesOnly ? ui.soft : ui.control, borderColor: favoritesOnly ? ui.accent : ui.border, cursor: 'pointer' }}
+                >
+                  <Star size={15} color={favoritesOnly ? ui.accent : ui.muted} fill={favoritesOnly ? ui.accent : 'transparent'} />
+                </Pressable>
                 <View className="relative" style={{ zIndex: 3400, elevation: 3400 }}>
                   <Pressable
                     onPress={() => setSymbolTabMenuOpen((value) => !value)}
                     className="h-9 w-[108px] flex-row items-center justify-between rounded-md border px-3"
                     style={{ backgroundColor: symbolTabMenuOpen ? ui.soft : ui.control, borderColor: symbolTabMenuOpen ? ui.accent : ui.border, cursor: 'pointer' }}
                   >
-                    <Text className="text-xs font-extrabold" numberOfLines={1} style={{ color: symbolTabMenuOpen ? ui.accent : ui.text }}>{symbolTab}</Text>
+                    <Text className="text-xs font-medium" numberOfLines={1} style={{ color: symbolTabMenuOpen ? ui.accent : ui.text }}>{symbolTab}</Text>
                     <ChevronDown size={13} color={symbolTabMenuOpen ? ui.accent : ui.muted} />
                   </Pressable>
                   {symbolTabMenuOpen ? (
@@ -1396,7 +1417,7 @@ export default function TradingChart() {
                           className="h-8 justify-center rounded px-2"
                           style={{ backgroundColor: entry === symbolTab ? ui.soft : 'transparent', cursor: 'pointer' }}
                         >
-                          <Text className="text-xs font-extrabold" style={{ color: entry === symbolTab ? ui.accent : ui.text }}>{entry}</Text>
+                          <Text className="text-xs font-medium" style={{ color: entry === symbolTab ? ui.accent : ui.text }}>{entry}</Text>
                         </Pressable>
                       ))}
                     </View>
@@ -1426,8 +1447,8 @@ export default function TradingChart() {
               </View>
             </View>
             <View className="flex-row border-b px-4 py-2" style={{ borderColor: ui.border }}>
-              <Text className="flex-1 text-[11px] font-bold" numberOfLines={1} style={{ color: ui.muted }}>Symbols / Vol</Text>
-              <Text className="w-[92px] text-right text-[11px] font-bold" style={{ color: ui.muted }}>Last Price</Text>
+              <Text className="flex-1 text-[11px]" numberOfLines={1} style={{ color: ui.muted }}>Symbols / Vol</Text>
+              <Text className="w-[92px] text-right text-[11px]" style={{ color: ui.muted }}>Last Price</Text>
             </View>
             <ScrollView
               className="min-h-0 flex-1"
@@ -1440,6 +1461,7 @@ export default function TradingChart() {
                 const itemTone = itemPositive ? ui.success : ui.danger;
                 const active = item.symbol === currentSymbol.symbol;
                 const hovered = hoveredSymbol === item.symbol;
+                const favorite = favoriteSymbolSet.has(item.symbol);
                 return (
                   <Pressable
                     key={item.symbol}
@@ -1450,21 +1472,29 @@ export default function TradingChart() {
                     style={{ backgroundColor: active || hovered ? ui.soft : 'transparent', cursor: 'pointer' }}
                   >
                     <View className="min-w-0 flex-1 flex-row items-center">
-                      <Star size={14} color={active || hovered ? ui.accent : ui.muted} />
+                      <Pressable
+                        onPress={(event) => {
+                          event?.stopPropagation?.();
+                          toggleFavoriteSymbol(item.symbol);
+                        }}
+                        className="h-7 w-7 items-center justify-center rounded-full"
+                      >
+                        <Star size={14} color={favorite || active || hovered ? ui.accent : ui.muted} fill={favorite ? ui.accent : 'transparent'} />
+                      </Pressable>
                       <View className="mx-2 h-4 w-4 items-center justify-center rounded-full" style={{ backgroundColor: itemTone }}>
                         <Text className="text-[8px] font-black text-white">{item.symbol?.[0] || '$'}</Text>
                       </View>
                       <View className="min-w-0 flex-1">
                         <View className="flex-row items-center">
-                          <Text className="text-sm font-extrabold" numberOfLines={1} style={{ color: active || hovered ? ui.accent : ui.text }}>{item.symbol}</Text>
-                          <Text className="ml-1 rounded px-1 text-[10px] font-bold" style={{ backgroundColor: ui.control, color: ui.muted }}>Perp</Text>
+                          <Text className="text-sm font-medium" numberOfLines={1} style={{ color: active || hovered ? ui.accent : ui.text }}>{item.symbol}</Text>
+                          <Text className="ml-1 rounded px-1 text-[10px]" style={{ backgroundColor: ui.control, color: ui.muted }}>Perp</Text>
                         </View>
                         <Text className="text-[11px]" style={{ color: ui.muted }}>{item.group || 'Market'}</Text>
                       </View>
                     </View>
                     <View className="w-[92px] items-end">
-                      <Text className="text-sm font-semibold" numberOfLines={1} style={{ color: ui.text }}>{quote(item.price, item.decimals)}</Text>
-                      <Text className="text-[11px] font-bold" numberOfLines={1} style={{ color: itemTone }}>{percent(item.change)}</Text>
+                      <Text className="text-sm" numberOfLines={1} style={{ color: ui.text }}>{quote(item.price, item.decimals)}</Text>
+                      <Text className="text-[11px]" numberOfLines={1} style={{ color: itemTone }}>{percent(item.change)}</Text>
                     </View>
                   </Pressable>
                 );

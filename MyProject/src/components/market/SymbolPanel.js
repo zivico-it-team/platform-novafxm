@@ -37,7 +37,7 @@ function calendarHtml(colors, darkMode) {
 </html>`;
 }
 
-function SymbolMarketRow({ item, selected, onSelect, colors, darkMode }) {
+function SymbolMarketRow({ item, selected, onSelect, colors, darkMode, isFavourited, onToggleFavourite }) {
   const [hovered, setHovered] = useState(false);
   const positive = Number(item.change) >= 0;
   const tone = positive ? colors.success : colors.danger;
@@ -60,13 +60,26 @@ function SymbolMarketRow({ item, selected, onSelect, colors, darkMode }) {
       style={{ backgroundColor: rowBackground, cursor: 'pointer' }}
     >
       <View className="min-w-0 flex-1 flex-row items-center">
-        <Star size={14} color={selected || hovered ? colors.primary : colors.muted} />
+        {/* Tappable star for favouriting */}
+        <Pressable
+          onPress={(e) => {
+            e.stopPropagation();
+            onToggleFavourite(item.symbol);
+          }}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Star
+            size={14}
+            color={isFavourited ? colors.primary : selected || hovered ? colors.primary : colors.muted}
+            fill={isFavourited ? colors.primary : 'none'}
+          />
+        </Pressable>
         <View className="mx-1.5 h-4 w-4 items-center justify-center rounded-full" style={{ backgroundColor: tone }}>
           <Text className="text-[8px] font-black text-white">{displaySymbol[0] || '$'}</Text>
         </View>
         <View className="min-w-0 flex-1">
           <View className="flex-row items-center">
-            <Text className="text-xs font-semibold" numberOfLines={1} style={{ color: selected || hovered ? colors.primary : colors.text }}>{displaySymbol} CM</Text>
+            <Text className="text-xs font-medium" numberOfLines={1} style={{ color: selected || hovered ? colors.primary : colors.text }}>{displaySymbol} CM</Text>
             <Text className="ml-1 rounded px-1 text-[9px] font-bold" style={{ backgroundColor: darkMode ? colors.surface : '#f0f0f0', color: colors.muted }}>Perp</Text>
           </View>
           <Text className="text-[10px]" style={{ color: colors.muted }}>{fakeVolume}</Text>
@@ -85,8 +98,26 @@ export default function SymbolPanel() {
   const { darkMode, colors } = useAppTheme();
   const [tab, setTab] = useState('symbols');
   const [search, setSearch] = useState('');
-  const [marketTab, setMarketTab] = useState('COIN-M');
+  const [marketTab, setMarketTab] = useState('Popular');
   const [tag, setTag] = useState('All');
+
+  // Favourites state — pre-seed with items that were already starred (item.popular as a proxy)
+  const [favourites, setFavourites] = useState(
+    () => new Set(prices.filter((p) => p.popular).map((p) => p.symbol)),
+  );
+
+  const toggleFavourite = (symbol) => {
+    setFavourites((prev) => {
+      const next = new Set(prev);
+      if (next.has(symbol)) {
+        next.delete(symbol);
+      } else {
+        next.add(symbol);
+      }
+      return next;
+    });
+  };
+
   const panelBackground = darkMode ? colors.panel : '#e8f8ee';
   const controlBackground = darkMode ? colors.surface : '#f6fff9';
   const tabBackground = darkMode ? colors.surface : '#f6fff9';
@@ -96,24 +127,33 @@ export default function SymbolPanel() {
   const selectedItem = prices.find((item) => item.symbol === selectedSymbol) || prices[0];
   const selectedPositive = Number(selectedItem?.change) >= 0;
   const selectedTone = selectedPositive ? colors.success : colors.danger;
-  const marketTabs = ['Popular', 'Crypto CFD', 'Energies', 'Forex', 'Indices', 'Metals'];
+
+  // "Favourites" added as first tab so it sits right beside Popular
+  const marketTabs = ['Favourites', 'Popular', 'Crypto CFD', 'Energies', 'Forex', 'Indices', 'Metals'];
   const tags = ['All', 'New Listing', 'AI', 'Layer-1', 'Layer-2', 'Gaming', 'Meme', 'Infrastructure'];
-  const filtered = useMemo(
-    () => {
-      const query = search.trim().toLowerCase();
-      return prices.filter((item) => {
-        const matchesSearch = !query || item.symbol.toLowerCase().includes(query) || item.group?.toLowerCase().includes(query);
-        const itemGroup = String(item.group || '').toLowerCase();
-        const matchesTab = marketTab === 'Popular'
-          ? item.popular
-          : marketTab === 'Crypto CFD'
-            ? itemGroup.includes('crypto')
-            : itemGroup.includes(marketTab.toLowerCase());
-        return matchesSearch && matchesTab;
-      });
-    },
-    [marketTab, prices, search],
-  );
+
+  const filtered = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return prices.filter((item) => {
+      const matchesSearch = !query || item.symbol.toLowerCase().includes(query) || item.group?.toLowerCase().includes(query);
+      const itemGroup = String(item.group || '').toLowerCase();
+
+      let matchesTab;
+      if (marketTab === 'Favourites') {
+        matchesTab = favourites.has(item.symbol);
+      } else if (marketTab === 'Popular') {
+        matchesTab = item.popular;
+      } else if (marketTab === 'Crypto CFD') {
+        matchesTab = itemGroup.includes('crypto');
+      } else {
+        matchesTab = itemGroup.includes(marketTab.toLowerCase());
+      }
+
+      return matchesSearch && matchesTab;
+    });
+  }, [marketTab, prices, search, favourites]);
+
+  const isFavouritesTab = marketTab === 'Favourites';
 
   return (
     <View className="overflow-hidden rounded-2xl border p-2 lg:h-full lg:w-[350px]" style={{ height: panelHeight, backgroundColor: panelBackground, borderColor: colors.border }}>
@@ -151,16 +191,16 @@ export default function SymbolPanel() {
           <View className="mb-3 rounded-xl border p-3" style={{ backgroundColor: darkMode ? colors.surface : '#ffffff', borderColor: colors.border }}>
             <View className="flex-row items-center justify-between">
               <View className="min-w-0 flex-1 flex-row items-center">
-                <Star size={16} color={colors.primary} />
+                <Star size={16} color={colors.primary} fill={colors.primary} />
                 <View className="mx-2 h-6 w-6 items-center justify-center rounded-full" style={{ backgroundColor: colors.primary }}>
                   <Text className="text-[11px] font-black" style={{ color: '#0B0B0B' }}>{selectedItem?.symbol?.[0] || '$'}</Text>
                 </View>
-                <Text className="text-lg font-extrabold" numberOfLines={1} style={{ color: colors.text }}>{selectedItem?.symbol?.replace('/', '') || selectedSymbol}</Text>
-                <Text className="ml-1 rounded px-1 py-0.5 text-[10px] font-extrabold" style={{ backgroundColor: darkMode ? colors.panel : '#f0f0f0', color: colors.muted }}>Perp</Text>
+                <Text className="text-lg font-semibold" numberOfLines={1} style={{ color: colors.text }}>{selectedItem?.symbol?.replace('/', '') || selectedSymbol}</Text>
+                <Text className="ml-1 rounded px-1 py-0.5 text-[10px] font-medium" style={{ backgroundColor: darkMode ? colors.panel : '#f0f0f0', color: colors.muted }}>Perp</Text>
                 <ChevronDown size={13} color={colors.muted} />
               </View>
               <View className="items-end">
-                <Text className="text-lg font-extrabold" style={{ color: selectedTone }}>{quote(selectedItem?.price, selectedItem?.decimals)}</Text>
+                <Text className="text-lg font-semibold" style={{ color: selectedTone }}>{quote(selectedItem?.price, selectedItem?.decimals)}</Text>
                 <Text className="text-[11px] font-bold" style={{ color: selectedTone }}>{percent(selectedItem?.change)}</Text>
               </View>
             </View>
@@ -176,15 +216,55 @@ export default function SymbolPanel() {
             <TextInput value={search} onChangeText={setSearch} placeholder="Search" placeholderTextColor={colors.muted} className="ml-2 h-11 flex-1" style={{ color: colors.text }} />
           </View>
 
+          {/* Market tabs — Favourites is the first tab, visually distinct with a filled star */}
           <View className="mb-2 flex-row items-center justify-between">
-            <View className="flex-row items-center" style={{ gap: 16 }}>
-              {marketTabs.map((item) => (
-                <Pressable key={item} onPress={() => setMarketTab(item)} className="border-b-2 pb-1" style={{ borderColor: item === marketTab ? colors.primary : 'transparent' }}>
-                  <Text className="text-sm font-extrabold" style={{ color: item === marketTab ? colors.text : colors.muted }}>{item}</Text>
-                </Pressable>
-              ))}
-            </View>
-            <Pressable className="flex-row items-center">
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 16, alignItems: 'center' }}>
+              {marketTabs.map((item) => {
+                const isFav = item === 'Favourites';
+                const isActive = item === marketTab;
+                return (
+                  <Pressable
+                    key={item}
+                    onPress={() => setMarketTab(item)}
+                    className="flex-row items-center border-b-2 pb-1"
+                    style={{ borderColor: isActive ? colors.primary : 'transparent', gap: 4 }}
+                  >
+                    {isFav && (
+                      <Star
+                        size={12}
+                        color={isActive ? colors.primary : colors.muted}
+                        fill={isActive ? colors.primary : 'none'}
+                      />
+                    )}
+                    <Text
+                      className="text-sm font-medium"
+                      style={{ color: isActive ? colors.text : colors.muted }}
+                    >
+                      {item}
+                    </Text>
+                    {/* Badge showing count of favourited symbols */}
+                    {isFav && favourites.size > 0 && (
+                      <View
+                        className="items-center justify-center rounded-full px-1"
+                        style={{
+                          backgroundColor: isActive ? colors.primary : darkMode ? colors.surface : '#e8e8e8',
+                          minWidth: 16,
+                          height: 16,
+                        }}
+                      >
+                        <Text
+                          className="text-[9px] font-black"
+                          style={{ color: isActive ? '#0B0B0B' : colors.muted }}
+                        >
+                          {favourites.size}
+                        </Text>
+                      </View>
+                    )}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+            <Pressable className="ml-2 flex-row items-center flex-shrink-0">
               <Text className="text-xs font-bold" style={{ color: colors.muted }}>All</Text>
               <ChevronDown size={13} color={colors.muted} />
             </Pressable>
@@ -213,16 +293,29 @@ export default function SymbolPanel() {
             persistentScrollbar
             nestedScrollEnabled
           >
-            {filtered.map((item) => (
-              <SymbolMarketRow
-                key={item.symbol}
-                item={item}
-                selected={item.symbol === selectedSymbol}
-                onSelect={setSelectedSymbol}
-                colors={colors}
-                darkMode={darkMode}
-              />
-            ))}
+            {filtered.length === 0 && isFavouritesTab ? (
+              // Empty state for favourites
+              <View className="flex-1 items-center justify-center py-10" style={{ gap: 8 }}>
+                <Star size={28} color={colors.muted} />
+                <Text className="text-sm font-semibold" style={{ color: colors.muted }}>No favourites yet</Text>
+                <Text className="text-center text-xs" style={{ color: colors.muted, maxWidth: 200 }}>
+                  Tap the ☆ next to any symbol to add it here
+                </Text>
+              </View>
+            ) : (
+              filtered.map((item) => (
+                <SymbolMarketRow
+                  key={item.symbol}
+                  item={item}
+                  selected={item.symbol === selectedSymbol}
+                  onSelect={setSelectedSymbol}
+                  colors={colors}
+                  darkMode={darkMode}
+                  isFavourited={favourites.has(item.symbol)}
+                  onToggleFavourite={toggleFavourite}
+                />
+              ))
+            )}
           </ScrollView>
         </View>
       )}

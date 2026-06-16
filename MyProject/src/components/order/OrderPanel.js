@@ -90,7 +90,7 @@ export default function OrderPanel({ showAvailableMargin = true }) {
   return (
     <View className="h-full rounded-2xl border lg:w-[270px]" style={{ backgroundColor: panelBackground, borderColor: colors.border }}>
       <View className="h-full justify-between p-3.5">
-        <Text className="text-base font-bold" style={{ color: colors.text }}>New Order</Text>
+        <Text className="text-base font-medium" style={{ color: colors.text }}>New Order</Text>
         <Text className="mb-3 mt-0.5 text-xs" style={{ color: colors.muted }}>{currentSymbol.symbol}</Text>
         <CustomInput
           label="Volume (lots)"
