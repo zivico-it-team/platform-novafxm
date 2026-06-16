@@ -129,7 +129,7 @@ function AccountPanel({ dashboard, selectedAccount, summary, colors, onAccountsC
   const { user } = useAuth();
   const [busyType, setBusyType] = useState('');
   const [message, setMessage] = useState('');
-  const [copied, setCopied] = useState(false);
+  const [confirmType, setConfirmType] = useState('');
   const accounts = dashboard?.accounts || [];
   const activeAccount = selectedAccount || accounts[0] || {
     id: user?.id,
@@ -139,12 +139,8 @@ function AccountPanel({ dashboard, selectedAccount, summary, colors, onAccountsC
     currency: 'USD',
     status: user?.tradingStatus || 'active',
   };
-  const referral = dashboard?.referral || {};
-  const referrals = referral.referrals || [];
   const demoCount = accounts.filter((account) => account.type === 'Demo').length;
   const liveCount = accounts.filter((account) => account.type === 'Live').length;
-  const approved = user?.verificationStatus === 'approved';
-  const pending = user?.verificationStatus === 'pending';
 
   const createAccount = async (type) => {
     setBusyType(type);
@@ -158,14 +154,7 @@ function AccountPanel({ dashboard, selectedAccount, summary, colors, onAccountsC
       setMessage(error.response?.data?.message || error.message || `${type} account could not be created.`);
     } finally {
       setBusyType('');
-    }
-  };
-
-  const copyReferral = async () => {
-    if (typeof navigator !== 'undefined' && navigator.clipboard && referral.url) {
-      await navigator.clipboard.writeText(referral.url);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      setConfirmType('');
     }
   };
 
@@ -201,7 +190,7 @@ function AccountPanel({ dashboard, selectedAccount, summary, colors, onAccountsC
           <Text className="mt-2 text-sm" style={{ color: colors.muted }}>Create extra demo/live accounts from inside the account section.</Text>
           <View className="mt-5 flex-row gap-3">
             <Pressable
-              onPress={() => createAccount('Demo')}
+              onPress={() => setConfirmType('Demo')}
               disabled={busyType === 'Demo' || demoCount >= 2}
               className="flex-1 flex-row items-center justify-center rounded-lg px-4 py-4"
               style={{ backgroundColor: demoCount >= 2 ? colors.panel : colors.primary, opacity: busyType === 'Demo' ? 0.7 : 1 }}
@@ -210,7 +199,7 @@ function AccountPanel({ dashboard, selectedAccount, summary, colors, onAccountsC
               <Text className="ml-2 font-black" style={{ color: demoCount >= 2 ? colors.muted : '#0B0B0B' }}>{busyType === 'Demo' ? 'Creating...' : 'New Demo'}</Text>
             </Pressable>
             <Pressable
-              onPress={() => createAccount('Live')}
+              onPress={() => setConfirmType('Live')}
               disabled={busyType === 'Live' || liveCount >= 2}
               className="flex-1 flex-row items-center justify-center rounded-lg border px-4 py-4"
               style={{ borderColor: colors.border, backgroundColor: colors.panel, opacity: busyType === 'Live' ? 0.7 : 1 }}
@@ -220,6 +209,22 @@ function AccountPanel({ dashboard, selectedAccount, summary, colors, onAccountsC
             </Pressable>
           </View>
           <Text className="mt-3 text-xs" style={{ color: colors.muted }}>Demo {demoCount}/2 | Live {liveCount}/2</Text>
+          {confirmType ? (
+            <View className="mt-5 rounded-lg border p-4" style={{ backgroundColor: colors.panel, borderColor: colors.primary }}>
+              <Text className="text-lg font-black" style={{ color: colors.text }}>Create {confirmType} account?</Text>
+              <Text className="mt-1 text-sm" style={{ color: colors.muted }}>
+                This will add a new {confirmType.toLowerCase()} trading account to your profile.
+              </Text>
+              <View className="mt-4 flex-row gap-3">
+                <Pressable onPress={() => setConfirmType('')} className="flex-1 rounded-lg border px-4 py-3" style={{ borderColor: colors.border, backgroundColor: colors.surface }}>
+                  <Text className="text-center font-black" style={{ color: colors.text }}>Cancel</Text>
+                </Pressable>
+                <Pressable onPress={() => createAccount(confirmType)} disabled={Boolean(busyType)} className="flex-1 rounded-lg px-4 py-3" style={{ backgroundColor: colors.primary, opacity: busyType ? 0.7 : 1 }}>
+                  <Text className="text-center font-black text-black">{busyType ? 'Creating...' : 'Confirm'}</Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : null}
         </View>
       </View>
 
@@ -235,64 +240,6 @@ function AccountPanel({ dashboard, selectedAccount, summary, colors, onAccountsC
               <Text className="font-black" style={{ color: colors.text }}>{money(account.balance || 0)} {account.currency || 'USD'}</Text>
             </View>
           )) : <Text style={{ color: colors.muted }}>No trading accounts found.</Text>}
-        </View>
-      </View>
-
-      <View className="gap-4 lg:flex-row">
-        <View className="flex-1 rounded-lg border p-5" style={{ backgroundColor: colors.surface, borderColor: approved ? colors.success : colors.primary }}>
-          <View className="mb-4 flex-row items-center justify-between">
-            <Text className="text-xl font-black" style={{ color: colors.text }}>Account Verification</Text>
-            <Text className="rounded-full px-3 py-1 text-xs font-black" style={{ backgroundColor: approved ? `${colors.success}22` : `${colors.primary}22`, color: approved ? colors.success : colors.primary }}>
-              {approved ? 'Approved' : pending ? 'Review' : 'Required'}
-            </Text>
-          </View>
-          <VerificationStepCard
-            title="Unverified"
-            description="Upload ID proof and address proof to begin verification."
-            badge={approved || pending ? 'Complete' : 'You are here'}
-            active={!approved && !pending}
-            complete={approved || pending}
-            icon={CheckCircle2}
-            colors={colors}
-          />
-          <VerificationStepCard
-            title="Verified"
-            description="Admin approval unlocks withdrawal and full account features."
-            badge={approved ? 'You are here' : pending ? 'In review' : 'Up next'}
-            active={pending || approved}
-            complete={approved}
-            icon={UploadCloud}
-            colors={colors}
-          />
-          <VerificationStepCard
-            title="CC-Verified"
-            description="Final account feature level after compliance checks."
-            badge="Locked"
-            locked
-            icon={FileText}
-            colors={colors}
-          />
-        </View>
-
-        <View className="flex-1 rounded-lg border p-5" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
-          <Text className="text-xs font-black uppercase" style={{ color: colors.primary }}>Referral Programme</Text>
-          <Text className="mt-2 text-3xl font-black" style={{ color: colors.text }}>{referral.code || user?.referralCode || '-'}</Text>
-          <Text className="mt-1 text-sm" style={{ color: colors.muted }}>Share your link and view linked clients.</Text>
-          <Pressable onPress={copyReferral} className="mt-4 rounded-lg border p-3" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
-            <Text numberOfLines={1} style={{ color: colors.text }}>{referral.url || 'Referral link loading...'}</Text>
-          </Pressable>
-          <CustomButton title={copied ? 'Copied' : 'Copy Referral Link'} onPress={copyReferral} className="mt-4" />
-          <View className="mt-4 flex-row flex-wrap gap-3">
-            <InfoCard label="My Referrals" value={String(referrals.length || referral.referralCount || 0)} colors={colors} />
-            <InfoCard label="Commission" value={`${money(referral.commission || 0)} USD`} colors={colors} />
-          </View>
-          <Text className="mb-3 mt-5 text-lg font-black" style={{ color: colors.text }}>Linked Clients</Text>
-          {referrals.length ? referrals.map((item) => (
-            <View key={item.id} className="mb-2 rounded-lg border p-3" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
-              <Text className="font-bold" style={{ color: colors.text }}>{item.name || 'Client'}</Text>
-              <Text className="text-xs" style={{ color: colors.muted }}>{item.email || '-'}</Text>
-            </View>
-          )) : <Text style={{ color: colors.muted }}>No referrals yet.</Text>}
         </View>
       </View>
 
