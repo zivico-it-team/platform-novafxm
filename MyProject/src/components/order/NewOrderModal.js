@@ -219,9 +219,23 @@ export default function NewOrderModal({ visible, onClose, initialSide = 'BUY' })
                 <View className={orderType === 'spot' ? 'w-[286px]' : 'flex-1'}>
                   <Text className="mb-2 text-center font-semibold" style={{ color: colors.text }}>Quantity</Text>
                   <View className="h-[42px] flex-row overflow-hidden rounded-xl border" style={{ backgroundColor: controlBackground, borderColor: colors.border }}>
-                    <TextInput value={lots} onChangeText={setLots} keyboardType="decimal-pad" className="flex-1 px-4 text-base" style={{ color: colors.text }} />
-                    <Pressable onPress={() => changeLots(-0.01)} className="w-[48px] items-center justify-center border-l" style={{ borderColor: colors.border }}><Minus size={18} color={colors.muted} /></Pressable>
-                    <Pressable onPress={() => changeLots(0.01)} className="w-[48px] items-center justify-center border-l" style={{ borderColor: colors.border }}><Plus size={18} color={colors.muted} /></Pressable>
+                    <TextInput value={lots} onChangeText={setLots} keyboardType="decimal-pad" className="flex-1 px-4 text-base" style={{ minWidth: 0, color: colors.text }} />
+                    <View className="flex-row" style={{ width: 96, flexShrink: 0 }}>
+                      <Pressable
+                        onPress={() => changeLots(-0.01)}
+                        className="items-center justify-center border-l"
+                        style={{ width: 48, borderColor: colors.border }}
+                      >
+                        <Minus size={18} color={colors.muted} />
+                      </Pressable>
+                      <Pressable
+                        onPress={() => changeLots(0.01)}
+                        className="items-center justify-center border-l"
+                        style={{ width: 48, borderColor: colors.border }}
+                      >
+                        <Plus size={18} color={colors.muted} />
+                      </Pressable>
+                    </View>
                   </View>
                 </View>
               </View>

@@ -34,23 +34,14 @@ async function ensureDefaultAccounts(user, wallet) {
       userId: user.id,
       type: 'Live',
       name: 'Live account 1',
-      balance: user.accountType === 'Live' ? money(wallet?.balance || 0) : 0,
+      balance: 0,
       status: 'active',
       isPrimary: user.accountType === 'Live',
     },
   ]);
 }
 
-async function syncExistingAccountBalances(userId, wallet) {
-  const walletBalance = money(wallet?.balance || 0);
-  const firstLive = await TradingAccount.findOne({
-    where: { userId, type: 'Live' },
-    order: [['isPrimary', 'DESC'], ['createdAt', 'ASC']],
-  });
-  if (firstLive && walletBalance > 0 && money(firstLive.balance) === 0) {
-    await firstLive.update({ balance: walletBalance });
-  }
-
+async function syncExistingAccountBalances(userId) {
   const firstDemo = await TradingAccount.findOne({
     where: { userId, type: 'Demo' },
     order: [['isPrimary', 'DESC'], ['createdAt', 'ASC']],
@@ -69,7 +60,7 @@ async function dashboardForUser(userId, origin = '') {
 
   const referralCode = await ensureReferralCode(user);
   await ensureDefaultAccounts(user, user.wallet);
-  await syncExistingAccountBalances(userId, user.wallet);
+  await syncExistingAccountBalances(userId);
   await TradingAccount.update({ status: 'active' }, { where: { userId, type: 'Live', status: 'pending' } });
 
   const [accounts, referrals, referrer] = await Promise.all([
