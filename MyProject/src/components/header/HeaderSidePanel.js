@@ -5,6 +5,7 @@ import {
   BadgeCheck,
   Bell,
   CheckCircle2,
+  Camera,
   CreditCard,
   FileText,
   History,
@@ -20,7 +21,7 @@ import {
   Wallet,
   X,
 } from 'lucide-react-native';
-import { Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Image, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import CustomButton from '../common/CustomButton';
 import DepositForm from '../wallet/DepositForm';
 import WithdrawForm from '../wallet/WithdrawForm';
@@ -302,6 +303,7 @@ function ToggleRow({ title, subtitle, active, onPress, colors }) {
 
 function SettingsPanel({ colors, darkMode, toggleTheme, user, updateProfile }) {
   const { logout } = useAuth();
+  const profileImageInputRef = useRef(null);
   const [activeSection, setActiveSection] = useState('profile');
   const [profile, setProfile] = useState({
     name: user?.name || '',
@@ -309,6 +311,7 @@ function SettingsPanel({ colors, darkMode, toggleTheme, user, updateProfile }) {
     phone: user?.phone || '',
     country: user?.country || 'Sri Lanka',
     dateOfBirth: user?.dateOfBirth || '',
+    profileImage: user?.profileImage || null,
   });
   const [bankAccounts, setBankAccounts] = useState([]);
   const [bank, setBank] = useState({ bankAccountHolder: '', bankName: '', bankBranch: '', bankAccountNumber: '' });
@@ -350,6 +353,48 @@ function SettingsPanel({ colors, darkMode, toggleTheme, user, updateProfile }) {
     loadBankAccounts().catch(() => {});
   }, []);
 
+  useEffect(() => {
+    setProfile({
+      name: user?.name || '',
+      email: user?.email || '',
+      phone: user?.phone || '',
+      country: user?.country || 'Sri Lanka',
+      dateOfBirth: user?.dateOfBirth || '',
+      profileImage: user?.profileImage || null,
+    });
+  }, [user]);
+
+  const openProfileImagePicker = () => {
+    if (Platform.OS === 'web') {
+      profileImageInputRef.current?.click();
+    }
+  };
+
+  const selectProfileImage = async (event) => {
+    const file = event.target.files?.[0] || null;
+    event.target.value = '';
+    if (!file) return;
+    setMessage('');
+    if (!file.type?.startsWith('image/')) {
+      setMessage('Please select a valid image file.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setMessage('Profile photo must be 5MB or smaller.');
+      return;
+    }
+    try {
+      const profileImage = await readFileDataUrl(file);
+      setProfile((current) => ({ ...current, profileImage }));
+    } catch {
+      setMessage('Profile photo could not be loaded.');
+    }
+  };
+
+  const removeProfileImage = () => {
+    setProfile((current) => ({ ...current, profileImage: null }));
+  };
+
   const saveProfile = async () => {
     setBusy(true);
     setMessage('');
@@ -360,6 +405,7 @@ function SettingsPanel({ colors, darkMode, toggleTheme, user, updateProfile }) {
         phone: profile.phone.trim(),
         country: profile.country.trim(),
         dateOfBirth: profile.dateOfBirth.trim(),
+        profileImage: profile.profileImage,
       });
       setMessage('Profile updated successfully.');
     } catch (error) {
@@ -487,8 +533,30 @@ function SettingsPanel({ colors, darkMode, toggleTheme, user, updateProfile }) {
             </View>
             <View className="gap-4 lg:flex-row">
               <View className="w-full items-center rounded-lg border p-5 lg:w-[250px]" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
-                <View className="h-24 w-24 items-center justify-center rounded-full border" style={{ borderColor: colors.primary }}>
-                  <Text className="text-3xl font-black" style={{ color: colors.primary }}>{String(profile.name || profile.email || 'NU').slice(0, 2).toUpperCase()}</Text>
+                <View className="h-32 w-32 overflow-hidden rounded-full border" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
+                  {profile.profileImage ? (
+                    <Image source={{ uri: profile.profileImage }} className="h-full w-full" resizeMode="cover" />
+                  ) : (
+                    <View className="h-full w-full items-center justify-center">
+                      <Text className="text-4xl font-black" style={{ color: colors.primary }}>{String(profile.name || profile.email || 'NU').slice(0, 2).toUpperCase()}</Text>
+                    </View>
+                  )}
+                </View>
+                {Platform.OS === 'web' ? (
+                  <input ref={profileImageInputRef} accept="image/*" style={{ display: 'none' }} type="file" onChange={selectProfileImage} />
+                ) : null}
+                <Pressable onPress={openProfileImagePicker} className="-mt-9 ml-24 h-11 w-11 items-center justify-center rounded-full" style={{ backgroundColor: colors.primary }}>
+                  <Camera size={18} color="#0B0B0B" />
+                </Pressable>
+                <View className="mt-4 flex-row flex-wrap justify-center gap-2">
+                  <Pressable onPress={openProfileImagePicker} className="rounded-lg border px-3 py-2" style={{ borderColor: colors.primary }}>
+                    <Text className="text-xs font-bold" style={{ color: colors.primary }}>{profile.profileImage ? 'Change Photo' : 'Add Photo'}</Text>
+                  </Pressable>
+                  {profile.profileImage ? (
+                    <Pressable onPress={removeProfileImage} className="rounded-lg px-3 py-2" style={{ backgroundColor: `${colors.danger}18` }}>
+                      <Text className="text-xs font-bold" style={{ color: colors.danger }}>Remove Photo</Text>
+                    </Pressable>
+                  ) : null}
                 </View>
                 <Text className="mt-4 text-xl font-black" style={{ color: colors.text }}>{profile.name || 'NovaFXM Client'}</Text>
                 <Text className="mt-2 rounded-lg px-3 py-2 text-xs font-black" style={{ backgroundColor: user?.verificationStatus === 'approved' ? `${colors.success}22` : `${colors.primary}22`, color: user?.verificationStatus === 'approved' ? colors.success : colors.primary }}>
@@ -707,7 +775,7 @@ function VerificationPanel({ user, colors, submitVerification, refreshUser }) {
           <View className="flex-[1.4]">
             <VerificationStepCard
               title="Unverified"
-              description="You've registered. Upload your ID and address proof to complete verification."
+              description="Step 1: upload your ID proof and address proof."
               badge={!approved && !pending ? 'You are here' : 'Complete'}
               active={!approved && !pending}
               complete={approved || pending}
@@ -716,19 +784,11 @@ function VerificationPanel({ user, colors, submitVerification, refreshUser }) {
             />
             <VerificationStepCard
               title="Verified"
-              description="After admin approval, withdrawals and enhanced account features become available."
+              description="Step 2: admin reviews your documents and unlocks full account access."
               badge={approved ? 'You are here' : pending ? 'In review' : 'Up next'}
               active={pending || approved}
               complete={approved}
               icon={UploadCloud}
-              colors={colors}
-            />
-            <VerificationStepCard
-              title="CC-Verified"
-              description="Final account feature level after full review and compliance checks."
-              badge="Locked"
-              locked
-              icon={FileText}
               colors={colors}
             />
           </View>
@@ -802,7 +862,7 @@ export default function HeaderSidePanel({ type, selectedAccount, summary, onClos
   const fundingLocked = Boolean(user && user.verificationStatus !== 'approved');
   const fundingLockedMessage = 'Verification approval is required before withdrawals.';
   const titleMap = {
-    account: ['Account Details', 'Trading accounts, verification and referral programme', BadgeCheck],
+    account: ['Account Details', 'Trading accounts and account creation', BadgeCheck],
     deposit: ['Deposit', 'Submit a funding request', Wallet],
     withdraw: ['Withdraw', 'Request funds from your account', Wallet],
     history: ['Transaction History', 'Deposits, withdrawals and account activity', History],
