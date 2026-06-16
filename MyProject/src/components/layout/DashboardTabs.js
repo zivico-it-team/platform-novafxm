@@ -8,7 +8,7 @@ const tabs = [
   { key: 'verification', label: 'Verification', route: '/verification' },
   { key: 'deposit', label: 'Deposit', section: 'deposit' },
   { key: 'withdraw', label: 'Withdraw', section: 'withdraw' },
-  { key: 'rewards', label: 'Broker Rewards', route: '/broker-rewards' },
+  { key: 'rewards', label: 'Referral Programme', route: '/broker-rewards' },
   { key: 'settings', label: 'Settings', route: '/settings' },
 ];
 
