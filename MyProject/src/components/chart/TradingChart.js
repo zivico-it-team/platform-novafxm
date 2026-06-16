@@ -19,6 +19,7 @@ import {
   Star,
   Trash2,
   TrendingUp,
+  X,
 } from 'lucide-react-native';
 import ChartGraphSettingsPanel from './ChartGraphSettingsPanel';
 import { useDemoTrading } from '../../hooks/useDemoTrading';
@@ -105,6 +106,7 @@ const INDICATOR_TOOLS = [
   ['williams', 'WILLIAMS'],
 ];
 const INDICATOR_KEYS = INDICATOR_TOOLS.map(([key]) => key);
+const INDICATOR_LABEL_MAP = Object.fromEntries(INDICATOR_TOOLS);
 const DRAWING_TOOLS = [
   ['horizontal', 'Horizontal Line'],
   ['trend', 'Trend Line'],
@@ -1056,6 +1058,9 @@ export default function TradingChart() {
   }, [prices, symbolSearch, symbolTab]);
   const activeChartType = CHART_TYPES.find(([key]) => key === chartType) || CHART_TYPES[0];
   const ActiveChartIcon = activeChartType[2];
+  const activeAppliedIndicators = INDICATOR_TOOLS
+    .filter(([key]) => tools[key])
+    .map(([key, label]) => ({ key, label }));
   const activeIndicatorAddLabel = ({
     atr: 'ADD ATR',
     awesome: 'ADD AO',
@@ -1197,6 +1202,15 @@ export default function TradingChart() {
   };
   const addActiveIndicator = () => {
     applyIndicatorTool();
+  };
+  const removeIndicatorTool = (key) => {
+    setTools((current) => ({
+      ...current,
+      [key]: false,
+      bollinger: key === 'bb' ? false : current.bollinger,
+      volume: key === 'awesome' ? false : current.volume,
+      ema50: key === 'ema50' ? false : current.ema50,
+    }));
   };
   const resetView = () => {
     const message = JSON.stringify({ type: 'reset-view' });
@@ -1998,6 +2012,28 @@ export default function TradingChart() {
               style={{ backgroundColor: colors.chartBackground, zIndex: 0, elevation: 0 }}
             />
           )}
+          {activeAppliedIndicators.length ? (
+            <View className="absolute left-2 top-10 flex-row flex-wrap" style={{ zIndex: 60, elevation: 60, gap: 6, maxWidth: compactToolbar ? 220 : 360 }}>
+              {activeAppliedIndicators.map(({ key, label }) => (
+                <View
+                  key={key}
+                  className="h-7 flex-row items-center rounded-md border pl-2 pr-1"
+                  style={{ backgroundColor: ui.control, borderColor: ui.border }}
+                >
+                  <Text className="text-[10px] font-extrabold" numberOfLines={1} style={{ color: ui.accent, maxWidth: compactToolbar ? 118 : 190 }}>
+                    {key === 'atr' ? `ATR(${tools.atrPeriod || 14})` : INDICATOR_LABEL_MAP[key] || label}
+                  </Text>
+                  <Pressable
+                    onPress={() => removeIndicatorTool(key)}
+                    className="ml-1 h-5 w-5 items-center justify-center rounded"
+                    style={{ backgroundColor: ui.soft, cursor: 'pointer' }}
+                  >
+                    <X size={12} color={ui.accent} strokeWidth={2.8} />
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          ) : null}
           <Pressable
             onPress={toggleChartFullscreen}
             className="absolute items-center justify-center rounded-md border"
