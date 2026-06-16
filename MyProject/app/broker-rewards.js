@@ -93,7 +93,7 @@ export default function BrokerRewardsScreen() {
     <ScrollView className="flex-1" style={{ backgroundColor: colors.background }} contentContainerClassName="p-4 lg:p-8">
       <View className="mb-6 flex-row flex-wrap items-center justify-between gap-3">
         <View>
-          <Text className="text-3xl font-black" style={{ color: colors.text }}>Broker Rewards</Text>
+          <Text className="text-3xl font-black" style={{ color: colors.text }}>Referral Programme</Text>
           <Text className="mt-1" style={{ color: colors.muted }}>{user?.email || 'Track your referral link, clients, and commission.'}</Text>
         </View>
         <View className="flex-row flex-wrap gap-3">
@@ -112,7 +112,7 @@ export default function BrokerRewardsScreen() {
       <DashboardTabs activeKey="rewards" />
 
       <View className="mb-5 overflow-hidden rounded-2xl border p-5" style={{ backgroundColor: colors.panel, borderColor: colors.primary }}>
-        <Text className="text-sm font-black uppercase tracking-[1px]" style={{ color: colors.primary }}>Your Broker Code</Text>
+        <Text className="text-sm font-black uppercase tracking-[1px]" style={{ color: colors.primary }}>Your Referral Code</Text>
         <Text className="mt-3 text-4xl font-black" style={{ color: colors.text }}>{referral.code || '-'}</Text>
         {referral.referrer ? (
           <Text className="mt-2" style={{ color: colors.muted }}>You were referred by {referral.referrer.name || referral.referrer.email}</Text>

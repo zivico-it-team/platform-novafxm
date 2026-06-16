@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { WebView } from 'react-native-webview';
 import {
   Activity,
@@ -67,15 +67,15 @@ const FULL_HISTORY_LIMITS = {
   '1M': 200000,
 };
 const INITIAL_VISIBLE_BARS = {
-  '1m': 240,
-  '3m': 300,
-  '5m': 300,
-  '15m': 300,
-  '1H': 600,
-  '4H': 1000,
-  '1D': 365,
-  '1W': 260,
-  '1M': 180,
+  '1m': 80,
+  '3m': 96,
+  '5m': 110,
+  '15m': 130,
+  '1H': 180,
+  '4H': 220,
+  '1D': 220,
+  '1W': 180,
+  '1M': 140,
 };
 const CHART_TYPES = [
   ['combo', 'Combochart', CandlestickChart],
@@ -282,7 +282,6 @@ function LineWidthSelect({ value, onPress, ui }) {
 function chartHtml(candles, decimals, timeframe, chartType, tools, drawings, activeDrawingTool, ui, viewRange) {
   const safeDecimals = Math.max(0, Math.min(Number(decimals) || 2, 8));
   const visibleBars = INITIAL_VISIBLE_BARS[timeframe] || 300;
-  const showFullRange = viewRange === 'Full';
   const chartColors = {
     background: ui.background,
     text: ui.text,
@@ -299,6 +298,8 @@ function chartHtml(candles, decimals, timeframe, chartType, tools, drawings, act
 #chart{position:absolute;inset:0}
 #drawing-layer{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:12}
 #empty{display:none;position:absolute;left:0;right:0;top:48%;text-align:center;color:${chartColors.text};font:14px Arial,sans-serif}
+#empty:before{content:'';display:block;width:28px;height:28px;margin:0 auto 10px;border-radius:50%;border:3px solid ${ui.border};border-top-color:${ui.accent};animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
 #ohlc-panel{position:absolute;left:10px;top:8px;z-index:20;display:flex;align-items:center;gap:10px;max-width:calc(100% - 20px);overflow:hidden;white-space:nowrap;font:12px Arial,sans-serif;color:${chartColors.text};pointer-events:none;text-shadow:0 1px 2px rgba(0,0,0,.38)}
 #ohlc-panel .symbol{font-weight:800;color:${ui.accent}}
 #ohlc-panel .value{font-weight:700}
@@ -746,6 +747,12 @@ function renderGraphSettings() {
   addPriceLine(tools.customBidAsk, close - range * .6, '#ffffff', 'BID');
 }
 let lastBar = data.length ? data[data.length - 1] : null;
+function setDefaultVisibleRange() {
+  chart.timeScale().setVisibleLogicalRange({
+    from: Math.max(0, data.length - ${visibleBars}),
+    to: data.length + 8
+  });
+}
 if (data.length) {
   setMainData();
   renderIndicators();
@@ -759,14 +766,7 @@ if (data.length) {
     setHoverReadout(getDisplayBar(param), param.point);
   });
   document.body.style.cursor = activeDrawingTool ? 'crosshair' : 'default';
-  if (${showFullRange}) {
-    chart.timeScale().fitContent();
-  } else {
-    chart.timeScale().setVisibleLogicalRange({
-      from: Math.max(0, data.length - ${visibleBars}),
-      to: data.length + 4
-    });
-  }
+  setDefaultVisibleRange();
   clearHoverReadout();
   requestAnimationFrame(renderDrawings);
   if (chart.timeScale().subscribeVisibleLogicalRangeChange) {
@@ -811,7 +811,7 @@ function receiveLiveUpdate(event) {
     try { payload = JSON.parse(payload); } catch {}
   }
   if (payload && payload.type === 'live-candle') applyLiveCandle(payload.candle);
-  if (payload && payload.type === 'reset-view') chart.timeScale().fitContent();
+  if (payload && payload.type === 'reset-view') setDefaultVisibleRange();
 }
 window.addEventListener('message', receiveLiveUpdate);
 document.addEventListener('message', receiveLiveUpdate);
@@ -903,6 +903,7 @@ export default function TradingChart() {
     customBidAsk: false,
   });
   const [history, setHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [viewRange, setViewRange] = useState('Full');
   const [reloadKey, setReloadKey] = useState(0);
   const [priceDirection, setPriceDirection] = useState(0);
@@ -923,6 +924,7 @@ export default function TradingChart() {
 
   useEffect(() => {
     let active = true;
+    setHistoryLoading(true);
     setHistory([]);
     liveCandleRef.current = null;
     const limit = viewRange === 'Full'
@@ -934,12 +936,14 @@ export default function TradingChart() {
           const normalizedCandles = normalizeCandles(candles, timeframe, viewRange);
           setHistory(normalizedCandles);
           liveCandleRef.current = normalizedCandles?.[normalizedCandles.length - 1] || null;
+          setHistoryLoading(false);
         }
       })
       .catch(() => {
         if (active) {
           setHistory([]);
           liveCandleRef.current = null;
+          setHistoryLoading(false);
         }
       });
     return () => {
@@ -2009,6 +2013,14 @@ export default function TradingChart() {
               <Maximize2 size={compactToolbar ? 14 : 16} color={ui.text} />
             )}
           </Pressable>
+          {historyLoading ? (
+            <View className="absolute inset-0 items-center justify-center" style={{ backgroundColor: `${ui.background}cc`, zIndex: 45, elevation: 45 }}>
+              <View className="items-center rounded-lg border px-5 py-4" style={{ backgroundColor: ui.panel, borderColor: ui.border }}>
+                <ActivityIndicator color={ui.accent} />
+                <Text className="mt-3 text-xs font-bold" style={{ color: ui.muted }}>Loading candles...</Text>
+              </View>
+            </View>
+          ) : null}
         </View>
       </View>
     </View>

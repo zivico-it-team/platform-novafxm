@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Modal, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
-import { CircleUserRound, Plus, RefreshCw, Settings2, Sun, Moon } from 'lucide-react-native';
+import { Plus, RefreshCw, Sun, Moon, UserRound, Wallet } from 'lucide-react-native';
 import { useAuth } from '../../hooks/useAuth';
 import { useDemoTrading } from '../../hooks/useDemoTrading';
 import { money } from '../../utils/formatters';
@@ -9,6 +9,8 @@ import { useAppTheme } from '../../context/ThemeContext';
 import { dashboardService } from '../../services/dashboardService';
 import NovaLogo from '../brand/NovaLogo';
 import DemoAccountMenu from './DemoAccountMenu';
+import FundingMenu from './FundingMenu';
+import HeaderSidePanel from './HeaderSidePanel';
 import NewOrderModal from '../order/NewOrderModal';
 import ProfileMenu from './ProfileMenu';
 
@@ -24,6 +26,7 @@ export default function TopAccountBar() {
   const profileHoverCloseRef = useRef(null);
   const [metricsWidth, setMetricsWidth] = useState(0);
   const [menu, setMenu] = useState(null);
+  const [sidePanel, setSidePanel] = useState(null);
   const [orderModal, setOrderModal] = useState(false);
   const [accounts, setAccounts] = useState([]);
   const [hoveredAction, setHoveredAction] = useState(null);
@@ -91,6 +94,10 @@ export default function TopAccountBar() {
   }, [routeAccountId, selectedTradingAccount?.id, setSelectedTradingAccount, tradingAccounts]);
 
   const selectAccount = (account) => { setSelectedTradingAccount(account); setMenu(null); };
+  const openSidePanel = (panel) => {
+    setMenu(null);
+    setSidePanel(panel);
+  };
 
   const openNewOrder = () => {
     if (!user) {
@@ -107,6 +114,7 @@ export default function TopAccountBar() {
   const openProfileMenu = (action) => { cancelProfileHoverClose(); setHoveredAction(action); setMenu((cur) => (cur === 'profile' ? cur : 'profile')); };
 
   const profileHoverProps = (action) => ({ onHoverIn: () => openProfileMenu(action), onHoverOut: () => setHoveredAction(null) });
+  const openWalletMenu = () => setMenu((current) => (current === 'wallet' ? null : 'wallet'));
 
   const iconButtonStyle = (action, baseStyle) => [baseStyle, { cursor: 'pointer' }, hoveredAction === action ? { backgroundColor: iconButtonHoverBg, borderColor: colors.primary, shadowColor: colors.primary, shadowOpacity: darkMode ? 0.28 : 0.18, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, transform: [{ translateY: -1 }], elevation: 4 } : null];
 
@@ -142,12 +150,12 @@ export default function TopAccountBar() {
       {mobile ? (
         <View className="flex-row items-center gap-2">
           {user ? (
-            <Pressable onPress={() => setMenu(menu === 'account' ? null : 'account')} className="h-[40px] flex-1 flex-row items-center rounded-md border px-2" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
-              <CircleUserRound color={colors.muted} size={18} />
+            <Pressable onPress={() => setMenu(menu === 'account' ? null : 'account')} className="h-[40px] flex-1 flex-row items-center rounded-md px-2" style={{ backgroundColor: colors.panel }}>
               <View className="ml-2 min-w-0 flex-1">
-                <Text className="text-xs font-bold" numberOfLines={1} style={{ color: colors.text }}>{selectedAccount?.type || 'Demo'}</Text>
-                <Text className="text-[10px]" numberOfLines={1} style={{ color: colors.muted }}>{selectedAccount?.name || 'Demo account 1'}</Text>
+                <Text className="text-xs font-black" numberOfLines={1} style={{ color: colors.primary }}>{selectedAccount?.type || 'Demo'}</Text>
+                <Text className="text-[11px] font-black" numberOfLines={1} style={{ color: colors.text }}>{money(selectedAccountBalance)} USD</Text>
               </View>
+              <Text className="ml-1 text-xs" style={{ color: colors.muted }}>⌄</Text>
               <View className="ml-1 h-2 w-2 rounded-full" style={{ backgroundColor: colors.success }} />
             </Pressable>
           ) : (
@@ -163,8 +171,13 @@ export default function TopAccountBar() {
             <View style={iconHoverStyle('mobile-theme')}>{darkMode ? <Sun size={18} color={iconColor('mobile-theme')} /> : <Moon size={18} color={iconColor('mobile-theme')} />}</View>
           </Pressable>
           {user ? (
+            <Pressable {...hoverProps('mobile-wallet')} onPress={openWalletMenu} className="h-[40px] w-[40px] items-center justify-center rounded-md border" style={iconButtonStyle('mobile-wallet', { backgroundColor: colors.panel, borderColor: colors.border })}>
+              <View style={iconHoverStyle('mobile-wallet')}><Wallet color={iconColor('mobile-wallet')} size={18} /></View>
+            </Pressable>
+          ) : null}
+          {user ? (
             <Pressable {...profileHoverProps('mobile-profile')} onPress={() => setMenu(menu === 'profile' ? null : 'profile')} className="h-[40px] w-[40px] items-center justify-center rounded-md border" style={iconButtonStyle('mobile-profile', { backgroundColor: colors.panel, borderColor: colors.border })}>
-              <View style={iconHoverStyle('mobile-profile')}><Settings2 color={iconColor('mobile-profile')} size={18} /></View>
+              <View style={iconHoverStyle('mobile-profile')}><UserRound color={iconColor('mobile-profile')} size={18} /></View>
             </Pressable>
           ) : null}
         </View>
@@ -188,16 +201,23 @@ export default function TopAccountBar() {
         ))}
       </ScrollView>
       {!mobile && user ? (
-        <Pressable onPress={() => setMenu(menu === 'account' ? null : 'account')} className="mt-3 flex-row items-center rounded-xl border px-4 py-3 lg:mt-0 lg:w-[250px]" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
-          <CircleUserRound color={colors.muted} size={23} />
-          <View>
-            <Text className="ml-4 font-bold" style={{ color: colors.text }}>{selectedAccount?.type || 'Demo'}</Text>
-            <Text className="ml-4 text-xs" style={{ color: colors.muted }}>{selectedAccount?.name || 'Demo account 1'}</Text>
+        <Pressable onPress={() => setMenu(menu === 'account' ? null : 'account')} className="mt-3 flex-row items-center rounded-full px-4 py-2 lg:mt-0 lg:w-[210px]" style={{ backgroundColor: colors.panel }}>
+          <View className="rounded-full px-2 py-1" style={{ backgroundColor: `${colors.primary}22` }}>
+            <Text className="text-xs font-black" style={{ color: colors.primary }}>{selectedAccount?.type || 'Demo'}</Text>
           </View>
+          <View className="ml-3 min-w-0 flex-1">
+            <Text className="font-black" numberOfLines={1} style={{ color: colors.text }}>{money(selectedAccountBalance)} USD</Text>
+          </View>
+          <Text className="mr-2 text-base" style={{ color: colors.muted }}>⌄</Text>
           <View className="ml-auto h-2.5 w-2.5 rounded-full" style={{ backgroundColor: colors.success }} />
         </Pressable>
       ) : null}
       {!mobile && !user ? <AuthButtons /> : null}
+      {user ? (
+        <Pressable {...hoverProps('wallet')} onPress={openWalletMenu} className="mt-3 hidden h-[58px] w-[58px] items-center justify-center rounded-xl border lg:flex" style={iconButtonStyle('wallet', { backgroundColor: colors.panel, borderColor: colors.border })}>
+          <View style={iconHoverStyle('wallet')}><Wallet size={21} color={iconColor('wallet')} /></View>
+        </Pressable>
+      ) : null}
       {user ? (
         <Pressable {...hoverProps('sync')} onPress={() => syncAccount?.().catch(() => {})} className="mt-3 hidden h-[58px] w-[58px] items-center justify-center rounded-xl border lg:flex" style={iconButtonStyle('sync', { backgroundColor: colors.panel, borderColor: colors.border })}>
           <View style={iconHoverStyle('sync')}><RefreshCw size={21} color={iconColor('sync')} /></View>
@@ -208,16 +228,36 @@ export default function TopAccountBar() {
       </Pressable>
       {user ? (
         <Pressable {...profileHoverProps('profile')} onPress={() => setMenu(menu === 'profile' ? null : 'profile')} className="mt-3 hidden h-[58px] w-[58px] items-center justify-center rounded-xl border lg:flex" style={iconButtonStyle('profile', { backgroundColor: colors.panel, borderColor: colors.border })}>
-          <View style={iconHoverStyle('profile')}><Settings2 size={21} color={iconColor('profile')} /></View>
+          <View style={iconHoverStyle('profile')}><UserRound size={21} color={iconColor('profile')} /></View>
         </Pressable>
       ) : null}
-      <Modal visible={Boolean(menu)} transparent animationType="none" onRequestClose={() => setMenu(null)}>
+      <Modal visible={Boolean(menu)} transparent animationType="fade" onRequestClose={() => setMenu(null)}>
         <Pressable className="flex-1" style={{ flex: 1 }} onPress={() => setMenu(null)}>
           <Pressable onPress={(event) => event.stopPropagation()}>
-            {menu === 'account' ? <DemoAccountMenu accounts={tradingAccounts} selectedAccount={selectedAccount} onSelectAccount={selectAccount} onClose={() => setMenu(null)} /> : null}
-            {menu === 'profile' ? <ProfileMenu onClose={() => setMenu(null)} onHoverIn={cancelProfileHoverClose} toggleTheme={toggleTheme} darkMode={darkMode} /> : null}
+            {menu === 'account' ? (
+              <DemoAccountMenu
+                accounts={tradingAccounts}
+                selectedAccount={selectedAccount}
+                onSelectAccount={selectAccount}
+                onClose={() => setMenu(null)}
+                onOpenPanel={openSidePanel}
+              />
+            ) : null}
+            {menu === 'wallet' ? <FundingMenu selectedAccount={selectedAccount} summary={summary} onClose={() => setMenu(null)} onSwitchAccount={() => setMenu('account')} onOpenPanel={openSidePanel} /> : null}
+            {menu === 'profile' ? <ProfileMenu onClose={() => setMenu(null)} onHoverIn={cancelProfileHoverClose} onOpenPanel={openSidePanel} /> : null}
           </Pressable>
         </Pressable>
+      </Modal>
+      <Modal visible={Boolean(sidePanel)} transparent animationType="fade" onRequestClose={() => setSidePanel(null)}>
+        {sidePanel ? (
+          <HeaderSidePanel
+            type={sidePanel}
+            selectedAccount={selectedAccount}
+            summary={summary}
+            onClose={() => setSidePanel(null)}
+            onAccountsChanged={setAccounts}
+          />
+        ) : null}
       </Modal>
       <NewOrderModal visible={orderModal} onClose={() => setOrderModal(false)} />
     </View>
