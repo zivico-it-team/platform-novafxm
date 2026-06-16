@@ -105,6 +105,7 @@ const INDICATOR_TOOLS = [
   ['williams', 'WILLIAMS'],
 ];
 const INDICATOR_KEYS = INDICATOR_TOOLS.map(([key]) => key);
+const INDICATOR_LABELS = Object.fromEntries(INDICATOR_TOOLS);
 const DRAWING_TOOLS = [
   ['horizontal', 'Horizontal Line'],
   ['trend', 'Trend Line'],
@@ -304,12 +305,17 @@ function chartHtml(candles, decimals, timeframe, chartType, tools, drawings, act
 #ohlc-panel .value{font-weight:700}
 #ohlc-panel .up{color:${chartColors.up}}
 #ohlc-panel .down{color:${chartColors.down}}
+#indicator-divider{position:absolute;left:0;right:0;bottom:24%;z-index:14;height:1px;background:${chartColors.border};display:none;pointer-events:none}
+#indicator-labels{position:absolute;left:10px;bottom:calc(24% - 24px);z-index:22;display:none;align-items:center;gap:8px;max-width:calc(100% - 20px);overflow:hidden;font:12px Arial,sans-serif;color:${ui.accent}}
+.indicator-label{display:flex;align-items:center;gap:5px;min-width:0;font-weight:700;text-shadow:0 1px 2px rgba(0,0,0,.38)}
+.indicator-label button{width:15px;height:15px;border:0;border-radius:50%;background:${ui.control};color:${ui.muted};font:12px Arial,sans-serif;font-weight:800;line-height:15px;padding:0;cursor:pointer}
+.indicator-label button:hover{background:${ui.soft};color:${ui.accent}}
 .axis-badge{position:absolute;z-index:21;display:none;border-radius:4px;background:${ui.accent};color:#0B0B0B;font:11px Arial,sans-serif;font-weight:800;line-height:1;padding:5px 7px;pointer-events:none;box-shadow:0 8px 20px rgba(0,0,0,.18)}
 #price-badge{right:4px;transform:translateY(-50%)}
 #time-badge{bottom:4px;transform:translateX(-50%)}
 </style></head>
 <body>
-<div id="chart-wrap"><div id="chart"></div><svg id="drawing-layer"></svg><div id="ohlc-panel"></div><div id="price-badge" class="axis-badge"></div><div id="time-badge" class="axis-badge"></div><div id="empty">Waiting for chart data</div></div>
+<div id="chart-wrap"><div id="chart"></div><svg id="drawing-layer"></svg><div id="ohlc-panel"></div><div id="indicator-divider"></div><div id="indicator-labels"></div><div id="price-badge" class="axis-badge"></div><div id="time-badge" class="axis-badge"></div><div id="empty">Waiting for chart data</div></div>
 <script src="https://unpkg.com/lightweight-charts@5/dist/lightweight-charts.standalone.production.js"></script>
 <script>
 let data = ${JSON.stringify(candles)};
@@ -317,6 +323,7 @@ const chartType = ${JSON.stringify(chartType)};
 const tools = ${JSON.stringify(tools)};
 const drawings = ${JSON.stringify(drawings)};
 const activeDrawingTool = ${JSON.stringify(activeDrawingTool)};
+const indicatorLabels = ${JSON.stringify(INDICATOR_LABELS)};
 const indicatorLineWidth = Math.max(1, Math.min(4, Number(tools.defaultLineWidth || 1)));
 const timeframeSeconds = ${JSON.stringify(TIMEFRAME_SECONDS[timeframe] || 900)};
 const priceOptions = {
@@ -463,6 +470,14 @@ const seriesType = (() => {
 })();
 const series = chart.addSeries(seriesType, mainSeriesOptions);
 const indicatorSeries = [];
+function postToHost(payload) {
+  const message = JSON.stringify(payload);
+  if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+    window.ReactNativeWebView.postMessage(message);
+    return;
+  }
+  window.parent?.postMessage(message, '*');
+}
 const setMainData = () => {
   if (chartType === 'candles' || chartType === 'combo' || chartType === 'bar' || chartType === 'hollow') {
     series.setData(data);
@@ -555,15 +570,53 @@ function momentumLine(items, period) {
   }
   return output;
 }
-function addLine(dataSet, color, width = 1, lineStyle = LightweightCharts.LineStyle.Solid) {
-  const line = chart.addSeries(LightweightCharts.LineSeries, {
+function showIndicatorPane(labels) {
+  const divider = document.getElementById('indicator-divider');
+  const labelWrap = document.getElementById('indicator-labels');
+  if (!divider || !labelWrap || !labels.length) return;
+  divider.style.display = 'block';
+  labelWrap.style.display = 'flex';
+  labelWrap.replaceChildren();
+  labels.forEach(({ key, label }) => {
+    const item = document.createElement('div');
+    item.className = 'indicator-label';
+    const text = document.createElement('span');
+    text.textContent = label;
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.textContent = 'x';
+    close.title = 'Remove indicator';
+    close.addEventListener('click', (event) => {
+      event.stopPropagation();
+      postToHost({ type: 'remove-indicator', key });
+    });
+    item.appendChild(text);
+    item.appendChild(close);
+    labelWrap.appendChild(item);
+  });
+}
+function addLine(dataSet, color, width = 1, lineStyle = LightweightCharts.LineStyle.Solid, paneKey = null) {
+  const lineOptions = {
     color,
     lineWidth: width,
     lineStyle,
     priceLineVisible: false,
     lastValueVisible: false,
-    priceFormat: priceOptions
-  });
+    priceFormat: paneKey ? { type: 'price', precision: 2, minMove: .01 } : priceOptions
+  };
+  const line = paneKey
+    ? chart.addSeries(LightweightCharts.LineSeries, lineOptions, 1)
+    : chart.addSeries(LightweightCharts.LineSeries, lineOptions);
+  if (paneKey) {
+    line.priceScale().applyOptions({
+      borderColor: ${JSON.stringify(chartColors.border)}
+    });
+    const chartElement = document.getElementById('chart');
+    const pane = chart.panes && chart.panes()[1];
+    if (pane && pane.setHeight && chartElement) {
+      pane.setHeight(Math.max(118, Math.round(chartElement.clientHeight * .24)));
+    }
+  }
   line.setData(dataSet
     .filter((item) => Number.isFinite(Number(item.time)) && Number.isFinite(Number(item.value)))
     .sort((a, b) => Number(a.time) - Number(b.time)));
@@ -571,11 +624,21 @@ function addLine(dataSet, color, width = 1, lineStyle = LightweightCharts.LineSt
 }
 function renderIndicators() {
   if (!data.length) return;
+  const paneLabels = [];
+  const addPaneLabel = (key, fallback) => {
+    if (!paneLabels.some((item) => item.key === key)) {
+      paneLabels.push({ key, label: fallback || indicatorLabels[key] || key.toUpperCase() });
+    }
+  };
   if (chartType === 'combo') addLine(closeData(data), ${JSON.stringify(ui.accent)}, indicatorLineWidth);
-  if (tools.atr) addLine(averageTrueRange(data, Number(tools.atrPeriod || 14)), ${JSON.stringify(ui.accent)}, indicatorLineWidth);
+  if (tools.atr) {
+    addLine(averageTrueRange(data, Number(tools.atrPeriod || 14)), '#8aa8ff', indicatorLineWidth, LightweightCharts.LineStyle.Solid, 'atr');
+    addPaneLabel('atr', 'ATR(' + Number(tools.atrPeriod || 14) + ')');
+  }
   if (tools.awesome) {
-    addLine(momentumLine(data, Number(tools.awesomeShort || 5)), '#4fc3f7', indicatorLineWidth);
-    addLine(momentumLine(data, Number(tools.awesomeLong || 34)), '#f24d58', indicatorLineWidth);
+    addLine(momentumLine(data, Number(tools.awesomeShort || 5)), '#4fc3f7', indicatorLineWidth, LightweightCharts.LineStyle.Solid, 'awesome');
+    addLine(momentumLine(data, Number(tools.awesomeLong || 34)), '#f24d58', indicatorLineWidth, LightweightCharts.LineStyle.Solid, 'awesome');
+    addPaneLabel('awesome', 'AO');
   }
   if (tools.sma20) addLine(movingAverage(data, Number(tools.smaPeriod || 9)), ${JSON.stringify(ui.accent)}, indicatorLineWidth);
   if (tools.wma) addLine(weightedMovingAverage(data, Number(tools.wmaPeriod || 9)), '#8aa8ff', indicatorLineWidth);
@@ -586,21 +649,37 @@ function renderIndicators() {
     addLine(bands.middle, 'rgba(255, 255, 255, .42)', indicatorLineWidth);
     addLine(bands.lower, 'rgba(212, 175, 55, .78)', indicatorLineWidth);
   }
-  if (tools.cci) addLine(momentumLine(data, Number(tools.cciPeriod || 20)), '#ffb84d', indicatorLineWidth);
+  if (tools.cci) {
+    addLine(momentumLine(data, Number(tools.cciPeriod || 20)), '#ffb84d', indicatorLineWidth, LightweightCharts.LineStyle.Solid, 'cci');
+    addPaneLabel('cci', 'CCI(' + Number(tools.cciPeriod || 20) + ')');
+  }
   if (tools.ichimoku) {
     addLine(movingAverage(data, Number(tools.ichimokuConversion || 9)), '#4fc3f7', indicatorLineWidth);
     addLine(movingAverage(data, Number(tools.ichimokuBase || 26)), '#f24d58', indicatorLineWidth);
   }
   if (tools.macd) {
-    addLine(exponentialAverage(data, Number(tools.macdFast || 12)), '#4fc3f7', indicatorLineWidth);
-    addLine(exponentialAverage(data, Number(tools.macdSlow || 26)), '#f24d58', indicatorLineWidth);
-    addLine(exponentialAverage(data, Number(tools.macdSignal || 9)), '#8aa8ff', indicatorLineWidth);
+    addLine(exponentialAverage(data, Number(tools.macdFast || 12)), '#4fc3f7', indicatorLineWidth, LightweightCharts.LineStyle.Solid, 'macd');
+    addLine(exponentialAverage(data, Number(tools.macdSlow || 26)), '#f24d58', indicatorLineWidth, LightweightCharts.LineStyle.Solid, 'macd');
+    addLine(exponentialAverage(data, Number(tools.macdSignal || 9)), '#8aa8ff', indicatorLineWidth, LightweightCharts.LineStyle.Solid, 'macd');
+    addPaneLabel('macd', 'MACD');
   }
-  if (tools.momentum) addLine(momentumLine(data, Number(tools.momentumPeriod || 10)), '#12cf7a', indicatorLineWidth);
+  if (tools.momentum) {
+    addLine(momentumLine(data, Number(tools.momentumPeriod || 10)), '#12cf7a', indicatorLineWidth, LightweightCharts.LineStyle.Solid, 'momentum');
+    addPaneLabel('momentum', 'MOM(' + Number(tools.momentumPeriod || 10) + ')');
+  }
   if (tools.sar) addLine(movingAverage(data, Math.max(2, Math.round(Number(tools.sarMax || .2) * 25))), '#ffffff', indicatorLineWidth);
-  if (tools.rsi) addLine(rateOfChange(data, Number(tools.rsiPeriod || 14)), '#b58cff', indicatorLineWidth);
-  if (tools.roc) addLine(rateOfChange(data, Number(tools.rocPeriod || 12)), '#ffb84d', indicatorLineWidth);
-  if (tools.williams) addLine(rateOfChange(data, Number(tools.williamsPeriod || 14)), '#8aa8ff', indicatorLineWidth);
+  if (tools.rsi) {
+    addLine(rateOfChange(data, Number(tools.rsiPeriod || 14)), '#b58cff', indicatorLineWidth, LightweightCharts.LineStyle.Solid, 'rsi');
+    addPaneLabel('rsi', 'RSI(' + Number(tools.rsiPeriod || 14) + ')');
+  }
+  if (tools.roc) {
+    addLine(rateOfChange(data, Number(tools.rocPeriod || 12)), '#ffb84d', indicatorLineWidth, LightweightCharts.LineStyle.Solid, 'roc');
+    addPaneLabel('roc', 'ROC(' + Number(tools.rocPeriod || 12) + ')');
+  }
+  if (tools.williams) {
+    addLine(rateOfChange(data, Number(tools.williamsPeriod || 14)), '#8aa8ff', indicatorLineWidth, LightweightCharts.LineStyle.Solid, 'williams');
+    addPaneLabel('williams', 'WILLIAMS(' + Number(tools.williamsPeriod || 14) + ')');
+  }
   if (tools.volume && data.some((item) => Number(item.volume) > 0)) {
     const volume = chart.addSeries(LightweightCharts.HistogramSeries, {
       priceFormat: { type: 'volume' },
@@ -616,6 +695,7 @@ function renderIndicators() {
       color: Number(item.close) >= Number(item.open) ? 'rgba(18, 207, 122, .35)' : 'rgba(242, 77, 88, .35)'
     })));
   }
+  showIndicatorPane(paneLabels);
 }
 function renderDrawings() {
   const layer = document.getElementById('drawing-layer');
@@ -701,14 +781,6 @@ function renderDrawings() {
       });
     }
   });
-}
-function postToHost(payload) {
-  const message = JSON.stringify(payload);
-  if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
-    window.ReactNativeWebView.postMessage(message);
-    return;
-  }
-  window.parent?.postMessage(message, '*');
 }
 function handleChartClick(param) {
   if (!activeDrawingTool || activeDrawingTool === 'clear' || !param?.point) return;
@@ -1178,6 +1250,14 @@ export default function TradingChart() {
       try { payload = JSON.parse(payload); } catch { return; }
     }
     if (payload?.type === 'drawing-point') handleDrawingPoint(payload.tool, payload.point);
+    if (payload?.type === 'remove-indicator' && INDICATOR_KEYS.includes(payload.key)) {
+      setTools((current) => ({
+        ...current,
+        [payload.key]: false,
+        bollinger: payload.key === 'bb' ? false : current.bollinger,
+        volume: payload.key === 'awesome' ? false : current.volume,
+      }));
+    }
   }, [handleDrawingPoint]);
   const selectIndicatorTool = (key) => {
     setActiveIndicator(key);
@@ -1197,6 +1277,7 @@ export default function TradingChart() {
   };
   const addActiveIndicator = () => {
     applyIndicatorTool();
+    setIndicatorOpen(false);
   };
   const resetView = () => {
     const message = JSON.stringify({ type: 'reset-view' });
