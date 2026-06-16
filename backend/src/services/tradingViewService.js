@@ -652,6 +652,72 @@ const mergeCandles = (stored, recent, limit) => {
     .slice(-limit);
 };
 
+const liveQuoteFor = (item) => {
+  const quote = latestQuotes.get(item.ticker);
+  const price = Number(quote?.price);
+  const updatedAt = Date.parse(quote?.updatedAt);
+  if (!Number.isFinite(price) || price <= 0) return null;
+  if (Number.isFinite(updatedAt) && Date.now() - updatedAt > Math.max(STREAM_STALE_MS * 4, 60000)) return null;
+  return { price, updatedAt: quote.updatedAt };
+};
+
+const applyLiveQuoteToCandles = (candles, item, timeframe, limit) => {
+  const quote = liveQuoteFor(item);
+  const seconds = timeframeSeconds(timeframe);
+  if (!quote || !seconds) return candles || [];
+
+  const price = quote.price;
+  const time = bucketTime(Math.floor(Date.now() / 1000), timeframe);
+  const nextCandles = [...(candles || [])]
+    .filter((bar) => [bar.time, bar.open, bar.high, bar.low, bar.close].every((value) => Number.isFinite(Number(value))))
+    .sort((a, b) => Number(a.time) - Number(b.time));
+  const previous = nextCandles[nextCandles.length - 1];
+  const previousTime = Number(previous?.time);
+
+  if (Number.isFinite(previousTime) && previousTime === time) {
+    nextCandles[nextCandles.length - 1] = {
+      ...previous,
+      high: Math.max(Number(previous.high), price),
+      low: Math.min(Number(previous.low), price),
+      close: price,
+    };
+    return nextCandles.slice(-limit);
+  }
+
+  if (Number.isFinite(previousTime) && previousTime > time) {
+    return nextCandles.slice(-limit);
+  }
+
+  const open = Number.isFinite(Number(previous?.close)) ? Number(previous.close) : price;
+  nextCandles.push({
+    time,
+    open,
+    high: Math.max(open, price),
+    low: Math.min(open, price),
+    close: price,
+  });
+  return nextCandles.slice(-limit);
+};
+
+const deriveFromStoredSource = async (symbol, timeframe, limit) => {
+  const sourceTimeframe = DERIVED_CANDLE_SOURCES[timeframe];
+  if (sourceTimeframe !== '1m') return [];
+
+  const secondsPerCandle = CANDLE_SECONDS[timeframe];
+  const sourceSeconds = CANDLE_SECONDS[sourceTimeframe] || 60;
+  if (!secondsPerCandle || !sourceSeconds) return [];
+
+  const sourceLimit = Math.min(
+    200000,
+    Math.max(1000, Math.ceil(Math.min(limit, 50000) * secondsPerCandle / sourceSeconds))
+  );
+  const sourceCandles = await readCandles(symbol, sourceTimeframe, sourceLimit).catch((error) => {
+    console.warn(`Stored ${sourceTimeframe} candle read failed:`, error.message);
+    return [];
+  });
+  return aggregateCandles(sourceCandles, timeframe).slice(-limit);
+};
+
 const maxDislocationPct = (item) => {
   if (item.group === 'METALS') return 1.5;
   if (item.group === 'FOREX') return 2;
@@ -761,17 +827,23 @@ async function getHistoricalCandles(symbol, timeframe = '15m', limit = 240) {
     return [];
   });
   const recentProviderCandles = await fetchRecentProviderCandles(item, timeframe, stored, boundedLimit);
-  const currentStored = pruneDislocatedSegments(
+  const derivedStoredCandles = await deriveFromStoredSource(symbol, timeframe, boundedLimit);
+  const currentStored = applyLiveQuoteToCandles(pruneDislocatedSegments(
     mergeCandles(stored, recentProviderCandles, boundedLimit),
     item,
     timeframe
-  );
+  ), item, timeframe, boundedLimit);
+  const currentWithDerived = applyLiveQuoteToCandles(pruneDislocatedSegments(
+    mergeCandles(currentStored, derivedStoredCandles, boundedLimit),
+    item,
+    timeframe
+  ), item, timeframe, boundedLimit);
 
   if (item.group === 'CRYPTO CFD' && ['BINANCE:', 'COINBASE:'].some((prefix) => item.ticker.startsWith(prefix))) {
     const sourceTimeframe = DERIVED_CANDLE_SOURCES[timeframe];
     const needsDerivedCandles = (
       sourceTimeframe &&
-      (currentStored.length < Math.min(boundedLimit, 100) || !candlesAlignWithTimeframe(currentStored, timeframe))
+      (currentWithDerived.length < Math.min(boundedLimit, 100) || !candlesAlignWithTimeframe(currentWithDerived, timeframe))
     );
 
     if (needsDerivedCandles) {
@@ -784,21 +856,22 @@ async function getHistoricalCandles(symbol, timeframe = '15m', limit = 240) {
       });
       const derived = aggregateCandles(sourceCandles, timeframe).slice(-boundedLimit);
       if (derived.length > 0) {
-        candleCache.set(key, { at: Date.now(), data: derived });
-        return derived;
+        const liveDerived = applyLiveQuoteToCandles(derived, item, timeframe, boundedLimit);
+        candleCache.set(key, { at: Date.now(), data: liveDerived });
+        return liveDerived;
       }
     }
 
-    candleCache.set(key, { at: Date.now(), data: currentStored });
-    return currentStored;
+    candleCache.set(key, { at: Date.now(), data: currentWithDerived });
+    return currentWithDerived;
   }
 
-  if (currentStored.length > 0) {
-    candleCache.set(key, { at: Date.now(), data: currentStored });
-    return currentStored;
+  if (currentWithDerived.length > 0) {
+    candleCache.set(key, { at: Date.now(), data: currentWithDerived });
+    return currentWithDerived;
   }
 
-  const candles = await requestCandles(item, timeframe, boundedLimit);
+  const candles = applyLiveQuoteToCandles(await requestCandles(item, timeframe, boundedLimit), item, timeframe, boundedLimit);
   candleCache.set(key, { at: Date.now(), data: candles });
   return candles;
 }

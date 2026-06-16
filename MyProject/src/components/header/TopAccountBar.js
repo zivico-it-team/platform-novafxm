@@ -240,7 +240,6 @@ export default function TopAccountBar() {
                 selectedAccount={selectedAccount}
                 onSelectAccount={selectAccount}
                 onClose={() => setMenu(null)}
-                onAccountsChanged={setAccounts}
                 onOpenPanel={openSidePanel}
               />
             ) : null}
@@ -256,6 +255,7 @@ export default function TopAccountBar() {
             selectedAccount={selectedAccount}
             summary={summary}
             onClose={() => setSidePanel(null)}
+            onAccountsChanged={setAccounts}
           />
         ) : null}
       </Modal>

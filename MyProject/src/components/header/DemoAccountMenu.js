@@ -1,9 +1,7 @@
-import { Award, BadgeCheck, Check, Copy, Plus, Repeat2, ShieldCheck, WalletCards, X } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
+import { Check, Copy, Repeat2, WalletCards, X } from 'lucide-react-native';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useAuth } from '../../hooks/useAuth';
 import { useAppTheme } from '../../context/ThemeContext';
-import { dashboardService } from '../../services/dashboardService';
 import { money } from '../../utils/formatters';
 
 function accountId(account) {
@@ -14,12 +12,9 @@ function accountLabel(account) {
   return account?.name || `${account?.type || 'Demo'} account`;
 }
 
-export default function DemoAccountMenu({ accounts = [], selectedAccount, onSelectAccount, onClose, onAccountsChanged, onOpenPanel }) {
+export default function DemoAccountMenu({ accounts = [], selectedAccount, onSelectAccount, onClose, onOpenPanel }) {
   const { user } = useAuth();
   const { colors } = useAppTheme();
-  const [dashboard, setDashboard] = useState(null);
-  const [busyType, setBusyType] = useState('');
-  const [message, setMessage] = useState('');
   const fallbackAccount = {
     id: `user-${user?.id || 27075}`,
     type: user?.accountType || 'Demo',
@@ -30,45 +25,6 @@ export default function DemoAccountMenu({ accounts = [], selectedAccount, onSele
   };
   const tradingAccounts = accounts.length ? accounts : [fallbackAccount];
   const activeAccount = selectedAccount || tradingAccounts[0];
-  const referral = dashboard?.referral || {};
-  const referrals = referral.referrals || [];
-  const demoCount = tradingAccounts.filter((account) => account.type === 'Demo').length;
-  const liveCount = tradingAccounts.filter((account) => account.type === 'Live').length;
-  const verified = user?.verificationStatus === 'approved';
-  const pending = user?.verificationStatus === 'pending';
-
-  useEffect(() => {
-    let active = true;
-    dashboardService.getDashboard()
-      .then((result) => {
-        if (active) setDashboard(result);
-      })
-      .catch(() => {});
-    return () => { active = false; };
-  }, []);
-
-  const createAccount = async (type) => {
-    setBusyType(type);
-    setMessage('');
-    try {
-      await dashboardService.createAccount(type, true);
-      const result = await dashboardService.getDashboard();
-      setDashboard(result);
-      onAccountsChanged?.(result.accounts || []);
-      setMessage(`${type} account created successfully.`);
-    } catch (error) {
-      setMessage(error.response?.data?.message || error.message || `${type} account could not be created.`);
-    } finally {
-      setBusyType('');
-    }
-  };
-
-  const copyReferral = async () => {
-    if (typeof navigator !== 'undefined' && navigator.clipboard && referral.url) {
-      await navigator.clipboard.writeText(referral.url);
-      setMessage('Referral URL copied.');
-    }
-  };
 
   const openPanel = (panel) => {
     onClose?.();
@@ -153,92 +109,10 @@ export default function DemoAccountMenu({ accounts = [], selectedAccount, onSele
         })}
       </View>
 
-      <View className="mb-4 rounded-lg border p-4" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
-        <Text className="mb-3 text-xs font-black uppercase tracking-wide" style={{ color: colors.muted }}>Create trading account</Text>
-        <View className="flex-row gap-3">
-          <Pressable
-            onPress={() => createAccount('Demo')}
-            disabled={busyType === 'Demo' || demoCount >= 2}
-            className="flex-1 flex-row items-center justify-center rounded-xl px-3 py-3"
-            style={{ backgroundColor: demoCount >= 2 ? colors.panel : colors.primary, opacity: busyType === 'Demo' ? 0.7 : 1 }}
-          >
-            <Plus size={16} color={demoCount >= 2 ? colors.muted : '#0B0B0B'} />
-            <Text className="ml-2 font-black" style={{ color: demoCount >= 2 ? colors.muted : '#0B0B0B' }}>{busyType === 'Demo' ? 'Creating...' : 'New Demo'}</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => createAccount('Live')}
-            disabled={busyType === 'Live' || liveCount >= 2}
-            className="flex-1 flex-row items-center justify-center rounded-xl border px-3 py-3"
-            style={{ borderColor: colors.border, backgroundColor: colors.panel, opacity: busyType === 'Live' ? 0.7 : 1 }}
-          >
-            <Plus size={16} color={colors.primary} />
-            <Text className="ml-2 font-black" style={{ color: liveCount >= 2 ? colors.muted : colors.text }}>{busyType === 'Live' ? 'Creating...' : 'New Live'}</Text>
-          </Pressable>
-        </View>
-        <Text className="mt-2 text-[11px]" style={{ color: colors.muted }}>Demo {demoCount}/2 | Live {liveCount}/2</Text>
-      </View>
+      <Pressable onPress={() => openPanel('account')} className="mb-4 rounded-xl px-4 py-3" style={{ backgroundColor: colors.primary }}>
+        <Text className="text-center font-black text-black">Manage Accounts</Text>
+      </Pressable>
 
-      <View className="mb-4 rounded-lg border p-4" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
-        <Text className="mb-3 text-xs font-black uppercase tracking-wide" style={{ color: colors.muted }}>Manage account</Text>
-        <View className="gap-2">
-          <Pressable onPress={() => openPanel('settings')} className="flex-row items-center rounded-xl border p-3" style={{ borderColor: colors.border, backgroundColor: colors.panel }}>
-            <BadgeCheck size={18} color={colors.primary} />
-            <View className="ml-3 flex-1">
-              <Text className="font-black" style={{ color: colors.text }}>Account Details</Text>
-              <Text className="text-xs" style={{ color: colors.muted }}>Profile, security and withdrawal settings</Text>
-            </View>
-          </Pressable>
-          <Pressable onPress={() => openPanel('verification')} className="rounded-xl border p-3" style={{ borderColor: verified ? colors.success : colors.primary, backgroundColor: colors.panel }}>
-            <View className="flex-row items-center">
-              <ShieldCheck size={18} color={verified ? colors.success : colors.primary} />
-              <View className="ml-3 flex-1">
-                <Text className="font-black" style={{ color: colors.text }}>Verification</Text>
-                <Text className="text-xs" style={{ color: colors.muted }}>
-                  {verified ? 'Approved account access' : pending ? 'Documents under admin review' : 'Step 1: Upload ID and address proof'}
-                </Text>
-              </View>
-              <Text className="text-xs font-black" style={{ color: verified ? colors.success : colors.primary }}>{verified ? 'Done' : pending ? 'Review' : 'Start'}</Text>
-            </View>
-          </Pressable>
-        </View>
-      </View>
-
-      <View className="mb-4 rounded-lg border p-4" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
-        <View className="mb-3 flex-row items-center">
-          <Award size={18} color={colors.primary} />
-          <Text className="ml-2 text-xs font-black uppercase tracking-wide" style={{ color: colors.muted }}>Referral Programme</Text>
-        </View>
-        <Text className="text-2xl font-black" style={{ color: colors.text }}>{referral.code || user?.referralCode || '-'}</Text>
-        <Text className="mt-1 text-xs" style={{ color: colors.muted }}>Share your link and view linked clients.</Text>
-        <View className="mt-3 flex-row gap-2">
-          <View className="flex-1 rounded-xl border p-3" style={{ borderColor: colors.border, backgroundColor: colors.panel }}>
-            <Text className="text-xs font-bold uppercase" style={{ color: colors.muted }}>My Referrals</Text>
-            <Text className="mt-1 text-lg font-black" style={{ color: colors.text }}>{referrals.length || referral.referralCount || 0}</Text>
-          </View>
-          <View className="flex-1 rounded-xl border p-3" style={{ borderColor: colors.border, backgroundColor: colors.panel }}>
-            <Text className="text-xs font-bold uppercase" style={{ color: colors.muted }}>Commission</Text>
-            <Text className="mt-1 text-lg font-black" style={{ color: colors.text }}>{money(referral.commission || 0)} USD</Text>
-          </View>
-        </View>
-        <Pressable onPress={copyReferral} className="mt-3 rounded-xl border p-3" style={{ borderColor: colors.border, backgroundColor: colors.panel }}>
-          <Text className="text-xs" numberOfLines={1} style={{ color: colors.text }}>{referral.url || 'Referral link loading...'}</Text>
-        </Pressable>
-        {referrals.length ? (
-          <View className="mt-3">
-            {referrals.slice(0, 3).map((referralUser) => (
-              <View key={referralUser.id} className="mt-2 rounded-xl border p-3" style={{ borderColor: colors.border, backgroundColor: colors.panel }}>
-                <Text className="font-black" style={{ color: colors.text }}>{referralUser.name || 'Client'}</Text>
-                <Text className="text-xs" style={{ color: colors.muted }}>{referralUser.email || '-'}</Text>
-              </View>
-            ))}
-          </View>
-        ) : null}
-        <Pressable onPress={() => openPanel('referral')} className="mt-3 rounded-xl px-4 py-3" style={{ backgroundColor: colors.primary }}>
-          <Text className="text-center font-black text-black">Open Referral Details</Text>
-        </Pressable>
-      </View>
-
-      {message ? <Text className="rounded-lg border p-3 text-xs" style={{ backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }}>{message}</Text> : null}
       </ScrollView>
     </View>
   );

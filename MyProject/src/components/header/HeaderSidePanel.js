@@ -11,6 +11,7 @@ import {
   LockKeyhole,
   LogOut,
   Moon,
+  Plus,
   Save,
   ShieldCheck,
   Sun,
@@ -116,6 +117,186 @@ function ReferralPanel({ dashboard, colors }) {
           </View>
         )) : <Text style={{ color: colors.muted }}>No referrals yet.</Text>}
       </View>
+    </View>
+  );
+}
+
+function accountId(account) {
+  return String(account?.id || '').replace(/\D/g, '').slice(-8).padStart(8, '0');
+}
+
+function AccountPanel({ dashboard, selectedAccount, summary, colors, onAccountsChanged }) {
+  const { user } = useAuth();
+  const [busyType, setBusyType] = useState('');
+  const [message, setMessage] = useState('');
+  const [copied, setCopied] = useState(false);
+  const accounts = dashboard?.accounts || [];
+  const activeAccount = selectedAccount || accounts[0] || {
+    id: user?.id,
+    type: user?.accountType || 'Demo',
+    name: user?.accountType === 'Live' ? 'Live account 1' : 'Demo account 1',
+    balance: summary?.balance || user?.wallet?.balance || 0,
+    currency: 'USD',
+    status: user?.tradingStatus || 'active',
+  };
+  const referral = dashboard?.referral || {};
+  const referrals = referral.referrals || [];
+  const demoCount = accounts.filter((account) => account.type === 'Demo').length;
+  const liveCount = accounts.filter((account) => account.type === 'Live').length;
+  const approved = user?.verificationStatus === 'approved';
+  const pending = user?.verificationStatus === 'pending';
+
+  const createAccount = async (type) => {
+    setBusyType(type);
+    setMessage('');
+    try {
+      const result = await dashboardService.createAccount(type, true);
+      const nextDashboard = await dashboardService.getDashboard();
+      onAccountsChanged?.(nextDashboard.accounts || []);
+      setMessage(`${result.account?.name || type} created successfully.`);
+    } catch (error) {
+      setMessage(error.response?.data?.message || error.message || `${type} account could not be created.`);
+    } finally {
+      setBusyType('');
+    }
+  };
+
+  const copyReferral = async () => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard && referral.url) {
+      await navigator.clipboard.writeText(referral.url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    }
+  };
+
+  return (
+    <View className="gap-5 p-6">
+      <View className="gap-4 lg:flex-row">
+        <View className="flex-1 rounded-lg border p-5" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
+          <Text className="text-xs font-black uppercase" style={{ color: colors.muted }}>Selected Account</Text>
+          <View className="mt-4 flex-row items-center justify-between">
+            <View className="flex-row items-center">
+              <View className="h-14 w-14 items-center justify-center rounded-lg" style={{ backgroundColor: colors.primary }}>
+                <Wallet size={25} color="#0B0B0B" />
+              </View>
+              <View className="ml-4">
+                <Text className="text-xl font-black" style={{ color: colors.text }}>{activeAccount.type || 'Demo'} Account</Text>
+                <Text className="mt-1 text-sm" style={{ color: colors.muted }}>{activeAccount.name || 'Trading account'}</Text>
+              </View>
+            </View>
+            <View className="items-end">
+              <Text className="text-xs" style={{ color: colors.muted }}>Balance</Text>
+              <Text className="text-2xl font-black" style={{ color: colors.text }}>{money(activeAccount.balance || 0)} {activeAccount.currency || 'USD'}</Text>
+            </View>
+          </View>
+          <View className="mt-5 flex-row flex-wrap gap-3">
+            <InfoCard label="Account ID" value={`#${accountId(activeAccount)}`} colors={colors} />
+            <InfoCard label="Status" value={activeAccount.status || 'active'} colors={colors} />
+            <InfoCard label="Leverage" value={activeAccount.leverage || '1:100'} colors={colors} />
+          </View>
+        </View>
+
+        <View className="flex-1 rounded-lg border p-5" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
+          <Text className="text-xs font-black uppercase" style={{ color: colors.muted }}>Create Trading Account</Text>
+          <Text className="mt-2 text-sm" style={{ color: colors.muted }}>Create extra demo/live accounts from inside the account section.</Text>
+          <View className="mt-5 flex-row gap-3">
+            <Pressable
+              onPress={() => createAccount('Demo')}
+              disabled={busyType === 'Demo' || demoCount >= 2}
+              className="flex-1 flex-row items-center justify-center rounded-lg px-4 py-4"
+              style={{ backgroundColor: demoCount >= 2 ? colors.panel : colors.primary, opacity: busyType === 'Demo' ? 0.7 : 1 }}
+            >
+              <Plus size={17} color={demoCount >= 2 ? colors.muted : '#0B0B0B'} />
+              <Text className="ml-2 font-black" style={{ color: demoCount >= 2 ? colors.muted : '#0B0B0B' }}>{busyType === 'Demo' ? 'Creating...' : 'New Demo'}</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => createAccount('Live')}
+              disabled={busyType === 'Live' || liveCount >= 2}
+              className="flex-1 flex-row items-center justify-center rounded-lg border px-4 py-4"
+              style={{ borderColor: colors.border, backgroundColor: colors.panel, opacity: busyType === 'Live' ? 0.7 : 1 }}
+            >
+              <Plus size={17} color={colors.primary} />
+              <Text className="ml-2 font-black" style={{ color: liveCount >= 2 ? colors.muted : colors.text }}>{busyType === 'Live' ? 'Creating...' : 'New Live'}</Text>
+            </Pressable>
+          </View>
+          <Text className="mt-3 text-xs" style={{ color: colors.muted }}>Demo {demoCount}/2 | Live {liveCount}/2</Text>
+        </View>
+      </View>
+
+      <View className="rounded-lg border p-5" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
+        <Text className="text-xl font-black" style={{ color: colors.text }}>All Trading Accounts</Text>
+        <View className="mt-4 gap-3">
+          {accounts.length ? accounts.map((account) => (
+            <View key={account.id} className="flex-row flex-wrap items-center justify-between gap-3 rounded-lg border p-4" style={{ backgroundColor: colors.panel, borderColor: String(account.id) === String(activeAccount.id) ? colors.primary : colors.border }}>
+              <View>
+                <Text className="font-black" style={{ color: colors.text }}>{account.type} - {account.name}</Text>
+                <Text className="mt-1 text-xs" style={{ color: colors.muted }}>#{accountId(account)} | {account.status || 'active'} | {account.leverage || '1:100'}</Text>
+              </View>
+              <Text className="font-black" style={{ color: colors.text }}>{money(account.balance || 0)} {account.currency || 'USD'}</Text>
+            </View>
+          )) : <Text style={{ color: colors.muted }}>No trading accounts found.</Text>}
+        </View>
+      </View>
+
+      <View className="gap-4 lg:flex-row">
+        <View className="flex-1 rounded-lg border p-5" style={{ backgroundColor: colors.surface, borderColor: approved ? colors.success : colors.primary }}>
+          <View className="mb-4 flex-row items-center justify-between">
+            <Text className="text-xl font-black" style={{ color: colors.text }}>Account Verification</Text>
+            <Text className="rounded-full px-3 py-1 text-xs font-black" style={{ backgroundColor: approved ? `${colors.success}22` : `${colors.primary}22`, color: approved ? colors.success : colors.primary }}>
+              {approved ? 'Approved' : pending ? 'Review' : 'Required'}
+            </Text>
+          </View>
+          <VerificationStepCard
+            title="Unverified"
+            description="Upload ID proof and address proof to begin verification."
+            badge={approved || pending ? 'Complete' : 'You are here'}
+            active={!approved && !pending}
+            complete={approved || pending}
+            icon={CheckCircle2}
+            colors={colors}
+          />
+          <VerificationStepCard
+            title="Verified"
+            description="Admin approval unlocks withdrawal and full account features."
+            badge={approved ? 'You are here' : pending ? 'In review' : 'Up next'}
+            active={pending || approved}
+            complete={approved}
+            icon={UploadCloud}
+            colors={colors}
+          />
+          <VerificationStepCard
+            title="CC-Verified"
+            description="Final account feature level after compliance checks."
+            badge="Locked"
+            locked
+            icon={FileText}
+            colors={colors}
+          />
+        </View>
+
+        <View className="flex-1 rounded-lg border p-5" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
+          <Text className="text-xs font-black uppercase" style={{ color: colors.primary }}>Referral Programme</Text>
+          <Text className="mt-2 text-3xl font-black" style={{ color: colors.text }}>{referral.code || user?.referralCode || '-'}</Text>
+          <Text className="mt-1 text-sm" style={{ color: colors.muted }}>Share your link and view linked clients.</Text>
+          <Pressable onPress={copyReferral} className="mt-4 rounded-lg border p-3" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+            <Text numberOfLines={1} style={{ color: colors.text }}>{referral.url || 'Referral link loading...'}</Text>
+          </Pressable>
+          <CustomButton title={copied ? 'Copied' : 'Copy Referral Link'} onPress={copyReferral} className="mt-4" />
+          <View className="mt-4 flex-row flex-wrap gap-3">
+            <InfoCard label="My Referrals" value={String(referrals.length || referral.referralCount || 0)} colors={colors} />
+            <InfoCard label="Commission" value={`${money(referral.commission || 0)} USD`} colors={colors} />
+          </View>
+          <Text className="mb-3 mt-5 text-lg font-black" style={{ color: colors.text }}>Linked Clients</Text>
+          {referrals.length ? referrals.map((item) => (
+            <View key={item.id} className="mb-2 rounded-lg border p-3" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+              <Text className="font-bold" style={{ color: colors.text }}>{item.name || 'Client'}</Text>
+              <Text className="text-xs" style={{ color: colors.muted }}>{item.email || '-'}</Text>
+            </View>
+          )) : <Text style={{ color: colors.muted }}>No referrals yet.</Text>}
+        </View>
+      </View>
+
+      {message ? <Text className="rounded-lg border p-3 text-sm" style={{ borderColor: colors.border, color: colors.text }}>{message}</Text> : null}
     </View>
   );
 }
@@ -644,7 +825,7 @@ function VerificationPanel({ user, colors, submitVerification, refreshUser }) {
   );
 }
 
-export default function HeaderSidePanel({ type, selectedAccount, summary, onClose }) {
+export default function HeaderSidePanel({ type, selectedAccount, summary, onClose, onAccountsChanged }) {
   const { user, updateProfile, submitVerification, refreshUser } = useAuth();
   const { colors, darkMode, toggleTheme } = useAppTheme();
   const { deposit, withdraw, loading: walletLoading } = useWallet();
@@ -674,6 +855,7 @@ export default function HeaderSidePanel({ type, selectedAccount, summary, onClos
   const fundingLocked = Boolean(user && user.verificationStatus !== 'approved');
   const fundingLockedMessage = 'Verification approval is required before withdrawals.';
   const titleMap = {
+    account: ['Account Details', 'Trading accounts, verification and referral programme', BadgeCheck],
     deposit: ['Deposit', 'Submit a funding request', Wallet],
     withdraw: ['Withdraw', 'Request funds from your account', Wallet],
     history: ['Transaction History', 'Deposits, withdrawals and account activity', History],
@@ -707,6 +889,15 @@ export default function HeaderSidePanel({ type, selectedAccount, summary, onClos
         <PanelHeader title={title} subtitle={subtitle} icon={Icon || BadgeCheck} onClose={onClose} colors={colors} />
         <ScrollView showsVerticalScrollIndicator>
           {['deposit', 'withdraw', 'history'].includes(type) ? summaryCards : null}
+          {type === 'account' ? (
+            <AccountPanel
+              dashboard={dashboard}
+              selectedAccount={selectedAccount}
+              summary={summary}
+              colors={colors}
+              onAccountsChanged={onAccountsChanged}
+            />
+          ) : null}
           {type === 'deposit' ? (
             <View className="p-6">
               <DepositForm onSubmit={(values) => deposit(values, Boolean(user))} loading={walletLoading} disabled={false} />
