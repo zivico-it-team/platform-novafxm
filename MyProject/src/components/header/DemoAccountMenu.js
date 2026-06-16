@@ -33,7 +33,7 @@ export default function DemoAccountMenu({ accounts = [], selectedAccount, onSele
 
   return (
     <View
-      className="absolute right-3 top-[242px] z-50 w-[390px] max-w-[94vw] overflow-hidden rounded-lg border p-5 shadow-2xl lg:right-[132px] lg:top-[74px]"
+      className="absolute right-3 top-[242px] z-50 w-[360px] max-w-[94vw] overflow-hidden rounded-lg border p-4 shadow-2xl lg:right-[190px] lg:top-[74px]"
       style={{
         backgroundColor: colors.panel,
         borderColor: colors.border,
@@ -43,22 +43,22 @@ export default function DemoAccountMenu({ accounts = [], selectedAccount, onSele
         transform: [{ translateY: 4 }],
       }}
     >
-      <View className="mb-4 flex-row items-start justify-between">
+      <View className="mb-3 flex-row items-start justify-between">
         <View>
-          <Text className="text-2xl font-black" style={{ color: colors.text }}>Account Center</Text>
+          <Text className="text-xl font-black" style={{ color: colors.text }}>Account</Text>
           <Text className="mt-1 text-xs" style={{ color: colors.muted }}>Switch accounts and manage trading access</Text>
         </View>
-        <Pressable onPress={onClose} className="h-10 w-10 items-center justify-center rounded-full" style={{ backgroundColor: colors.surface }}>
-          <X size={21} color={colors.text} />
+        <Pressable onPress={onClose} className="h-9 w-9 items-center justify-center rounded-full" style={{ backgroundColor: colors.surface }}>
+          <X size={19} color={colors.text} />
         </Pressable>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 620 }}>
-      <View className="mb-4 rounded-3xl border p-4" style={{ borderColor: colors.border, backgroundColor: `${colors.primary}10` }}>
+      <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 520 }}>
+      <View className="mb-3 rounded-2xl border p-3" style={{ borderColor: colors.border, backgroundColor: `${colors.primary}10` }}>
         <View className="flex-row items-center justify-between">
           <View className="flex-row items-center">
-            <View className="h-12 w-12 items-center justify-center rounded-2xl" style={{ backgroundColor: colors.primary }}>
-              <WalletCards size={23} color="#0B0B0B" />
+            <View className="h-10 w-10 items-center justify-center rounded-xl" style={{ backgroundColor: colors.primary }}>
+              <WalletCards size={20} color="#0B0B0B" />
             </View>
             <View className="ml-3">
               <Text className="font-black" style={{ color: colors.text }}>{activeAccount?.type || 'Demo'} Account</Text>
@@ -72,7 +72,7 @@ export default function DemoAccountMenu({ accounts = [], selectedAccount, onSele
             </Text>
           </View>
         </View>
-        <View className="mt-4 flex-row items-center justify-between rounded-2xl px-3 py-2" style={{ backgroundColor: colors.surface }}>
+        <View className="mt-3 flex-row items-center justify-between rounded-xl px-3 py-2" style={{ backgroundColor: colors.surface }}>
           <Text className="text-xs font-semibold" style={{ color: colors.muted }}>Account ID</Text>
           <View className="flex-row items-center">
             <Text className="mr-2 text-xs font-black" style={{ color: colors.text }}>#{accountId(activeAccount)}</Text>
@@ -81,7 +81,7 @@ export default function DemoAccountMenu({ accounts = [], selectedAccount, onSele
         </View>
       </View>
 
-      <View className="mb-4">
+      <View className="mb-3">
         <Text className="mb-2 text-xs font-black uppercase tracking-wide" style={{ color: colors.muted }}>Switch account</Text>
         {tradingAccounts.map((account) => {
           const selected = String(account.id) === String(activeAccount?.id);
@@ -90,7 +90,7 @@ export default function DemoAccountMenu({ accounts = [], selectedAccount, onSele
             <Pressable
               key={account.id}
               onPress={() => onSelectAccount?.(account)}
-              className="mb-2 flex-row items-center rounded-2xl border p-3"
+              className="mb-2 flex-row items-center rounded-xl border p-3"
               style={{
                 backgroundColor: selected ? `${colors.primary}18` : colors.surface,
                 borderColor: selected ? colors.primary : colors.border,
@@ -109,7 +109,7 @@ export default function DemoAccountMenu({ accounts = [], selectedAccount, onSele
         })}
       </View>
 
-      <Pressable onPress={() => openPanel('account')} className="mb-4 rounded-xl px-4 py-3" style={{ backgroundColor: colors.primary }}>
+      <Pressable onPress={() => openPanel('account')} className="mb-3 rounded-xl px-4 py-3" style={{ backgroundColor: colors.primary }}>
         <Text className="text-center font-black text-black">Manage Accounts</Text>
       </Pressable>
 

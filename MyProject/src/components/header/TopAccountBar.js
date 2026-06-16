@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Modal, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
-import { Plus, RefreshCw, Sun, Moon, UserRound, Wallet } from 'lucide-react-native';
+import { ChevronDown, Plus, Sun, Moon, UserRound, Wallet } from 'lucide-react-native';
 import { useAuth } from '../../hooks/useAuth';
 import { useDemoTrading } from '../../hooks/useDemoTrading';
 import { money } from '../../utils/formatters';
@@ -18,7 +18,7 @@ const visibleMetricCount = 5;
 
 export default function TopAccountBar() {
   const { width } = useWindowDimensions();
-  const { summary, syncAccount, selectedTradingAccount, setSelectedTradingAccount } = useDemoTrading();
+  const { summary, selectedTradingAccount, setSelectedTradingAccount } = useDemoTrading();
   const params = useLocalSearchParams();
   const { user } = useAuth();
   const { darkMode, colors, toggleTheme } = useAppTheme();
@@ -155,7 +155,7 @@ export default function TopAccountBar() {
                 <Text className="text-xs font-black" numberOfLines={1} style={{ color: colors.primary }}>{selectedAccount?.type || 'Demo'}</Text>
                 <Text className="text-[11px] font-black" numberOfLines={1} style={{ color: colors.text }}>{money(selectedAccountBalance)} USD</Text>
               </View>
-              <Text className="ml-1 text-xs" style={{ color: colors.muted }}>⌄</Text>
+              <ChevronDown className="ml-1" size={14} color={colors.muted} />
               <View className="ml-1 h-2 w-2 rounded-full" style={{ backgroundColor: colors.success }} />
             </Pressable>
           ) : (
@@ -176,7 +176,7 @@ export default function TopAccountBar() {
             </Pressable>
           ) : null}
           {user ? (
-            <Pressable {...profileHoverProps('mobile-profile')} onPress={() => setMenu(menu === 'profile' ? null : 'profile')} className="h-[40px] w-[40px] items-center justify-center rounded-md border" style={iconButtonStyle('mobile-profile', { backgroundColor: colors.panel, borderColor: colors.border })}>
+            <Pressable {...hoverProps('mobile-profile')} onPress={() => setMenu(menu === 'profile' ? null : 'profile')} className="h-[40px] w-[40px] items-center justify-center rounded-md border" style={iconButtonStyle('mobile-profile', { backgroundColor: colors.panel, borderColor: colors.border })}>
               <View style={iconHoverStyle('mobile-profile')}><UserRound color={iconColor('mobile-profile')} size={18} /></View>
             </Pressable>
           ) : null}
@@ -208,26 +208,21 @@ export default function TopAccountBar() {
           <View className="ml-3 min-w-0 flex-1">
             <Text className="font-black" numberOfLines={1} style={{ color: colors.text }}>{money(selectedAccountBalance)} USD</Text>
           </View>
-          <Text className="mr-2 text-base" style={{ color: colors.muted }}>⌄</Text>
+          <ChevronDown className="mr-2" size={15} color={colors.muted} />
           <View className="ml-auto h-2.5 w-2.5 rounded-full" style={{ backgroundColor: colors.success }} />
         </Pressable>
       ) : null}
       {!mobile && !user ? <AuthButtons /> : null}
+      <Pressable {...hoverProps('theme')} onPress={toggleTheme} className="mt-3 hidden h-[58px] w-[58px] items-center justify-center rounded-xl border lg:flex" style={iconButtonStyle('theme', { backgroundColor: colors.panel, borderColor: colors.border })}>
+        <View style={iconHoverStyle('theme')}>{darkMode ? <Sun size={21} color={iconColor('theme')} /> : <Moon size={21} color={iconColor('theme')} />}</View>
+      </Pressable>
       {user ? (
         <Pressable {...hoverProps('wallet')} onPress={openWalletMenu} className="mt-3 hidden h-[58px] w-[58px] items-center justify-center rounded-xl border lg:flex" style={iconButtonStyle('wallet', { backgroundColor: colors.panel, borderColor: colors.border })}>
           <View style={iconHoverStyle('wallet')}><Wallet size={21} color={iconColor('wallet')} /></View>
         </Pressable>
       ) : null}
       {user ? (
-        <Pressable {...hoverProps('sync')} onPress={() => syncAccount?.().catch(() => {})} className="mt-3 hidden h-[58px] w-[58px] items-center justify-center rounded-xl border lg:flex" style={iconButtonStyle('sync', { backgroundColor: colors.panel, borderColor: colors.border })}>
-          <View style={iconHoverStyle('sync')}><RefreshCw size={21} color={iconColor('sync')} /></View>
-        </Pressable>
-      ) : null}
-      <Pressable {...hoverProps('theme')} onPress={toggleTheme} className="mt-3 hidden h-[58px] w-[58px] items-center justify-center rounded-xl border lg:flex" style={iconButtonStyle('theme', { backgroundColor: colors.panel, borderColor: colors.border })}>
-        <View style={iconHoverStyle('theme')}>{darkMode ? <Sun size={21} color={iconColor('theme')} /> : <Moon size={21} color={iconColor('theme')} />}</View>
-      </Pressable>
-      {user ? (
-        <Pressable {...profileHoverProps('profile')} onPress={() => setMenu(menu === 'profile' ? null : 'profile')} className="mt-3 hidden h-[58px] w-[58px] items-center justify-center rounded-xl border lg:flex" style={iconButtonStyle('profile', { backgroundColor: colors.panel, borderColor: colors.border })}>
+        <Pressable {...hoverProps('profile')} onPress={() => setMenu(menu === 'profile' ? null : 'profile')} className="mt-3 hidden h-[58px] w-[58px] items-center justify-center rounded-xl border lg:flex" style={iconButtonStyle('profile', { backgroundColor: colors.panel, borderColor: colors.border })}>
           <View style={iconHoverStyle('profile')}><UserRound size={21} color={iconColor('profile')} /></View>
         </Pressable>
       ) : null}
@@ -263,3 +258,4 @@ export default function TopAccountBar() {
     </View>
   );
 }
+

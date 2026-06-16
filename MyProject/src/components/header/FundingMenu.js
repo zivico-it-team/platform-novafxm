@@ -48,14 +48,13 @@ export default function FundingMenu({ selectedAccount, summary, onClose, onSwitc
 
   return (
     <View
-      className="absolute right-3 top-[74px] z-50 w-[410px] max-w-[94vw] overflow-hidden rounded-lg border p-5 shadow-2xl lg:right-[74px]"
+      className="absolute right-0 top-0 z-50 h-screen w-[430px] max-w-[94vw] overflow-hidden border-l p-6 shadow-2xl"
       style={{
         backgroundColor: colors.panel,
         borderColor: colors.border,
         shadowColor: colors.primary,
         shadowOpacity: 0.18,
         shadowRadius: 24,
-        transform: [{ translateY: 4 }],
       }}
     >
       <View className="mb-5 flex-row items-start justify-between">
@@ -68,7 +67,7 @@ export default function FundingMenu({ selectedAccount, summary, onClose, onSwitc
         </Pressable>
       </View>
 
-      <View className="mb-5 rounded-3xl border p-4" style={{ borderColor: colors.border, backgroundColor: `${colors.primary}10` }}>
+      <View className="mb-5 rounded-2xl border p-4" style={{ borderColor: colors.border, backgroundColor: `${colors.primary}10` }}>
         <View className="flex-row items-center justify-between">
           <View className="flex-row items-center">
             <View className="h-[52px] w-[52px] items-center justify-center rounded-2xl" style={{ backgroundColor: colors.primary }}>
@@ -84,6 +83,7 @@ export default function FundingMenu({ selectedAccount, summary, onClose, onSwitc
         <Text className="mt-1 text-xs" style={{ color: colors.muted }}>Available balance for selected trading account</Text>
       </View>
 
+      <Text className="mb-3 text-lg font-black" style={{ color: colors.text }}>Funding Options</Text>
       <FundingAction
         icon={ArrowDownLeft}
         title="Deposit"
