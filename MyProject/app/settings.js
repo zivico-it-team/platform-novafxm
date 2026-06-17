@@ -16,7 +16,7 @@ import {
   UserRound,
 } from 'lucide-react-native';
 import CustomButton from '../src/components/common/CustomButton';
-import DashboardTabs from '../src/components/layout/DashboardTabs';
+import AccountSidebar from '../src/components/layout/AccountSidebar';
 import { useAuth } from '../src/hooks/useAuth';
 import { authService } from '../src/services/authService';
 import { useAppTheme } from '../src/context/ThemeContext';
@@ -262,7 +262,11 @@ function SettingsMenuItem({ icon: Icon, title, subtitle, active, onPress }) {
   const { colors } = useAppTheme();
 
   return (
-    <Pressable onPress={onPress} className={`flex-row items-center rounded-xl p-4 ${active ? 'border-l-4 border-primary' : ''}`} style={{ backgroundColor: active ? `${colors.primary}1a` : 'transparent' }}>
+    <Pressable
+      onPress={onPress}
+      className="mr-3 min-w-[180px] flex-row items-center rounded-xl border p-4"
+      style={{ backgroundColor: active ? `${colors.primary}1a` : colors.panel, borderColor: active ? colors.primary : colors.border }}
+    >
       <View className="mr-3 h-10 w-10 items-center justify-center rounded-xl" style={{ backgroundColor: active ? `${colors.primary}33` : colors.surface }}>
         <Icon size={19} color={active ? '#D4AF37' : '#9CA3AF'} />
       </View>
@@ -818,38 +822,38 @@ export default function SettingsScreen() {
   const showTrc20Form = !savedTrc20Detail || (editingPayoutType === 'TRC20' && Boolean(editingBankAccountId));
 
   return (
-    <ScrollView className="flex-1" style={{ backgroundColor: colors.background }} contentContainerClassName="p-4 lg:p-8">
-      <View className="mb-5 flex-row flex-wrap items-center justify-between gap-3">
-        <View>
-          <Text className="text-3xl font-extrabold" style={{ color: colors.text }}>Settings</Text>
-          <Text className="mt-1" style={{ color: colors.muted }}>Manage your account preferences and security</Text>
-        </View>
-        <Pressable onPress={() => router.push('/dashboard')} className="rounded-xl border px-4 py-3" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
-          <Text className="font-bold text-primary">Back to Dashboard</Text>
-        </Pressable>
-      </View>
-
-      <DashboardTabs activeKey="settings" />
-
-      <View className="overflow-hidden rounded-2xl border lg:flex-row" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
-        <View className="border-b p-5 lg:w-[320px] lg:border-b-0 lg:border-r" style={{ borderColor: colors.border }}>
-
-
-          <View className="mt-7 gap-2">
-            {settingsSections.map((section) => (
-              <SettingsMenuItem
-                key={section.key}
-                icon={section.icon}
-                title={section.title}
-                subtitle={section.subtitle}
-                active={activeSection === section.key}
-                onPress={() => setActiveSection(section.key)}
-              />
-            ))}
+    <View className="flex-1 md:flex-row" style={{ backgroundColor: colors.background }}>
+      <AccountSidebar activeKey="settings" onSignOut={signOut} />
+      <ScrollView className="flex-1" style={{ backgroundColor: colors.background }} contentContainerClassName="p-4 lg:p-8">
+        <View className="mb-5 flex-row flex-wrap items-center justify-between gap-3">
+          <View>
+            <Text className="text-3xl font-extrabold" style={{ color: colors.text }}>Settings</Text>
+            <Text className="mt-1" style={{ color: colors.muted }}>Manage your account preferences and security</Text>
           </View>
+          <Pressable onPress={() => router.push('/dashboard')} className="rounded-xl border px-4 py-3" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+            <Text className="font-bold text-primary">Back to Dashboard</Text>
+          </Pressable>
         </View>
 
-        <View className="flex-1 p-5 lg:p-8">
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          className="mb-5"
+          contentContainerClassName="pr-2"
+        >
+          {settingsSections.map((section) => (
+            <SettingsMenuItem
+              key={section.key}
+              icon={section.icon}
+              title={section.title}
+              subtitle={section.subtitle}
+              active={activeSection === section.key}
+              onPress={() => setActiveSection(section.key)}
+            />
+          ))}
+        </ScrollView>
+
+      <View className="rounded-2xl border p-5 lg:p-8" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
           <View className="mb-6 flex-row flex-wrap items-center justify-between gap-4">
             <View>
               <Text className="text-3xl font-extrabold" style={{ color: colors.text }}>{activeSettings.title}</Text>
@@ -1232,7 +1236,7 @@ export default function SettingsScreen() {
             </SettingsPanel>
           ) : null}
         </View>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }

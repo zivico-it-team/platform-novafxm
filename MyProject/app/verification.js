@@ -1,9 +1,9 @@
 import { useEffect } from 'react';
-import { Link, router } from 'expo-router';
+import { router } from 'expo-router';
 import { CheckCircle2, FileCheck2, FileText, ShieldCheck, UploadCloud } from 'lucide-react-native';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import CustomButton from '../src/components/common/CustomButton';
-import DashboardTabs from '../src/components/layout/DashboardTabs';
+import AccountSidebar from '../src/components/layout/AccountSidebar';
 import { useAuth } from '../src/hooks/useAuth';
 import { useAppTheme } from '../src/context/ThemeContext';
 
@@ -47,28 +47,40 @@ function VerificationStep({ title, description, status, active, complete, colors
   );
 }
 
-function AccountDashboardHeader({ user, colors }) {
+function AccountPageShell({ children, user, onSignOut, colors }) {
   return (
-    <View className="mb-6">
-      <View className="mb-6 flex-row flex-wrap items-start justify-between gap-3">
-        <View>
-          <Text className="text-3xl font-extrabold" style={{ color: colors.text }}>Account Dashboard</Text>
-          <Text className="mt-1" style={{ color: colors.muted }}>{user?.email || 'Manage accounts, funds, and rewards'}</Text>
+    <View className="flex-1 md:flex-row" style={{ backgroundColor: colors.background }}>
+      <AccountSidebar activeKey="verification" onSignOut={onSignOut} />
+      <ScrollView className="flex-1" style={{ backgroundColor: colors.background }} contentContainerClassName="p-5 md:p-8">
+        <View className="mb-7 flex-row flex-wrap items-center justify-between gap-3">
+          <View>
+            <Text className="text-3xl font-extrabold" style={{ color: colors.text }}>Verification</Text>
+            <Text className="mt-2" style={{ color: colors.muted }}>{user?.email || 'Complete account verification'}</Text>
+          </View>
+          <View className="flex-row flex-wrap gap-3">
+            <Pressable onPress={() => router.push('/trading')} className="rounded-xl border px-4 py-3" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+              <Text className="font-bold" style={{ color: GOLD }}>Back to Trading</Text>
+            </Pressable>
+            <Pressable onPress={onSignOut} className="rounded-xl border px-4 py-3" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+              <Text className="font-bold text-danger">Sign Out</Text>
+            </Pressable>
+          </View>
         </View>
-        <View className="flex-row gap-3">
-          <Link href="/trading" asChild><Pressable><Text style={{ color: GOLD }}>Back to Trading</Text></Pressable></Link>
-          <Link href="/login" asChild><Pressable><Text className="text-danger">Sign Out</Text></Pressable></Link>
-        </View>
-      </View>
-      <DashboardTabs activeKey="verification" />
+        {children}
+      </ScrollView>
     </View>
   );
 }
 
 export default function VerificationScreen() {
-  const { user, refreshUser } = useAuth();
+  const { user, logout, refreshUser } = useAuth();
   const { colors } = useAppTheme();
   const verificationStatus = user?.verificationStatus || 'unverified';
+
+  const signOut = async () => {
+    await logout();
+    router.replace('/login');
+  };
 
   useEffect(() => {
     refreshUser?.().catch(() => {});
@@ -76,11 +88,8 @@ export default function VerificationScreen() {
 
   if (verificationStatus === 'approved') {
     return (
-      <View className="flex-1 items-center justify-center px-6" style={{ backgroundColor: colors.background }}>
-        <View className="absolute left-4 right-4 top-4 lg:left-8 lg:right-8 lg:top-8">
-          <AccountDashboardHeader user={user} colors={colors} />
-        </View>
-        <View className="mt-40 w-full max-w-[640px] items-center rounded-2xl border p-10" style={{ backgroundColor: colors.panel, borderColor: GREEN }}>
+      <AccountPageShell user={user} onSignOut={signOut} colors={colors}>
+        <View className="w-full max-w-[640px] self-center items-center rounded-2xl border p-10" style={{ backgroundColor: colors.panel, borderColor: GREEN }}>
           <View className="mb-6 h-20 w-20 items-center justify-center rounded-full" style={{ backgroundColor: GREEN }}>
             <CheckCircle2 size={42} color={GOLD} />
           </View>
@@ -88,32 +97,26 @@ export default function VerificationScreen() {
           <Text className="mt-3 text-center" style={{ color: colors.muted }}>Your account is verified. You now have access to all enabled account features.</Text>
           <CustomButton title="Go to Dashboard" onPress={() => router.push('/dashboard')} className="mt-8 min-w-[190px]" />
         </View>
-      </View>
+      </AccountPageShell>
     );
   }
 
   if (verificationStatus === 'rejected') {
     return (
-      <View className="flex-1 items-center justify-center px-6" style={{ backgroundColor: colors.background }}>
-        <View className="absolute left-4 right-4 top-4 lg:left-8 lg:right-8 lg:top-8">
-          <AccountDashboardHeader user={user} colors={colors} />
-        </View>
-        <View className="mt-40 w-full max-w-[640px] items-center rounded-2xl border border-danger/60 bg-danger/10 p-10">
+      <AccountPageShell user={user} onSignOut={signOut} colors={colors}>
+        <View className="w-full max-w-[640px] self-center items-center rounded-2xl border border-danger/60 bg-danger/10 p-10">
           <Text className="text-center text-4xl font-extrabold" style={{ color: colors.text }}>Try Again</Text>
           <Text className="mt-3 text-center" style={{ color: colors.muted }}>Your verification was not approved. Upload clear ID proof and address proof photos again.</Text>
           <CustomButton title="Upload Again" onPress={() => router.push('/verification-upload')} className="mt-8 min-w-[190px]" />
         </View>
-      </View>
+      </AccountPageShell>
     );
   }
 
   if (verificationStatus === 'pending') {
     return (
-      <View className="flex-1 items-center justify-center px-6" style={{ backgroundColor: colors.background }}>
-        <View className="absolute left-4 right-4 top-4 lg:left-8 lg:right-8 lg:top-8">
-          <AccountDashboardHeader user={user} colors={colors} />
-        </View>
-        <View className="mt-40 w-full max-w-[640px] items-center rounded-2xl border p-10" style={{ backgroundColor: colors.panel, borderColor: GOLD }}>
+      <AccountPageShell user={user} onSignOut={signOut} colors={colors}>
+        <View className="w-full max-w-[640px] self-center items-center rounded-2xl border p-10" style={{ backgroundColor: colors.panel, borderColor: GOLD }}>
           <View className="mb-6 h-20 w-20 items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(212, 175, 55, .14)' }}>
             <ShieldCheck size={42} color={GOLD} />
           </View>
@@ -121,14 +124,12 @@ export default function VerificationScreen() {
           <Text className="mt-3 text-center" style={{ color: colors.muted }}>Waiting for admin review. You will see the result here once it is reviewed.</Text>
           <CustomButton title="Go to Dashboard" onPress={() => router.push('/dashboard')} className="mt-8 min-w-[190px]" />
         </View>
-      </View>
+      </AccountPageShell>
     );
   }
 
   return (
-    <ScrollView className="flex-1" style={{ backgroundColor: colors.background }} contentContainerClassName="p-4 lg:p-8">
-      <AccountDashboardHeader user={user} colors={colors} />
-
+    <AccountPageShell user={user} onSignOut={signOut} colors={colors}>
       <View className="gap-4">
         <Card title="Verification Status" colors={colors}>
           <View className="mb-5 flex-row flex-wrap items-center justify-between gap-3">
@@ -200,6 +201,6 @@ export default function VerificationScreen() {
           className="max-w-[180px]"
         />
       </View>
-    </ScrollView>
+    </AccountPageShell>
   );
 }

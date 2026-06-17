@@ -5,7 +5,7 @@ import { useAppTheme } from '../../context/ThemeContext';
 import NovaLogo from '../brand/NovaLogo';
 
 const navigation = [
-  { id: 'overview', label: 'Dashboard', icon: LayoutDashboard },
+  { id: 'overview', label: 'Overview', icon: LayoutDashboard },
   { id: 'users', label: 'User Wallets', icon: UsersRound },
   { id: 'userManagement', label: 'User Management', icon: UsersRound },
   { id: 'funding', label: 'Deposits & Withdrawals', icon: ReceiptText },

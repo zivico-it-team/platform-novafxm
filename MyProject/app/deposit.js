@@ -1,4 +1,4 @@
-import { Link } from 'expo-router';
+import { Link, router } from 'expo-router';
 import { ArrowLeft, CheckCircle2, ShieldCheck, Wallet, XCircle } from 'lucide-react-native';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import DepositForm from '../src/components/wallet/DepositForm';
@@ -8,12 +8,16 @@ import { useAuth } from '../src/hooks/useAuth';
 import { useAppTheme } from '../src/context/ThemeContext';
 
 export default function DepositScreen() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const { colors } = useAppTheme();
   const { deposit, transactions, loading } = useWallet();
   const depositTransactions = transactions.filter((item) => item.type === 'deposit');
   const latestReviewedDeposit = depositTransactions.find((item) => ['approved', 'completed', 'rejected'].includes(item.status));
   const depositApproved = ['approved', 'completed'].includes(latestReviewedDeposit?.status);
+  const signOut = async () => {
+    await logout();
+    router.replace('/login');
+  };
 
   return (
     <ScrollView className="flex-1" style={{ backgroundColor: colors.background }} contentContainerClassName="mx-auto w-full max-w-[1180px] p-4 lg:p-8">
@@ -22,12 +26,17 @@ export default function DepositScreen() {
           <Text className="text-3xl font-black" style={{ color: colors.text }}>Deposit Center</Text>
           <Text className="mt-1 text-muted">Fund your trading account with a reviewed deposit request.</Text>
         </View>
-        <Link href="/trading" asChild>
-          <Pressable className="flex-row items-center rounded-xl border border-border bg-panel px-4 py-3">
-            <ArrowLeft size={17} color="#D4AF37" />
-            <Text className="ml-2 font-bold text-primary">Back to Trading</Text>
+        <View className="flex-row flex-wrap gap-3">
+          <Link href="/trading" asChild>
+            <Pressable className="flex-row items-center rounded-xl border border-border bg-panel px-4 py-3">
+              <ArrowLeft size={17} color="#D4AF37" />
+              <Text className="ml-2 font-bold text-primary">Back to Trading</Text>
+            </Pressable>
+          </Link>
+          <Pressable onPress={signOut} className="rounded-xl border border-border bg-panel px-4 py-3">
+            <Text className="font-bold text-danger">Sign Out</Text>
           </Pressable>
-        </Link>
+        </View>
       </View>
 
       <View className="mb-5 flex-row flex-wrap items-center justify-between gap-4 rounded-2xl border border-border bg-panel p-5">

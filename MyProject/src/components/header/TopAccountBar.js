@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Modal, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
-import { CircleUserRound, Plus, RefreshCw, Settings2, Sun, Moon } from 'lucide-react-native';
+import { CircleUserRound, LayoutDashboard, Plus, Settings2, Sun, Moon } from 'lucide-react-native';
 import { useAuth } from '../../hooks/useAuth';
 import { useDemoTrading } from '../../hooks/useDemoTrading';
 import { money } from '../../utils/formatters';
@@ -16,7 +16,7 @@ const visibleMetricCount = 5;
 
 export default function TopAccountBar() {
   const { width } = useWindowDimensions();
-  const { summary, syncAccount, selectedTradingAccount, setSelectedTradingAccount } = useDemoTrading();
+  const { summary, selectedTradingAccount, setSelectedTradingAccount } = useDemoTrading();
   const params = useLocalSearchParams();
   const { user } = useAuth();
   const { darkMode, colors, toggleTheme } = useAppTheme();
@@ -199,8 +199,8 @@ export default function TopAccountBar() {
       ) : null}
       {!mobile && !user ? <AuthButtons /> : null}
       {user ? (
-        <Pressable {...hoverProps('sync')} onPress={() => syncAccount?.().catch(() => {})} className="mt-3 hidden h-[58px] w-[58px] items-center justify-center rounded-xl border lg:flex" style={iconButtonStyle('sync', { backgroundColor: colors.panel, borderColor: colors.border })}>
-          <View style={iconHoverStyle('sync')}><RefreshCw size={21} color={iconColor('sync')} /></View>
+        <Pressable {...hoverProps('dashboard')} onPress={() => router.push('/dashboard')} className="mt-3 hidden h-[58px] w-[58px] items-center justify-center rounded-xl border lg:flex" style={iconButtonStyle('dashboard', { backgroundColor: colors.panel, borderColor: colors.border })}>
+          <View style={iconHoverStyle('dashboard')}><LayoutDashboard size={21} color={iconColor('dashboard')} /></View>
         </Pressable>
       ) : null}
       <Pressable {...hoverProps('theme')} onPress={toggleTheme} className="mt-3 hidden h-[58px] w-[58px] items-center justify-center rounded-xl border lg:flex" style={iconButtonStyle('theme', { backgroundColor: colors.panel, borderColor: colors.border })}>

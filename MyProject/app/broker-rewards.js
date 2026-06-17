@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, router } from 'expo-router';
-import { Copy, RefreshCcw, UsersRound } from 'lucide-react-native';
+import { RefreshCcw, UsersRound } from 'lucide-react-native';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import CustomButton from '../src/components/common/CustomButton';
-import DashboardTabs from '../src/components/layout/DashboardTabs';
 import { dashboardService } from '../src/services/dashboardService';
 import { useAuth } from '../src/hooks/useAuth';
 import { useAppTheme } from '../src/context/ThemeContext';
+
+import AccountSidebar from '../src/components/layout/AccountSidebar';
 
 function Metric({ label, value, hint, colors }) {
   return (
@@ -85,33 +86,43 @@ export default function BrokerRewardsScreen() {
     }
   };
 
+  const signOut = async () => {
+    await logout();
+    router.replace('/login');
+  };
+
   if (authLoading || !user) {
     return <View className="flex-1" style={{ backgroundColor: colors.background }} />;
   }
 
   return (
-    <ScrollView className="flex-1" style={{ backgroundColor: colors.background }} contentContainerClassName="p-4 lg:p-8">
-      <View className="mb-6 flex-row flex-wrap items-center justify-between gap-3">
-        <View>
-          <Text className="text-3xl font-black" style={{ color: colors.text }}>Broker Rewards</Text>
-          <Text className="mt-1" style={{ color: colors.muted }}>{user?.email || 'Track your referral link, clients, and commission.'}</Text>
-        </View>
-        <View className="flex-row flex-wrap gap-3">
-          <Pressable onPress={() => loadDashboard().catch(() => {})} className="flex-row items-center rounded-xl border px-4 py-3" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
-            <RefreshCcw size={16} color={loading ? '#D4AF37' : '#8fa0bb'} />
-            <Text className="ml-2 font-bold" style={{ color: colors.text }}>Refresh</Text>
-          </Pressable>
-          <Link href="/dashboard" asChild>
-            <Pressable className="rounded-xl border px-4 py-3" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
-              <Text className="font-bold" style={{ color: colors.primary }}>Back to Dashboard</Text>
+    <View className="flex-1 md:flex-row" style={{ backgroundColor: colors.background }}>
+      <AccountSidebar
+        activeKey="rewards"
+        wallet={dashboard?.wallet || user?.wallet || {}}
+        referral={referral}
+        onSignOut={signOut}
+      />
+      <ScrollView className="flex-1" style={{ backgroundColor: colors.background }} contentContainerClassName="p-4 lg:p-8">
+        <View className="mb-6 flex-row flex-wrap items-center justify-between gap-3">
+          <View>
+            <Text className="text-3xl font-black" style={{ color: colors.text }}>Broker Rewards</Text>
+            <Text className="mt-1" style={{ color: colors.muted }}>{user?.email || 'Track your referral link, clients, and commission.'}</Text>
+          </View>
+          <View className="flex-row flex-wrap gap-3">
+            <Pressable onPress={() => loadDashboard().catch(() => {})} className="flex-row items-center rounded-xl border px-4 py-3" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+              <RefreshCcw size={16} color={loading ? '#D4AF37' : '#8fa0bb'} />
+              <Text className="ml-2 font-bold" style={{ color: colors.text }}>Refresh</Text>
             </Pressable>
-          </Link>
+            <Link href="/dashboard" asChild>
+              <Pressable className="rounded-xl border px-4 py-3" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+                <Text className="font-bold" style={{ color: colors.primary }}>Back to Dashboard</Text>
+              </Pressable>
+            </Link>
+          </View>
         </View>
-      </View>
 
-      <DashboardTabs activeKey="rewards" />
-
-      <View className="mb-5 overflow-hidden rounded-2xl border p-5" style={{ backgroundColor: colors.panel, borderColor: colors.primary }}>
+        <View className="mb-5 overflow-hidden rounded-2xl border p-5" style={{ backgroundColor: colors.panel, borderColor: colors.primary }}>
         <Text className="text-sm font-black uppercase tracking-[1px]" style={{ color: colors.primary }}>Your Broker Code</Text>
         <Text className="mt-3 text-4xl font-black" style={{ color: colors.text }}>{referral.code || '-'}</Text>
         {referral.referrer ? (
@@ -128,14 +139,14 @@ export default function BrokerRewardsScreen() {
         <CustomButton title={copied ? 'Copied' : 'Copy Referral URL'} onPress={copyReferral} className="mt-4 max-w-[240px]" />
       </View>
 
-      <View className="mb-5 flex-row flex-wrap gap-3">
+        <View className="mb-5 flex-row flex-wrap gap-3">
         <Metric label="My Referrals" value={String(referral.referralCount || referrals.length || 0)} hint="Users registered through your link" colors={colors} />
         <Metric label="Pending Deposits" value={`${pendingDeposits.toFixed(2)} USD`} hint="Waiting for approval" colors={colors} />
         <Metric label="Approved Deposits" value={`${approvedDeposits.toFixed(2)} USD`} hint="Confirmed referral volume" colors={colors} />
         <Metric label="Commission" value={`${commission.toFixed(2)} USD`} hint={`${(commissionRate * 100).toFixed(2)}% rate`} colors={colors} />
       </View>
 
-      <View className="rounded-2xl border p-5" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+        <View className="rounded-2xl border p-5" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
         <View className="mb-4 flex-row items-center justify-between">
           <View>
             <Text className="text-xl font-black" style={{ color: colors.text }}>My Referrals</Text>
@@ -147,7 +158,8 @@ export default function BrokerRewardsScreen() {
           {referrals.map((item) => <ReferralCard key={item.id} referral={item} colors={colors} />)}
           {!referrals.length ? <Text className="rounded-xl border border-dashed p-5" style={{ backgroundColor: colors.surface, borderColor: colors.border, color: colors.muted }}>No referrals yet.</Text> : null}
         </View>
-      </View>
-    </ScrollView>
+        </View>
+      </ScrollView>
+    </View>
   );
 }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import {
   ArrowUpRight,
@@ -13,7 +13,7 @@ import CustomButton from '../src/components/common/CustomButton';
 import DepositForm from '../src/components/wallet/DepositForm';
 import WithdrawForm from '../src/components/wallet/WithdrawForm';
 import TransactionList from '../src/components/wallet/TransactionList';
-import DashboardTabs from '../src/components/layout/DashboardTabs';
+import AccountSidebar from '../src/components/layout/AccountSidebar';
 import { dashboardService } from '../src/services/dashboardService';
 import { useAuth } from '../src/hooks/useAuth';
 import { useWallet } from '../src/hooks/useWallet';
@@ -374,28 +374,40 @@ export default function DashboardScreen() {
   }
 
   return (
-    <ScrollView className="flex-1" style={{ backgroundColor: colors.background }} contentContainerClassName="p-4 lg:p-8">
-      <View className="mb-6 flex-row flex-wrap items-center justify-between gap-3">
-        <View>
-          <Text className="text-3xl font-extrabold" style={{ color: colors.text }}>Account Dashboard</Text>
-          <Text className="mt-1" style={{ color: colors.muted }}>{user?.email || 'Manage accounts, funds, and rewards'}</Text>
+    <View className="flex-1 md:flex-row" style={{ backgroundColor: colors.background }}>
+      <AccountSidebar
+        activeKey={activeSection}
+        onSectionChange={setActiveSection}
+        wallet={wallet}
+        referral={referral}
+        onSignOut={signOut}
+      />
+      <ScrollView className="flex-1" style={{ backgroundColor: colors.background }} contentContainerClassName="p-5 md:p-8">
+        <View className="mb-7 flex-row flex-wrap items-center justify-between gap-3">
+          <View>
+            <Text className="text-3xl font-extrabold" style={{ color: colors.text }}>
+              {activeSection === 'overview' ? 'Dashboard' : activeSection === 'accounts' ? 'Trading Accounts' : activeSection === 'deposit' ? 'Deposit Funds' : 'Withdraw Funds'}
+            </Text>
+            <Text className="mt-2" style={{ color: colors.muted }}>Manage accounts, funds, verification and rewards.</Text>
+          </View>
+          <View className="flex-row flex-wrap gap-3">
+            <Pressable onPress={() => router.push('/trading')} className="rounded-xl border px-4 py-3" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+              <Text className="font-bold" style={{ color: '#D4AF37' }}>Back to Trading</Text>
+            </Pressable>
+            <Pressable onPress={signOut} className="rounded-xl border px-4 py-3" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+              <Text className="font-bold text-danger">Sign Out</Text>
+            </Pressable>
+          </View>
         </View>
-        <View className="flex-row gap-3">
-          <Link href="/trading" asChild><Pressable><Text style={{ color: '#D4AF37' }}>Back to Trading</Text></Pressable></Link>
-          <Pressable onPress={signOut}><Text className="text-danger">Sign Out</Text></Pressable>
-        </View>
-      </View>
 
-      <DashboardTabs activeKey={activeSection} onSectionChange={setActiveSection} />
-
-      {activeSection === 'overview' ? (
-        <View className="mb-5 flex-row flex-wrap gap-3">
-          <Stat label="Balance" value={`${Number(wallet.balance || 0).toFixed(2)} ${wallet.currency || 'USD'}`} colors={colors} />
-          <Stat label="Equity" value={`${Number(wallet.equity || wallet.balance || 0).toFixed(2)} ${wallet.currency || 'USD'}`} colors={colors} />
-          <Stat label="Free Funds" value={`${Number(wallet.freeFunds || 0).toFixed(2)} ${wallet.currency || 'USD'}`} colors={colors} />
-          <Stat label="Referral Commission" value={`${Number(referral.commission || 0).toFixed(2)} USD`} colors={colors} />
-        </View>
-      ) : null}
+        {activeSection === 'overview' ? (
+          <View className="mb-5 flex-row flex-wrap gap-3">
+            <Stat label="Balance" value={`${Number(wallet.balance || 0).toFixed(2)} ${wallet.currency || 'USD'}`} colors={colors} />
+            <Stat label="Equity" value={`${Number(wallet.equity || wallet.balance || 0).toFixed(2)} ${wallet.currency || 'USD'}`} colors={colors} />
+            <Stat label="Free Funds" value={`${Number(wallet.freeFunds || 0).toFixed(2)} ${wallet.currency || 'USD'}`} colors={colors} />
+            <Stat label="Referral Commission" value={`${Number(referral.commission || 0).toFixed(2)} USD`} colors={colors} />
+          </View>
+        ) : null}
 
       {activeSection === 'overview' ? (
         <View className="gap-4 lg:flex-row">
@@ -491,6 +503,7 @@ export default function DashboardScreen() {
         </Card>
       ) : null}
 
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
