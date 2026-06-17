@@ -46,25 +46,7 @@ export function useNotifications() {
       socket = io(socketBaseUrl(), {
         auth: { token },
       });
-      socket.on('new_notification', (notification) => {
-  if (String(notification.userId) !== String(user.id)) {
-    return;
-  }
-
-  setNotifications((prev) => [
-    notification,
-    ...prev.filter((item) => item.id !== notification.id),
-  ]);
-
-  if (!notification.isRead) {
-    setUnreadCount((count) => count + 1);
-  }
-
-  DeviceEventEmitter.emit(
-    'novafxm:new-notification',
-    notification
-  );
-});
+      socket.on('connect', () => socket.emit('notifications:join', user.id)); socket.on('new_notification', (notification) => { setNotifications((prev) => [notification, ...prev.filter((item) => item.id !== notification.id)]); setUnreadCount((count) => count + (notification.isRead ? 0 : 1)); DeviceEventEmitter.emit('novafxm:new-notification', notification); });
     }
 
     connect();

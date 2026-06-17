@@ -19,7 +19,7 @@ function AppStack() {
         style={{ flex: 1, backgroundColor: colors.background }}
       >
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }} />
-        <GlobalNotificationBell />
+       
       </SafeAreaView>
     </>
   );
