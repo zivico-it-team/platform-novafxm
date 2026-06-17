@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pressable, Text, View, useWindowDimensions } from 'react-native';
+import { Pressable, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
 import CustomInput from '../common/CustomInput';
 import { useAppTheme } from '../../context/ThemeContext';
@@ -7,6 +7,23 @@ import { useDemoTrading } from '../../hooks/useDemoTrading';
 import { useAuth } from '../../hooks/useAuth';
 import { money, quote } from '../../utils/formatters';
 import NewOrderModal from './NewOrderModal';
+
+function SwitchRow({ active, label, onPress, colors }) {
+  return (
+    <Pressable onPress={onPress} className="flex-row items-center justify-between">
+      <Text className="text-[11px] font-bold" style={{ color: colors.text }}>{label}</Text>
+      <View
+        className="h-6 w-11 justify-center rounded-full px-1"
+        style={{ backgroundColor: active ? colors.success : colors.border }}
+      >
+        <View
+          className="h-4 w-4 rounded-full bg-white"
+          style={{ alignSelf: active ? 'flex-end' : 'flex-start' }}
+        />
+      </View>
+    </Pressable>
+  );
+}
 
 export default function OrderPanel({ showAvailableMargin = true }) {
   const { width } = useWindowDimensions();
@@ -18,6 +35,9 @@ export default function OrderPanel({ showAvailableMargin = true }) {
   const [loading, setLoading] = useState(false);
   const [orderModal, setOrderModal] = useState(false);
   const [orderSide, setOrderSide] = useState('BUY');
+  const [tpSlOn, setTpSlOn] = useState(false);
+  const [stopLoss, setStopLoss] = useState('');
+  const [takeProfit, setTakeProfit] = useState('');
   const mobile = width < 760;
   const panelBackground = darkMode ? colors.panel : '#e8f8ee';
   const priceBackground = darkMode ? colors.surface : '#f6fff9';
@@ -25,12 +45,16 @@ export default function OrderPanel({ showAvailableMargin = true }) {
   const orderDanger = '#f24d58';
   const mobileActionWidth = Math.min(width - 48, 300);
   const lotSize = Number(lots) || 0;
+  const requiredMargin = lotSize * 100;
+  const freeAfterTrade = Math.max(0, Number(summary.freeFunds || 0) - requiredMargin);
   const spread = Number(currentSymbol.ask || 0) - Number(currentSymbol.bid || 0);
   const spreadText = Number.isFinite(spread) ? quote(Math.max(spread, 0), currentSymbol.decimals) : quote(0, currentSymbol.decimals);
   const snapshotRows = [
     ['Spread', spreadText],
     ['Volume', `${money(lotSize)} lots`],
+    ['Required margin', `${quote(requiredMargin, 2)} USD`],
     ['Free margin', `${quote(summary.freeFunds, 2)} USD`],
+    ['After trade', `${quote(freeAfterTrade, 2)} USD`],
   ];
 
   const open = async (side) => {
@@ -38,9 +62,20 @@ export default function OrderPanel({ showAvailableMargin = true }) {
       router.push('/login');
       return;
     }
+    if (tpSlOn && stopLoss && !(Number(stopLoss) > 0)) {
+      setMessage('Enter a valid Stop Loss price.');
+      return;
+    }
+    if (tpSlOn && takeProfit && !(Number(takeProfit) > 0)) {
+      setMessage('Enter a valid Take Profit price.');
+      return;
+    }
     setLoading(true);
     try {
-      await openPosition(side, lots);
+      await openPosition(side, lots, {
+        stopLoss: tpSlOn && stopLoss ? stopLoss : null,
+        takeProfit: tpSlOn && takeProfit ? takeProfit : null,
+      });
       setMessage(`${side} order opened successfully.`);
     } catch (error) {
       setMessage(error.response?.data?.message || error.message);
@@ -128,6 +163,34 @@ export default function OrderPanel({ showAvailableMargin = true }) {
           >
             <Text className="text-xs font-extrabold text-white">{loading ? '...' : 'BUY'}</Text>
           </Pressable>
+        </View>
+        <View className="mt-3 rounded-xl border p-2.5" style={{ backgroundColor: priceBackground, borderColor: colors.border }}>
+          <SwitchRow active={tpSlOn} onPress={() => setTpSlOn((value) => !value)} label="TP/SL" colors={colors} />
+          {tpSlOn ? (
+            <View className="mt-3 gap-2">
+              <TextInput
+                value={takeProfit}
+                onChangeText={setTakeProfit}
+                placeholder="Take Profit Level"
+                placeholderTextColor={colors.muted}
+                keyboardType="numbers-and-punctuation"
+                className="h-11 rounded-xl border px-3 text-xs"
+                style={{ color: colors.text, borderColor: colors.border }}
+              />
+              <TextInput
+                value={stopLoss}
+                onChangeText={setStopLoss}
+                placeholder="Stop Loss Level"
+                placeholderTextColor={colors.muted}
+                keyboardType="numbers-and-punctuation"
+                className="h-11 rounded-xl border px-3 text-xs"
+                style={{ color: colors.text, borderColor: colors.border }}
+              />
+              <Text className="text-[9px] leading-3" style={{ color: colors.muted }}>
+                Add one or both levels. Empty fields are ignored.
+              </Text>
+            </View>
+          ) : null}
         </View>
         <View className="mt-3 rounded-xl border p-2.5" style={{ backgroundColor: priceBackground, borderColor: colors.border }}>
           <View className="mb-1.5 flex-row items-center justify-between">

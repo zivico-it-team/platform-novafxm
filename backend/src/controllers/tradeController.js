@@ -14,6 +14,15 @@ const pnl = (trade, closePrice) => money(
   * Number(trade.lots)
   * contractSize(trade.symbol),
 );
+const optionalPrice = (value) => {
+  if (value === null || value === undefined || value === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : null;
+};
+const normalizeOrderType = (value) => {
+  const orderType = String(value || 'market').toLowerCase();
+  return ['market', 'limit', 'stop'].includes(orderType) ? orderType : null;
+};
 
 exports.open = async (req, res, next) => {
   try {
@@ -21,8 +30,14 @@ exports.open = async (req, res, next) => {
       return res.status(403).json({ message: 'Trading is temporarily disabled for this account.' });
     }
     const { symbol, side, lots, tradingAccountId } = req.body;
+    const orderType = normalizeOrderType(req.body.orderType);
+    const stopLoss = optionalPrice(req.body.stopLoss);
+    const takeProfit = optionalPrice(req.body.takeProfit);
     if (!symbol || !['BUY', 'SELL'].includes(side) || !(Number(lots) > 0)) {
       return res.status(400).json({ message: 'Valid symbol, side and lots are required.' });
+    }
+    if (!orderType) {
+      return res.status(400).json({ message: 'Order type must be market, limit, or stop.' });
     }
     const tradingAccount = tradingAccountId
       ? await TradingAccount.findOne({ where: { id: tradingAccountId, userId: req.user.id } })
@@ -35,6 +50,11 @@ exports.open = async (req, res, next) => {
     }
     const market = await tradingView.getPrice(symbol);
     const margin = money((Number(lots) * 10000) / Number(req.user.leverage || 100));
+    const marketPrice = side === 'BUY' ? market.ask : market.bid;
+    const entryPrice = orderType === 'market' ? marketPrice : optionalPrice(req.body.entryPrice);
+    if (!entryPrice) {
+      return res.status(400).json({ message: 'Entry price is required for limit and stop orders.' });
+    }
     let trade;
     await sequelize.transaction(async (transaction) => {
       const account = await TradingAccount.findOne({ where: { id: tradingAccount.id, userId: req.user.id }, transaction, lock: transaction.LOCK.UPDATE });
@@ -44,11 +64,25 @@ exports.open = async (req, res, next) => {
       if (Number(account.balance) - currentMargin < margin) {
         throw Object.assign(new Error('Insufficient free funds.'), { status: 400 });
       }
-      const openPrice = side === 'BUY' ? market.ask : market.bid;
-      trade = await Trade.create({ userId: req.user.id, tradingAccountId: tradingAccount.id, symbol, side, lots, margin, openPrice }, { transaction });
+      trade = await Trade.create({
+        userId: req.user.id,
+        tradingAccountId: tradingAccount.id,
+        symbol,
+        side,
+        lots,
+        orderType,
+        entryPrice,
+        openPrice: entryPrice,
+        stopLoss,
+        takeProfit,
+        margin,
+        status: orderType === 'market' ? 'open' : 'pending',
+      }, { transaction });
       const equity = Number(account.balance);
       const nextMargin = money(currentMargin + margin);
-      if (account.isPrimary) await wallet.update({ margin: nextMargin, freeFunds: money(equity - nextMargin) }, { transaction });
+      if (orderType === 'market' && account.isPrimary) {
+        await wallet.update({ margin: nextMargin, freeFunds: money(equity - nextMargin) }, { transaction });
+      }
     });
     return res.status(201).json({ trade });
   } catch (error) {
@@ -102,6 +136,16 @@ exports.close = async (req, res, next) => {
 exports.openTrades = async (req, res, next) => {
   try {
     const where = { userId: req.user.id, status: 'open' };
+    if (req.query.tradingAccountId) where.tradingAccountId = req.query.tradingAccountId;
+    return res.json({ trades: await Trade.findAll({ where, order: [['createdAt', 'DESC']] }) });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+exports.pendingTrades = async (req, res, next) => {
+  try {
+    const where = { userId: req.user.id, status: 'pending' };
     if (req.query.tradingAccountId) where.tradingAccountId = req.query.tradingAccountId;
     return res.json({ trades: await Trade.findAll({ where, order: [['createdAt', 'DESC']] }) });
   } catch (error) {

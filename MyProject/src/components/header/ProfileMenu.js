@@ -92,14 +92,13 @@ export default function ProfileMenu({ onClose, onHoverIn, onHoverOut, onOpenPane
     <View
       onPointerEnter={onHoverIn}
       onPointerLeave={onHoverOut}
-      className="absolute right-3 top-[74px] z-50 w-[430px] max-w-[94vw] overflow-hidden rounded-lg border p-5 shadow-2xl"
+      className="absolute right-0 top-0 z-50 h-screen w-[460px] max-w-[94vw] overflow-hidden border-l p-6 shadow-2xl"
       style={{
         backgroundColor: colors.panel,
         borderColor: colors.border,
         shadowColor: colors.primary,
         shadowOpacity: 0.18,
         shadowRadius: 24,
-        transform: [{ translateY: 4 }],
       }}
     >
       <View className="mb-5 flex-row items-start justify-between">
@@ -112,8 +111,8 @@ export default function ProfileMenu({ onClose, onHoverIn, onHoverOut, onOpenPane
         </Pressable>
       </View>
 
-      <View className="mb-5 flex-row items-center rounded-3xl border p-4" style={{ borderColor: colors.border, backgroundColor: `${colors.primary}10` }}>
-        <View className="h-16 w-16 items-center justify-center rounded-2xl" style={{ backgroundColor: colors.primary }}>
+      <View className="mb-5 flex-row items-center rounded-2xl border p-4" style={{ borderColor: colors.border, backgroundColor: `${colors.primary}10` }}>
+        <View className="h-16 w-16 items-center justify-center rounded-full" style={{ backgroundColor: colors.primary }}>
           <Text className="text-xl font-black text-black">{initials}</Text>
         </View>
         <View className="ml-4 flex-1">
@@ -155,7 +154,7 @@ export default function ProfileMenu({ onClose, onHoverIn, onHoverOut, onOpenPane
         />
       </View>
 
-      <View className="rounded-3xl border p-2" style={{ borderColor: colors.border }}>
+      <View className="rounded-2xl border p-2" style={{ borderColor: colors.border }}>
         <MenuAction
           icon={LogOut}
           title="Sign Out"

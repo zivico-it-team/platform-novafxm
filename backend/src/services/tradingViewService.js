@@ -718,48 +718,6 @@ const deriveFromStoredSource = async (symbol, timeframe, limit) => {
   return aggregateCandles(sourceCandles, timeframe).slice(-limit);
 };
 
-const maxDislocationPct = (item) => {
-  if (item.group === 'METALS') return 1.5;
-  if (item.group === 'FOREX') return 2;
-  if (item.group === 'INDICES') return 4;
-  if (item.group === 'ENERGIES') return 5;
-  if (item.group === 'CRYPTO CFD') return 12;
-  return 5;
-};
-
-const pruneDislocatedSegments = (candles, item, timeframe) => {
-  if (!Array.isArray(candles) || candles.length < 2) return candles || [];
-
-  const seconds = timeframeSeconds(timeframe);
-  if (!seconds) return candles;
-
-  const minTimeGap = Math.max(seconds * 10, 3600);
-  const maxMovePct = maxDislocationPct(item);
-  let startIndex = 0;
-
-  for (let index = candles.length - 1; index > 0; index--) {
-    const current = candles[index];
-    const previous = candles[index - 1];
-    const currentTime = Number(current.time);
-    const previousTime = Number(previous.time);
-    const currentOpen = Number(current.open);
-    const previousClose = Number(previous.close);
-
-    if (![currentTime, previousTime, currentOpen, previousClose].every(Number.isFinite) || previousClose <= 0) {
-      continue;
-    }
-
-    const gapSeconds = currentTime - previousTime;
-    const movePct = Math.abs((currentOpen - previousClose) / previousClose) * 100;
-    if (gapSeconds > minTimeGap && movePct > maxMovePct) {
-      startIndex = index;
-      break;
-    }
-  }
-
-  return startIndex > 0 ? candles.slice(startIndex) : candles;
-};
-
 async function fetchRecentProviderCandles(item, timeframe, stored, limit) {
   if (!AUTO_CATCHUP_ENABLED || timeframe === '1s') return [];
 
@@ -828,16 +786,18 @@ async function getHistoricalCandles(symbol, timeframe = '15m', limit = 240) {
   });
   const recentProviderCandles = await fetchRecentProviderCandles(item, timeframe, stored, boundedLimit);
   const derivedStoredCandles = await deriveFromStoredSource(symbol, timeframe, boundedLimit);
-  const currentStored = applyLiveQuoteToCandles(pruneDislocatedSegments(
+  const currentStored = applyLiveQuoteToCandles(
     mergeCandles(stored, recentProviderCandles, boundedLimit),
     item,
-    timeframe
-  ), item, timeframe, boundedLimit);
-  const currentWithDerived = applyLiveQuoteToCandles(pruneDislocatedSegments(
+    timeframe,
+    boundedLimit
+  );
+  const currentWithDerived = applyLiveQuoteToCandles(
     mergeCandles(currentStored, derivedStoredCandles, boundedLimit),
     item,
-    timeframe
-  ), item, timeframe, boundedLimit);
+    timeframe,
+    boundedLimit
+  );
 
   if (item.group === 'CRYPTO CFD' && ['BINANCE:', 'COINBASE:'].some((prefix) => item.ticker.startsWith(prefix))) {
     const sourceTimeframe = DERIVED_CANDLE_SOURCES[timeframe];

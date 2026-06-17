@@ -172,6 +172,32 @@ async function ensureSchema() {
     allowNull: true,
     after: 'user_id',
   });
+  await addColumnIfMissing(queryInterface, 'trades', 'order_type', {
+    type: DataTypes.ENUM('market', 'limit', 'stop'),
+    allowNull: false,
+    defaultValue: 'market',
+    after: 'lots',
+  });
+  await addColumnIfMissing(queryInterface, 'trades', 'entry_price', {
+    type: DataTypes.DECIMAL(18, 8),
+    allowNull: true,
+    after: 'order_type',
+  });
+  await addColumnIfMissing(queryInterface, 'trades', 'stop_loss', {
+    type: DataTypes.DECIMAL(18, 8),
+    allowNull: true,
+    after: 'open_price',
+  });
+  await addColumnIfMissing(queryInterface, 'trades', 'take_profit', {
+    type: DataTypes.DECIMAL(18, 8),
+    allowNull: true,
+    after: 'stop_loss',
+  });
+  await queryInterface.changeColumn('trades', 'status', {
+    type: DataTypes.ENUM('pending', 'open', 'closed'),
+    allowNull: false,
+    defaultValue: 'open',
+  });
 
   await queryInterface.createTable('bank_accounts', {
     id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
