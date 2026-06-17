@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pressable, Switch, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { Pressable, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
 import CustomInput from '../common/CustomInput';
 import { useAppTheme } from '../../context/ThemeContext';
@@ -8,11 +8,26 @@ import { useAuth } from '../../hooks/useAuth';
 import { money, quote } from '../../utils/formatters';
 import NewOrderModal from './NewOrderModal';
 
-const getSidePrice = (symbol, side) => quote(side === 'SELL' ? symbol.bid : symbol.ask, symbol.decimals);
+function SwitchRow({ active, label, onPress, colors }) {
+  return (
+    <Pressable onPress={onPress} className="flex-row items-center justify-between">
+      <Text className="text-[11px] font-bold" style={{ color: colors.text }}>{label}</Text>
+      <View
+        className="h-6 w-11 justify-center rounded-full px-1"
+        style={{ backgroundColor: active ? colors.success : colors.border }}
+      >
+        <View
+          className="h-4 w-4 rounded-full bg-white"
+          style={{ alignSelf: active ? 'flex-end' : 'flex-start' }}
+        />
+      </View>
+    </Pressable>
+  );
+}
 
 export default function OrderPanel({ showAvailableMargin = true }) {
   const { width } = useWindowDimensions();
-  const { currentSymbol, openPosition, createPendingOrder, summary } = useDemoTrading();
+  const { currentSymbol, openPosition, summary } = useDemoTrading();
   const { user } = useAuth();
   const { darkMode, colors } = useAppTheme();
   const [lots, setLots] = useState('0.01');
@@ -20,9 +35,7 @@ export default function OrderPanel({ showAvailableMargin = true }) {
   const [loading, setLoading] = useState(false);
   const [orderModal, setOrderModal] = useState(false);
   const [orderSide, setOrderSide] = useState('BUY');
-  const [priceTriggerOn, setPriceTriggerOn] = useState(false);
-  const [riskToolsOn, setRiskToolsOn] = useState(false);
-  const [entryPrice, setEntryPrice] = useState('');
+  const [tpSlOn, setTpSlOn] = useState(false);
   const [stopLoss, setStopLoss] = useState('');
   const [takeProfit, setTakeProfit] = useState('');
   const mobile = width < 760;
@@ -32,51 +45,38 @@ export default function OrderPanel({ showAvailableMargin = true }) {
   const orderDanger = '#f24d58';
   const mobileActionWidth = Math.min(width - 48, 300);
   const lotSize = Number(lots) || 0;
-  const freeFunds = Number(summary?.freeFunds || 0);
   const requiredMargin = lotSize * 100;
-  const marginUsage = freeFunds > 0 ? Math.min((requiredMargin / freeFunds) * 100, 100) : 0;
+  const freeAfterTrade = Math.max(0, Number(summary.freeFunds || 0) - requiredMargin);
   const spread = Number(currentSymbol.ask || 0) - Number(currentSymbol.bid || 0);
   const spreadText = Number.isFinite(spread) ? quote(Math.max(spread, 0), currentSymbol.decimals) : quote(0, currentSymbol.decimals);
-  const displayEntryPrice = entryPrice || getSidePrice(currentSymbol, orderSide);
   const snapshotRows = [
     ['Spread', spreadText],
     ['Volume', `${money(lotSize)} lots`],
     ['Required margin', `${quote(requiredMargin, 2)} USD`],
-    ['Free margin', `${quote(freeFunds, 2)} USD`],
+    ['Free margin', `${quote(summary.freeFunds, 2)} USD`],
+    ['After trade', `${quote(freeAfterTrade, 2)} USD`],
   ];
-
-  const changeSide = (side) => {
-    setOrderSide(side);
-    setEntryPrice(priceTriggerOn ? getSidePrice(currentSymbol, side) : '');
-  };
-
-  const changePriceTrigger = (value) => {
-    setPriceTriggerOn(value);
-    setEntryPrice(value ? getSidePrice(currentSymbol, orderSide) : '');
-  };
 
   const open = async (side) => {
     if (!user) {
       router.push('/login');
       return;
     }
+    if (tpSlOn && stopLoss && !(Number(stopLoss) > 0)) {
+      setMessage('Enter a valid Stop Loss price.');
+      return;
+    }
+    if (tpSlOn && takeProfit && !(Number(takeProfit) > 0)) {
+      setMessage('Enter a valid Take Profit price.');
+      return;
+    }
     setLoading(true);
     try {
-      const pendingEntryPrice = entryPrice || getSidePrice(currentSymbol, side);
-      if (priceTriggerOn) {
-        createPendingOrder({
-          side,
-          lots,
-          orderType: 'LIMIT',
-          entryPrice: pendingEntryPrice,
-          stopLoss: riskToolsOn && stopLoss ? stopLoss : null,
-          takeProfit: riskToolsOn && takeProfit ? takeProfit : null,
-        });
-        setMessage(`${side} pending order created.`);
-      } else {
-        await openPosition(side, lots);
-        setMessage(`${side} order opened successfully.`);
-      }
+      await openPosition(side, lots, {
+        stopLoss: tpSlOn && stopLoss ? stopLoss : null,
+        takeProfit: tpSlOn && takeProfit ? takeProfit : null,
+      });
+      setMessage(`${side} order opened successfully.`);
     } catch (error) {
       setMessage(error.response?.data?.message || error.message);
     } finally {
@@ -141,46 +141,58 @@ export default function OrderPanel({ showAvailableMargin = true }) {
             <Text className="text-[10px]" style={{ color: colors.muted }}>Bid</Text>
             <Text className="text-xs font-bold" style={{ color: colors.danger }}>{quote(currentSymbol.bid, currentSymbol.decimals)}</Text>
           </View>
-          <View className="items-center">
-            <Text className="text-[10px]" style={{ color: colors.muted }}>Spread</Text>
-            <Text className="text-xs font-bold" style={{ color: colors.text }}>{spreadText}</Text>
-          </View>
           <View>
             <Text className="text-right text-[10px]" style={{ color: colors.muted }}>Ask</Text>
             <Text className="text-xs font-bold" style={{ color: colors.success }}>{quote(currentSymbol.ask, currentSymbol.decimals)}</Text>
           </View>
         </View>
+        <View className="flex-row gap-2">
+          <Pressable
+            disabled={loading}
+            onPress={() => open('SELL')}
+            className={`h-9 flex-1 items-center justify-center rounded-lg ${loading ? 'opacity-60' : ''}`}
+            style={{ backgroundColor: orderDanger }}
+          >
+            <Text className="text-xs font-extrabold text-white">{loading ? '...' : 'SELL'}</Text>
+          </Pressable>
+          <Pressable
+            disabled={loading}
+            onPress={() => open('BUY')}
+            className={`h-9 flex-1 items-center justify-center rounded-lg ${loading ? 'opacity-60' : ''}`}
+            style={{ backgroundColor: orderSuccess }}
+          >
+            <Text className="text-xs font-extrabold text-white">{loading ? '...' : 'BUY'}</Text>
+          </Pressable>
+        </View>
         <View className="mt-3 rounded-xl border p-2.5" style={{ backgroundColor: priceBackground, borderColor: colors.border }}>
-          <View className="mb-2 flex-row items-center justify-between">
-            <Text className="text-[11px] font-bold uppercase" style={{ color: colors.muted }}>Order options</Text>
-            <Text className="text-[10px] font-bold" style={{ color: colors.text }}>{priceTriggerOn ? 'Pending' : 'Market'}</Text>
-          </View>
-          <View className="mb-2 flex-row items-center justify-between">
-            <Text className="text-[11px] font-bold" style={{ color: colors.text }}>{orderSide === 'BUY' ? 'Buy' : 'Sell'} When Price is</Text>
-            <Switch value={priceTriggerOn} onValueChange={changePriceTrigger} trackColor={{ false: darkMode ? '#4b5563' : '#cbd5e1', true: colors.primarySoft }} thumbColor={priceTriggerOn ? colors.primary : '#f8fafc'} />
-          </View>
-          {priceTriggerOn ? (
-            <TextInput
-              value={displayEntryPrice}
-              onChangeText={setEntryPrice}
-              keyboardType="decimal-pad"
-              className="mb-2 h-9 rounded-lg border px-2.5 text-xs font-bold"
-              style={{ backgroundColor: darkMode ? colors.background : '#ffffff', borderColor: colors.border, color: colors.text }}
-            />
-          ) : null}
-          <View className="flex-row items-center justify-between">
-            <Text className="text-[11px] font-bold" style={{ color: colors.text }}>TP/SL</Text>
-            <Switch value={riskToolsOn} onValueChange={setRiskToolsOn} trackColor={{ false: darkMode ? '#4b5563' : '#cbd5e1', true: colors.primarySoft }} thumbColor={riskToolsOn ? colors.primary : '#f8fafc'} />
-          </View>
-          {riskToolsOn ? (
-            <View className="mt-2 flex-row gap-2">
-              <TextInput value={takeProfit} onChangeText={setTakeProfit} placeholder="Take profit" placeholderTextColor={colors.muted} keyboardType="decimal-pad" className="h-8 flex-1 rounded-lg border px-2 text-[10px]" style={{ minWidth: 0, flexBasis: 0, backgroundColor: darkMode ? colors.background : '#ffffff', borderColor: colors.border, color: colors.text }} />
-              <TextInput value={stopLoss} onChangeText={setStopLoss} placeholder="Stop loss" placeholderTextColor={colors.muted} keyboardType="decimal-pad" className="h-8 flex-1 rounded-lg border px-2 text-[10px]" style={{ minWidth: 0, flexBasis: 0, backgroundColor: darkMode ? colors.background : '#ffffff', borderColor: colors.border, color: colors.text }} />
+          <SwitchRow active={tpSlOn} onPress={() => setTpSlOn((value) => !value)} label="TP/SL" colors={colors} />
+          {tpSlOn ? (
+            <View className="mt-3 gap-2">
+              <TextInput
+                value={takeProfit}
+                onChangeText={setTakeProfit}
+                placeholder="Take Profit Level"
+                placeholderTextColor={colors.muted}
+                keyboardType="numbers-and-punctuation"
+                className="h-11 rounded-xl border px-3 text-xs"
+                style={{ color: colors.text, borderColor: colors.border }}
+              />
+              <TextInput
+                value={stopLoss}
+                onChangeText={setStopLoss}
+                placeholder="Stop Loss Level"
+                placeholderTextColor={colors.muted}
+                keyboardType="numbers-and-punctuation"
+                className="h-11 rounded-xl border px-3 text-xs"
+                style={{ color: colors.text, borderColor: colors.border }}
+              />
+              <Text className="text-[9px] leading-3" style={{ color: colors.muted }}>
+                Add one or both levels. Empty fields are ignored.
+              </Text>
             </View>
           ) : null}
         </View>
-
-        <View className="mt-2 rounded-xl border p-2.5" style={{ backgroundColor: priceBackground, borderColor: colors.border }}>
+        <View className="mt-3 rounded-xl border p-2.5" style={{ backgroundColor: priceBackground, borderColor: colors.border }}>
           <View className="mb-1.5 flex-row items-center justify-between">
             <Text className="text-[11px] font-bold uppercase" style={{ color: colors.muted }}>Trade snapshot</Text>
             <View className="h-2 w-2 rounded-full" style={{ backgroundColor: colors.success }} />
@@ -191,43 +203,30 @@ export default function OrderPanel({ showAvailableMargin = true }) {
               <Text className="text-[10px] font-bold" style={{ color: colors.text }}>{value}</Text>
             </View>
           ))}
-          <View className="mt-2 flex-row items-center gap-3">
-            <View className="h-2 flex-1 overflow-hidden rounded-full" style={{ backgroundColor: darkMode ? '#5d6a7f' : '#cbd5e1' }}>
-              <View className="h-full rounded-full" style={{ width: `${marginUsage}%`, backgroundColor: orderSuccess }} />
-            </View>
-            <Text className="w-12 text-right text-[10px] font-bold" style={{ color: colors.text }}>{quote(marginUsage, 2)}%</Text>
+          <View className="mt-1 rounded-lg px-2.5 py-1.5" style={{ backgroundColor: darkMode ? colors.background : '#ffffff' }}>
+            <Text className="text-[9px] leading-3" style={{ color: colors.muted }}>
+              Choose Sell or Buy to place a quick market order for the selected symbol.
+            </Text>
           </View>
         </View>
-
-        <View className="mt-3 flex-row gap-2">
-          <Pressable
-            disabled={loading}
-            onPress={() => {
-              changeSide('SELL');
-              open('SELL');
-            }}
-            className={`h-9 flex-1 items-center justify-center rounded-lg ${loading ? 'opacity-60' : ''}`}
-            style={{ backgroundColor: orderDanger }}
-          >
-            <Text className="text-xs font-extrabold text-white">{loading ? '...' : 'SELL'}</Text>
-          </Pressable>
-          <Pressable
-            disabled={loading}
-            onPress={() => {
-              changeSide('BUY');
-              open('BUY');
-            }}
-            className={`h-9 flex-1 items-center justify-center rounded-lg ${loading ? 'opacity-60' : ''}`}
-            style={{ backgroundColor: orderSuccess }}
-          >
-            <Text className="text-xs font-extrabold text-white">{loading ? '...' : 'BUY'}</Text>
-          </Pressable>
+        <View className="mt-3 rounded-xl border p-2.5" style={{ backgroundColor: darkMode ? colors.background : '#ffffff', borderColor: colors.border }}>
+          <Text className="text-[11px] font-bold uppercase" style={{ color: colors.muted }}>Before you trade</Text>
+          {[
+            'Check the spread before opening.',
+            'Start small when markets move fast.',
+            'Review open positions below.',
+          ].map((item) => (
+            <View key={item} className="mt-1.5 flex-row items-start">
+              <View className="mr-2 mt-1 h-1.5 w-1.5 rounded-full" style={{ backgroundColor: colors.primary }} />
+              <Text className="flex-1 text-[9px] leading-3" style={{ color: colors.muted }}>{item}</Text>
+            </View>
+          ))}
         </View>
         {message || !user ? <Text className="mt-2 text-[10px]" style={{ color: colors.muted }}>{message || 'Log in to place trades.'}</Text> : null}
         {showAvailableMargin ? (
           <View className="mt-3 border-t pt-2" style={{ borderColor: colors.border }}>
             <Text className="mb-1 text-xs" style={{ color: colors.muted }}>Available Margin</Text>
-            <Text className="text-sm font-semibold" style={{ color: colors.text }}>{quote(freeFunds, 2)} USD</Text>
+            <Text className="text-sm font-semibold" style={{ color: colors.text }}>{quote(summary.freeFunds, 2)} USD</Text>
           </View>
         ) : null}
       </View>

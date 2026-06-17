@@ -9,6 +9,7 @@ const ensureSchema = require('./config/ensureSchema');
 const seedAdmin = require('./seed/seedAdmin');
 const tradingView = require('./services/tradingViewService');
 const { startCandleCatchupScheduler } = require('./services/candleCatchupScheduler');
+const { processTradeTriggers } = require('./services/tradeAutomationService');
 
 const app = express();
 app.use(cors({ origin: process.env.CORS_ORIGIN === '*' || !process.env.CORS_ORIGIN ? true : process.env.CORS_ORIGIN }));
@@ -43,6 +44,7 @@ async function start() {
     socket.emit('market:prices', await tradingView.getPrices());
   });
   const stopPriceStream = tradingView.startPriceStream((prices) => {
+    processTradeTriggers(prices).catch(() => {});
     if (io.engine.clientsCount) io.emit('market:prices', prices);
   });
   const stopCandleCatchupScheduler = startCandleCatchupScheduler();

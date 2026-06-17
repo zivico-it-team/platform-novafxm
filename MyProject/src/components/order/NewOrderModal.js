@@ -24,11 +24,11 @@ function Toggle({ selected, onPress, label, colors }) {
   );
 }
 
-function ValueCard({ pips, setPips, price, profit, compact, colors, controlBackground }) {
+function ValueCard({ pips, setPips, price, setPrice, profit, compact, colors, controlBackground }) {
   return (
     <View className={`${compact ? 'w-[102px]' : 'w-[165px]'} overflow-hidden rounded-xl border`} style={{ backgroundColor: controlBackground, borderColor: colors.border }}>
       <TextInput value={pips} onChangeText={setPips} keyboardType="numbers-and-punctuation" className="h-11 border-b px-3 text-base" style={{ borderColor: colors.border, color: colors.text }} />
-      <Text className="border-b px-3 py-3 text-base" style={{ borderColor: colors.border, color: colors.text }}>{price}</Text>
+      <TextInput value={price} onChangeText={setPrice} keyboardType="numbers-and-punctuation" className="h-11 border-b px-3 text-base" style={{ borderColor: colors.border, color: colors.text }} />
       <Text className="px-3 py-3 text-base" style={{ color: colors.text }}>{profit}</Text>
     </View>
   );
@@ -51,12 +51,14 @@ export default function NewOrderModal({ visible, onClose, initialSide = 'BUY' })
   const [takeProfitOn, setTakeProfitOn] = useState(false);
   const [stopPips, setStopPips] = useState('-0.2');
   const [profitPips, setProfitPips] = useState('0.2');
+  const [stopLossPrice, setStopLossPrice] = useState('');
+  const [takeProfitPrice, setTakeProfitPrice] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    setEntryPrice(quote(currentSymbol.price, currentSymbol.decimals));
-  }, [currentSymbol.price, currentSymbol.decimals, selectedSymbol]);
+    if (visible) setEntryPrice(quote(currentSymbol.price, currentSymbol.decimals));
+  }, [currentSymbol.decimals, selectedSymbol, visible]);
 
   useEffect(() => {
     if (!visible) {
@@ -71,10 +73,30 @@ export default function NewOrderModal({ visible, onClose, initialSide = 'BUY' })
 
   const basePrice = Number(entryPrice || currentSymbol.price);
   const pipSize = 10 ** -currentSymbol.decimals;
-  const stopPrice = quote(basePrice - Math.abs(Number(stopPips) || 0) * pipSize, currentSymbol.decimals);
-  const profitPrice = quote(basePrice + Math.abs(Number(profitPips) || 0) * pipSize, currentSymbol.decimals);
+  const formatOrderPrice = (value) => quote(value, currentSymbol.decimals);
+  const calculateStopPrice = (pips = stopPips) => {
+    const distance = Math.abs(Number(pips) || 0) * pipSize;
+    return formatOrderPrice(side === 'BUY' ? basePrice - distance : basePrice + distance);
+  };
+  const calculateProfitPrice = (pips = profitPips) => {
+    const distance = Math.abs(Number(pips) || 0) * pipSize;
+    return formatOrderPrice(side === 'BUY' ? basePrice + distance : basePrice - distance);
+  };
   const quantity = Number(lots || 0);
   const changeLots = (amount) => setLots(Math.max(0.01, quantity + amount).toFixed(2));
+  const updateStopPips = (value) => {
+    setStopPips(value);
+    setStopLossPrice(calculateStopPrice(value));
+  };
+  const updateProfitPips = (value) => {
+    setProfitPips(value);
+    setTakeProfitPrice(calculateProfitPrice(value));
+  };
+
+  useEffect(() => {
+    setStopLossPrice(calculateStopPrice(stopPips));
+    setTakeProfitPrice(calculateProfitPrice(profitPips));
+  }, [entryPrice, currentSymbol.decimals, selectedSymbol, side]);
   const filteredSymbols = useMemo(
     () => prices.filter((item) => item.symbol.toLowerCase().includes(symbolSearch.toLowerCase())),
     [prices, symbolSearch],
@@ -103,15 +125,18 @@ export default function NewOrderModal({ visible, onClose, initialSide = 'BUY' })
     setMessage('');
     try {
       if (orderType === 'spot') {
-        await openPosition(side, lots);
+        await openPosition(side, lots, {
+          stopLoss: stopLossOn ? stopLossPrice : null,
+          takeProfit: takeProfitOn ? takeProfitPrice : null,
+        });
       } else {
-        createPendingOrder({
+        await createPendingOrder({
           side,
           lots,
-          orderType: orderType.toUpperCase(),
+          orderType,
           entryPrice,
-          stopLoss: stopLossOn ? stopPrice : null,
-          takeProfit: takeProfitOn ? profitPrice : null,
+          stopLoss: stopLossOn ? stopLossPrice : null,
+          takeProfit: takeProfitOn ? takeProfitPrice : null,
         });
       }
       onClose();
@@ -228,7 +253,7 @@ export default function NewOrderModal({ visible, onClose, initialSide = 'BUY' })
               <View className="mb-5 flex-row items-center justify-between">
                 <View>
                   <Toggle selected={stopLossOn} onPress={() => setStopLossOn((value) => !value)} label="Stop Loss" colors={colors} />
-                  <View className="mt-3"><ValueCard pips={stopPips} setPips={setStopPips} price={stopPrice} profit="0" compact={compact} colors={colors} controlBackground={controlBackground} /></View>
+                  <View className="mt-3"><ValueCard pips={stopPips} setPips={updateStopPips} price={stopLossPrice} setPrice={setStopLossPrice} profit="0" compact={compact} colors={colors} controlBackground={controlBackground} /></View>
                 </View>
                 <View className="mt-12 items-center gap-5 px-1">
                   <Text className="text-sm" style={{ color: colors.text }}>Pips</Text>
@@ -237,7 +262,7 @@ export default function NewOrderModal({ visible, onClose, initialSide = 'BUY' })
                 </View>
                 <View>
                   <Toggle selected={takeProfitOn} onPress={() => setTakeProfitOn((value) => !value)} label="Take Profit" colors={colors} />
-                  <View className="mt-3"><ValueCard pips={profitPips} setPips={setProfitPips} price={profitPrice} profit="0" compact={compact} colors={colors} controlBackground={controlBackground} /></View>
+                  <View className="mt-3"><ValueCard pips={profitPips} setPips={updateProfitPips} price={takeProfitPrice} setPrice={setTakeProfitPrice} profit="0" compact={compact} colors={colors} controlBackground={controlBackground} /></View>
                 </View>
               </View>
               {message ? <Text className="mb-4" style={{ color: colors.danger }}>{message}</Text> : null}

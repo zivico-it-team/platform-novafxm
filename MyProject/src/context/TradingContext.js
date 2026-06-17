@@ -49,10 +49,11 @@ export function TradingProvider({ children }) {
 
   const syncAccount = useCallback(async () => {
     if (!user || !serverAccount) return;
-    const [open, closed, account, history] = await Promise.all([
-      tradeService.openTrades(selectedAccountId), tradeService.closedTrades(selectedAccountId), walletService.getWallet(selectedAccountId), walletService.getTransactions(),
+    const [open, pending, closed, account, history] = await Promise.all([
+      tradeService.openTrades(selectedAccountId), tradeService.pendingTrades(selectedAccountId), tradeService.closedTrades(selectedAccountId), walletService.getWallet(selectedAccountId), walletService.getTransactions(),
     ]);
     setPositions(open.trades || []);
+    setPendingOrders(pending.trades || []);
     setClosedPositions(closed.trades || []);
     setWallet({ balance: Number(account.summary.balance) });
     if (account.tradingAccount) {
@@ -134,7 +135,7 @@ export function TradingProvider({ children }) {
   }, [transactions, ready]);
 
   const openPosition = useCallback(
-    async (side, lots) => {
+    async (side, lots, options = {}) => {
       if (!user) throw new Error('Please log in to place trades.');
       const quantity = Number(lots);
       if (!quantity || quantity <= 0) throw new Error('Enter a valid lot size.');
@@ -149,7 +150,15 @@ export function TradingProvider({ children }) {
         openPrice: price,
         openedAt: new Date().toISOString(),
       };
-      const result = await tradeService.open({ symbol: selectedSymbol, side, lots: quantity, tradingAccountId: selectedAccountId });
+      const result = await tradeService.open({
+        symbol: selectedSymbol,
+        side,
+        lots: quantity,
+        tradingAccountId: selectedAccountId,
+        orderType: 'market',
+        stopLoss: options.stopLoss || null,
+        takeProfit: options.takeProfit || null,
+      });
       position = result.trade;
       setPositions((existing) => [position, ...existing]);
     },
@@ -157,27 +166,25 @@ export function TradingProvider({ children }) {
   );
 
   const createPendingOrder = useCallback(
-    (values) => {
+    async (values) => {
       if (!user) throw new Error('Please log in to place trades.');
       const quantity = Number(values.lots);
       if (!quantity || quantity <= 0) throw new Error('Enter a valid lot size.');
-      const order = {
-        id: String(Date.now()),
+      const result = await tradeService.open({
         symbol: selectedSymbol,
         side: values.side,
         lots: quantity,
-        orderType: values.orderType,
+        orderType: String(values.orderType || '').toLowerCase(),
         entryPrice: Number(values.entryPrice),
         stopLoss: values.stopLoss ? Number(values.stopLoss) : null,
         takeProfit: values.takeProfit ? Number(values.takeProfit) : null,
-        status: 'pending',
-        openedAt: new Date().toISOString(),
-        tradingAccountId: selectedTradingAccount?.id,
-      };
+        tradingAccountId: selectedAccountId,
+      });
+      const order = result.trade;
       setPendingOrders((existing) => [order, ...existing]);
       return order;
     },
-    [selectedSymbol, selectedTradingAccount?.id, user],
+    [selectedAccountId, selectedSymbol, user],
   );
 
   const closePosition = useCallback(
