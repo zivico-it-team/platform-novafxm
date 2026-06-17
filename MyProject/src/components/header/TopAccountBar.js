@@ -107,9 +107,7 @@ export default function TopAccountBar() {
 
   const cancelProfileHoverClose = () => { if (!profileHoverCloseRef.current) return; clearTimeout(profileHoverCloseRef.current); profileHoverCloseRef.current = null; };
 
-  const openProfileMenu = (action) => { cancelProfileHoverClose(); setHoveredAction(action); setMenu((cur) => (cur === 'profile' ? cur : 'profile')); };
-
-  const profileHoverProps = (action) => ({ onHoverIn: () => openProfileMenu(action), onHoverOut: () => setHoveredAction(null) });
+  const profileHoverProps = (action) => ({ onHoverIn: () => setHoveredAction(action), onHoverOut: () => setHoveredAction(null) });
 
   const iconButtonStyle = (action, baseStyle) => [baseStyle, { cursor: 'pointer' }, hoveredAction === action ? { backgroundColor: iconButtonHoverBg, borderColor: colors.primary, shadowColor: colors.primary, shadowOpacity: darkMode ? 0.28 : 0.18, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, transform: [{ translateY: -1 }], elevation: 4 } : null];
 
