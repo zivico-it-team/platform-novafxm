@@ -42,7 +42,7 @@ exports.register = async (req, res, next) => {
         phone,
         password: await bcrypt.hash(password, 12),
         accountType: selectedAccountType,
-        tradingStatus: 'frozen',
+        tradingStatus: 'active',
         verificationStatus: 'unverified',
         referredById: referrer?.id || null,
       }, { transaction });
