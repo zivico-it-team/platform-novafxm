@@ -76,17 +76,19 @@ async function dashboardForUser(userId, origin = '') {
   ]);
   const liveAccountIds = accounts.filter((account) => account.type === 'Live').map((account) => account.id);
   const liveAccountNames = new Map(accounts.map((account) => [Number(account.id), account.name]));
-  const [allRecentTransactions, liveTradesForTransactions, recentLiveTrades] = liveAccountIds.length
-    ? await Promise.all([
-      Transaction.findAll({ where: { userId }, order: [['createdAt', 'DESC']], limit: 50 }),
-      Trade.findAll({ where: { userId, tradingAccountId: { [Op.in]: liveAccountIds } }, attributes: ['id'] }),
-      Trade.findAll({
+  const [allRecentTransactions, liveTradesForTransactions, recentLiveTrades] = await Promise.all([
+    Transaction.findAll({ where: { userId }, order: [['createdAt', 'DESC']], limit: 50 }),
+    liveAccountIds.length
+      ? Trade.findAll({ where: { userId, tradingAccountId: { [Op.in]: liveAccountIds } }, attributes: ['id'] })
+      : Promise.resolve([]),
+    liveAccountIds.length
+      ? Trade.findAll({
         where: { userId, tradingAccountId: { [Op.in]: liveAccountIds } },
         order: [['createdAt', 'DESC']],
         limit: 10,
-      }),
-    ])
-    : [[], [], []];
+      })
+      : Promise.resolve([]),
+  ]);
   const liveTradeIds = new Set(liveTradesForTransactions.map((trade) => Number(trade.id)));
   const liveTransactions = allRecentTransactions
     .filter((transaction) => {

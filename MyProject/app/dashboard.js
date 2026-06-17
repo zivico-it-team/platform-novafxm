@@ -3,6 +3,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import {
   ArrowUpRight,
+  Bell,
   CheckCircle2,
   Clock3,
   Plus,
@@ -13,10 +14,12 @@ import CustomButton from '../src/components/common/CustomButton';
 import DepositForm from '../src/components/wallet/DepositForm';
 import WithdrawForm from '../src/components/wallet/WithdrawForm';
 import TransactionList from '../src/components/wallet/TransactionList';
+import NotificationMenu from '../src/components/header/NotificationMenu';
 import AccountSidebar from '../src/components/layout/AccountSidebar';
 import { dashboardService } from '../src/services/dashboardService';
 import { useAuth } from '../src/hooks/useAuth';
 import { useWallet } from '../src/hooks/useWallet';
+import { useNotifications } from '../src/hooks/useNotifications';
 import { useAppTheme } from '../src/context/ThemeContext';
 import { dateTime, money } from '../src/utils/formatters';
 
@@ -271,6 +274,14 @@ export default function DashboardScreen() {
   const { user, logout, loading: authLoading } = useAuth();
   const { colors } = useAppTheme();
   const { deposit, withdraw, loading: walletLoading } = useWallet();
+  const {
+    notifications,
+    unreadCount,
+    loading: notificationsLoading,
+    refresh: refreshNotifications,
+    markRead,
+    markAllRead,
+  } = useNotifications();
   const [activeSection, setActiveSection] = useState(String(params.section || 'overview'));
   const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -279,6 +290,7 @@ export default function DashboardScreen() {
   const [pendingAccountType, setPendingAccountType] = useState(null);
   const [accountCreating, setAccountCreating] = useState(false);
   const [activityView, setActivityView] = useState('trades');
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   const loadDashboard = async () => {
     if (!user) return;
@@ -310,6 +322,12 @@ export default function DashboardScreen() {
   useEffect(() => {
     if (params.section) setActiveSection(String(params.section));
   }, [params.section]);
+
+  useEffect(() => {
+    const latest = notifications[0];
+    if (!latest || !['deposit', 'withdraw', 'trade', 'admin'].includes(latest.type)) return;
+    loadDashboard().catch(() => {});
+  }, [notifications[0]?.id]);
 
   const wallet = dashboard?.wallet || user?.wallet || {};
   const withdrawalLocked = Boolean(user && user.verificationStatus !== 'approved');
@@ -369,6 +387,11 @@ export default function DashboardScreen() {
     router.replace('/login');
   };
 
+  const toggleNotifications = () => {
+    if (!notificationsOpen) refreshNotifications().catch(() => {});
+    setNotificationsOpen((open) => !open);
+  };
+
   if (authLoading || !user) {
     return <View className="flex-1" style={{ backgroundColor: colors.background }} />;
   }
@@ -382,6 +405,20 @@ export default function DashboardScreen() {
         referral={referral}
         onSignOut={signOut}
       />
+      <Modal visible={notificationsOpen} transparent animationType="none" onRequestClose={() => setNotificationsOpen(false)}>
+        <Pressable className="flex-1" style={{ flex: 1 }} onPress={() => setNotificationsOpen(false)}>
+          <Pressable onPress={(event) => event.stopPropagation()}>
+            <NotificationMenu
+              notifications={notifications}
+              unreadCount={unreadCount}
+              loading={notificationsLoading}
+              onMarkRead={markRead}
+              onMarkAllRead={markAllRead}
+              onClose={() => setNotificationsOpen(false)}
+            />
+          </Pressable>
+        </Pressable>
+      </Modal>
       <ScrollView className="flex-1" style={{ backgroundColor: colors.background }} contentContainerClassName="p-5 md:p-8">
         <View className="mb-7 flex-row flex-wrap items-center justify-between gap-3">
           <View>
@@ -391,6 +428,14 @@ export default function DashboardScreen() {
             <Text className="mt-2" style={{ color: colors.muted }}>Manage accounts, funds, verification and rewards.</Text>
           </View>
           <View className="flex-row flex-wrap gap-3">
+            <Pressable onPress={toggleNotifications} className="relative h-[46px] w-[46px] items-center justify-center rounded-xl border" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+              <Bell size={20} color={colors.text} />
+              {unreadCount > 0 ? (
+                <View className="absolute -right-1 -top-1 min-w-[18px] items-center justify-center rounded-full px-1" style={{ height: 18, backgroundColor: colors.danger }}>
+                  <Text className="text-[10px] font-black text-white">{unreadCount > 99 ? '99+' : unreadCount}</Text>
+                </View>
+              ) : null}
+            </Pressable>
             <Pressable onPress={() => router.push('/trading')} className="rounded-xl border px-4 py-3" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
               <Text className="font-bold" style={{ color: '#D4AF37' }}>Back to Trading</Text>
             </Pressable>

@@ -6,6 +6,7 @@ const sequelize = require('../config/db');
 const { User, Wallet, TradingAccount } = require('../models');
 const { ensureReferralCode } = require('../services/dashboardService');
 const { sendPasswordResetCode } = require('../services/mailSevice');
+const { createAdminNotifications } = require('../services/notificationService');
 
 const publicUser = (user) => {
   const values = user.toJSON ? user.toJSON() : user;
@@ -58,6 +59,15 @@ exports.register = async (req, res, next) => {
       return created;
     });
     await ensureReferralCode(user);
+    try {
+      await createAdminNotifications({
+        title: 'New User Registered',
+        message: `${user.name || user.email} created a ${selectedAccountType} account.`,
+        type: 'admin',
+      });
+    } catch (notificationError) {
+      console.error('Admin notification delivery failed:', notificationError.message);
+    }
     return res.status(201).json({ token: tokenFor(user), user: publicUser(user) });
   } catch (error) {
     return next(error);

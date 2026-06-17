@@ -3,6 +3,7 @@ import { Link, router } from 'expo-router';
 import { RefreshCcw, UsersRound } from 'lucide-react-native';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import CustomButton from '../src/components/common/CustomButton';
+import AccountNotificationButton from '../src/components/header/AccountNotificationButton';
 import { dashboardService } from '../src/services/dashboardService';
 import { useAuth } from '../src/hooks/useAuth';
 import { useAppTheme } from '../src/context/ThemeContext';
@@ -110,6 +111,7 @@ export default function BrokerRewardsScreen() {
             <Text className="mt-1" style={{ color: colors.muted }}>{user?.email || 'Track your referral link, clients, and commission.'}</Text>
           </View>
           <View className="flex-row flex-wrap gap-3">
+            <AccountNotificationButton />
             <Pressable onPress={() => loadDashboard().catch(() => {})} className="flex-row items-center rounded-xl border px-4 py-3" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
               <RefreshCcw size={16} color={loading ? '#D4AF37' : '#8fa0bb'} />
               <Text className="ml-2 font-bold" style={{ color: colors.text }}>Refresh</Text>

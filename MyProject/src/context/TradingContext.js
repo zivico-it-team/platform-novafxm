@@ -1,4 +1,5 @@
 import { createContext, useCallback, useEffect, useMemo, useState } from 'react';
+import { DeviceEventEmitter } from 'react-native';
 import { DEFAULT_SYMBOL, SYMBOLS } from '../constants/symbols';
 import { useMarketPrices } from '../hooks/useMarketPrices';
 import { useAuth } from '../hooks/useAuth';
@@ -45,7 +46,7 @@ export function TradingProvider({ children }) {
     const id = selectedTradingAccount?.id;
     return id && /^\d+$/.test(String(id)) ? id : undefined;
   }, [selectedTradingAccount?.id]);
-  const serverAccount = user && selectedAccountId;
+  const serverAccount = Boolean(user);
 
   const syncAccount = useCallback(async () => {
     if (!user || !serverAccount) return;
@@ -68,6 +69,16 @@ export function TradingProvider({ children }) {
   useEffect(() => {
     syncAccount().catch(() => {});
   }, [syncAccount]);
+
+  useEffect(() => {
+    if (!user) return undefined;
+    const subscription = DeviceEventEmitter.addListener('novafxm:new-notification', (notification) => {
+      if (['deposit', 'withdraw', 'trade', 'admin'].includes(notification?.type)) {
+        syncAccount().catch(() => {});
+      }
+    });
+    return () => subscription.remove();
+  }, [syncAccount, user]);
 
   useEffect(() => {
     if (authLoading || user) return;

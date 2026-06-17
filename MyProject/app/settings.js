@@ -17,6 +17,7 @@ import {
 } from 'lucide-react-native';
 import CustomButton from '../src/components/common/CustomButton';
 import AccountSidebar from '../src/components/layout/AccountSidebar';
+import AccountNotificationButton from '../src/components/header/AccountNotificationButton';
 import { useAuth } from '../src/hooks/useAuth';
 import { authService } from '../src/services/authService';
 import { useAppTheme } from '../src/context/ThemeContext';
@@ -830,9 +831,12 @@ export default function SettingsScreen() {
             <Text className="text-3xl font-extrabold" style={{ color: colors.text }}>Settings</Text>
             <Text className="mt-1" style={{ color: colors.muted }}>Manage your account preferences and security</Text>
           </View>
-          <Pressable onPress={() => router.push('/dashboard')} className="rounded-xl border px-4 py-3" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
-            <Text className="font-bold text-primary">Back to Dashboard</Text>
-          </Pressable>
+          <View className="flex-row flex-wrap gap-3">
+            <AccountNotificationButton />
+            <Pressable onPress={() => router.push('/dashboard')} className="rounded-xl border px-4 py-3" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+              <Text className="font-bold text-primary">Back to Dashboard</Text>
+            </Pressable>
+          </View>
         </View>
 
         <ScrollView

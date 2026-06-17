@@ -2,6 +2,7 @@ require('dotenv').config({ quiet: true });
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
+const jwt = require('jsonwebtoken');
 const { Server } = require('socket.io');
 const sequelize = require('./config/db');
 require('./models');
@@ -9,6 +10,7 @@ const ensureSchema = require('./config/ensureSchema');
 const seedAdmin = require('./seed/seedAdmin');
 const tradingView = require('./services/tradingViewService');
 const { startCandleCatchupScheduler } = require('./services/candleCatchupScheduler');
+const { setNotificationIo } = require('./services/notificationService');
 
 const app = express();
 app.use(cors({ origin: process.env.CORS_ORIGIN === '*' || !process.env.CORS_ORIGIN ? true : process.env.CORS_ORIGIN }));
@@ -21,6 +23,7 @@ app.use('/api/wallet', require('./routes/walletRoutes'));
 app.use('/api/trades', require('./routes/tradeRoutes'));
 app.use('/api/market', require('./routes/marketRoutes'));
 app.use('/api/dashboard', require('./routes/dashboardRoutes'));
+app.use('/api/notifications', require('./routes/notificationRoutes'));
 app.use('/api/admin', require('./routes/adminRoutes'));
 
 app.use((req, res) => res.status(404).json({ message: 'Route not found.' }));
@@ -39,8 +42,20 @@ async function start() {
   await seedAdmin();
   const server = http.createServer(app);
   const io = new Server(server, { cors: { origin: process.env.CORS_ORIGIN === '*' || !process.env.CORS_ORIGIN ? true : process.env.CORS_ORIGIN } });
+  setNotificationIo(io);
   io.on('connection', async (socket) => {
+    const token = socket.handshake.auth?.token;
+    if (token && process.env.JWT_SECRET) {
+      try {
+        socket.data.userId = jwt.verify(token, process.env.JWT_SECRET).id;
+      } catch {
+        socket.data.userId = null;
+      }
+    }
     socket.emit('market:prices', await tradingView.getPrices());
+    socket.on('notifications:join', (userId) => {
+      if (socket.data.userId && String(socket.data.userId) === String(userId)) socket.join(`user_${userId}`);
+    });
   });
   const stopPriceStream = tradingView.startPriceStream((prices) => {
     if (io.engine.clientsCount) io.emit('market:prices', prices);

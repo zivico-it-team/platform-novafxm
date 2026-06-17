@@ -3,6 +3,7 @@ import { ArrowLeft, CheckCircle2, ShieldCheck, Wallet, XCircle } from 'lucide-re
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import DepositForm from '../src/components/wallet/DepositForm';
 import TransactionList from '../src/components/wallet/TransactionList';
+import AccountNotificationButton from '../src/components/header/AccountNotificationButton';
 import { useWallet } from '../src/hooks/useWallet';
 import { useAuth } from '../src/hooks/useAuth';
 import { useAppTheme } from '../src/context/ThemeContext';
@@ -27,6 +28,7 @@ export default function DepositScreen() {
           <Text className="mt-1 text-muted">Fund your trading account with a reviewed deposit request.</Text>
         </View>
         <View className="flex-row flex-wrap gap-3">
+          <AccountNotificationButton />
           <Link href="/trading" asChild>
             <Pressable className="flex-row items-center rounded-xl border border-border bg-panel px-4 py-3">
               <ArrowLeft size={17} color="#D4AF37" />

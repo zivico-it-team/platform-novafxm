@@ -1,6 +1,7 @@
 const sequelize = require('../config/db');
 const { Wallet, Trade, Transaction, TradingAccount } = require('../models');
 const tradingView = require('../services/tradingViewService');
+const { createNotification } = require('../services/notificationService');
 
 const money = (value) => Number(Number(value || 0).toFixed(2));
 const contractSize = (symbol) => (
@@ -14,6 +15,14 @@ const pnl = (trade, closePrice) => money(
   * Number(trade.lots)
   * contractSize(trade.symbol),
 );
+
+async function notifyUser(payload) {
+  try {
+    await createNotification(payload);
+  } catch (error) {
+    console.error('Notification delivery failed:', error.message);
+  }
+}
 
 exports.open = async (req, res, next) => {
   try {
@@ -49,6 +58,12 @@ exports.open = async (req, res, next) => {
       const equity = Number(account.balance);
       const nextMargin = money(currentMargin + margin);
       if (account.isPrimary) await wallet.update({ margin: nextMargin, freeFunds: money(equity - nextMargin) }, { transaction });
+    });
+    await notifyUser({
+      userId: req.user.id,
+      title: 'Order Executed',
+      message: `${side} ${symbol} order opened at ${Number(trade.openPrice).toFixed(5)}.`,
+      type: 'trade',
     });
     return res.status(201).json({ trade });
   } catch (error) {
@@ -92,6 +107,12 @@ exports.close = async (req, res, next) => {
         referenceId: trade.id,
         description: `${trade.side} ${trade.symbol} trade closed`,
       }, { transaction });
+    });
+    await notifyUser({
+      userId: req.user.id,
+      title: profit >= 0 ? 'Trade Closed in Profit' : 'Trade Closed in Loss',
+      message: `${trade.side} ${trade.symbol} closed with ${profit >= 0 ? 'profit' : 'loss'} of $${Math.abs(profit).toFixed(2)}.`,
+      type: 'trade',
     });
     return res.json({ trade, tradingAccount });
   } catch (error) {

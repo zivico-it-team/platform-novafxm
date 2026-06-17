@@ -6,6 +6,7 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { AuthProvider } from '../src/context/AuthContext';
 import { TradingProvider } from '../src/context/TradingContext';
 import { ThemeProvider, useAppTheme } from '../src/context/ThemeContext';
+import GlobalNotificationBell from '../src/components/header/GlobalNotificationBell';
 
 function AppStack() {
   const { darkMode, colors } = useAppTheme();
@@ -18,6 +19,7 @@ function AppStack() {
         style={{ flex: 1, backgroundColor: colors.background }}
       >
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }} />
+        <GlobalNotificationBell />
       </SafeAreaView>
     </>
   );

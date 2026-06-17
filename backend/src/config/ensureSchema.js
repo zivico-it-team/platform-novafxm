@@ -173,6 +173,28 @@ async function ensureSchema() {
     after: 'user_id',
   });
 
+  await queryInterface.createTable('notifications', {
+    id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
+    user_id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      allowNull: false,
+      references: { model: 'users', key: 'id' },
+      onDelete: 'CASCADE',
+    },
+    title: { type: DataTypes.STRING(255), allowNull: false },
+    message: { type: DataTypes.TEXT, allowNull: false },
+    type: {
+      type: DataTypes.ENUM('deposit', 'withdraw', 'trade', 'system', 'kyc', 'admin'),
+      allowNull: false,
+      defaultValue: 'system',
+    },
+    is_read: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    created_at: { type: DataTypes.DATE, allowNull: false },
+    updated_at: { type: DataTypes.DATE, allowNull: false },
+  }).catch((error) => {
+    if (!['ER_TABLE_EXISTS_ERROR', 'SQLITE_ERROR'].includes(error?.parent?.code) && !String(error?.message || '').includes('already exists')) throw error;
+  });
+
   await queryInterface.createTable('bank_accounts', {
     id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
     user_id: {

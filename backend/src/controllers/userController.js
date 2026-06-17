@@ -1,5 +1,6 @@
 const bcrypt = require('bcryptjs');
 const { User, Wallet, BankAccount } = require('../models');
+const { createAdminNotifications } = require('../services/notificationService');
 
 const countries = [
   { name: 'Sri Lanka', code: '+94' },
@@ -11,6 +12,14 @@ const countries = [
   { name: 'United Arab Emirates', code: '+971' },
   { name: 'Singapore', code: '+65' },
 ];
+
+async function notifyAdmins(payload) {
+  try {
+    await createAdminNotifications(payload);
+  } catch (error) {
+    console.error('Admin notification delivery failed:', error.message);
+  }
+}
 
 const countryByName = (name) => countries.find((country) => country.name === name);
 
@@ -215,10 +224,20 @@ exports.createBankAccount = async (req, res, next) => {
     const existingAccount = accounts.find((account) => payoutTypeForPayload(account) === payoutType);
     if (existingAccount) {
       await existingAccount.update({ ...payload, status: 'pending', reviewedAt: null, reviewedBy: null });
+      await notifyAdmins({
+        title: `${payoutType} Details Updated`,
+        message: `${req.user.name || req.user.email} updated ${payoutType} withdrawal details for approval.`,
+        type: 'admin',
+      });
       return res.json({ account: existingAccount, message: `${payoutType} details updated and submitted for admin approval.` });
     }
 
     const account = await BankAccount.create({ ...payload, userId: req.user.id, status: 'pending', reviewedAt: null, reviewedBy: null });
+    await notifyAdmins({
+      title: `New ${payoutType} Details`,
+      message: `${req.user.name || req.user.email} submitted ${payoutType} withdrawal details for approval.`,
+      type: 'admin',
+    });
     return res.status(201).json({ account, message: `${payoutType} details submitted for admin approval.` });
   } catch (error) {
     return next(error);
@@ -239,6 +258,11 @@ exports.updateBankAccount = async (req, res, next) => {
       return res.status(400).json({ message: `${currentPayoutType} details cannot be changed into ${nextPayoutType} details.` });
     }
     await account.update({ ...payload, status: 'pending', reviewedAt: null, reviewedBy: null });
+    await notifyAdmins({
+      title: `${currentPayoutType} Details Updated`,
+      message: `${req.user.name || req.user.email} updated ${currentPayoutType} withdrawal details for approval.`,
+      type: 'admin',
+    });
     return res.json({ account, message: `${currentPayoutType} details updated and submitted for admin approval.` });
   } catch (error) {
     return next(error);
@@ -250,6 +274,11 @@ exports.deleteBankAccount = async (req, res, next) => {
     const account = await BankAccount.findOne({ where: { id: req.params.id, userId: req.user.id } });
     if (!account) return res.status(404).json({ message: 'Bank account not found.' });
     await account.update({ status: 'delete_pending', reviewedAt: null, reviewedBy: null });
+    await notifyAdmins({
+      title: 'Withdrawal Details Delete Request',
+      message: `${req.user.name || req.user.email} requested withdrawal details deletion approval.`,
+      type: 'admin',
+    });
     return res.json({ account, message: 'Bank account deletion request submitted for admin approval.' });
   } catch (error) {
     return next(error);
@@ -272,6 +301,11 @@ exports.submitVerification = async (req, res, next) => {
       verificationReviewedAt: null,
       verificationReviewedBy: null,
       tradingStatus: 'frozen',
+    });
+    await notifyAdmins({
+      title: 'New Verification Request',
+      message: `${user.name || user.email} submitted verification documents for review.`,
+      type: 'kyc',
     });
     return res.json({ user });
   } catch (error) {

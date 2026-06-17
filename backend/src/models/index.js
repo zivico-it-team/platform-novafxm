@@ -7,6 +7,7 @@ const Trade = require('./Trade');
 const Candle = require('./Candle');
 const TradingAccount = require('./TradingAccount');
 const BankAccount = require('./BankAccount');
+const Notification = require('./Notification');
 
 User.hasOne(Wallet, { foreignKey: 'userId', as: 'wallet' });
 Wallet.belongsTo(User, { foreignKey: 'userId' });
@@ -22,9 +23,11 @@ User.hasMany(TradingAccount, { foreignKey: 'userId', as: 'tradingAccounts' });
 TradingAccount.belongsTo(User, { foreignKey: 'userId' });
 User.hasMany(BankAccount, { foreignKey: 'userId', as: 'bankAccounts' });
 BankAccount.belongsTo(User, { foreignKey: 'userId' });
+User.hasMany(Notification, { foreignKey: 'userId', as: 'notifications' });
+Notification.belongsTo(User, { foreignKey: 'userId' });
 TradingAccount.hasMany(Trade, { foreignKey: 'tradingAccountId', as: 'trades' });
 Trade.belongsTo(TradingAccount, { foreignKey: 'tradingAccountId', as: 'tradingAccount' });
 User.hasMany(User, { foreignKey: 'referredById', as: 'referrals' });
 User.belongsTo(User, { foreignKey: 'referredById', as: 'referrer' });
 
-module.exports = { User, Wallet, Deposit, Withdrawal, Transaction, Trade, Candle, TradingAccount, BankAccount };
+module.exports = { User, Wallet, Deposit, Withdrawal, Transaction, Trade, Candle, TradingAccount, BankAccount, Notification };

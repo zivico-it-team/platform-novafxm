@@ -13,8 +13,12 @@ const navigation = [
   { id: 'trades', label: 'All Trades', icon: BarChart3 },
 ];
 
-export default function AdminSidebar({ section, onChange, stats, pendingCount, bankPendingCount, onSignOut }) {
+export default function AdminSidebar({ section, onChange, stats, badgeCounts = {}, onSignOut }) {
   const { darkMode, colors } = useAppTheme();
+  const badgeFor = (id) => Number(badgeCounts[id] || 0);
+  const Badge = ({ count }) => (
+    count ? <Text className="ml-auto rounded-full bg-danger px-2 py-1 text-xs font-bold text-white">{count}</Text> : null
+  );
 
   return (
     <View className="w-full border-b md:min-h-screen md:w-[270px] md:border-b-0 md:border-r" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
@@ -25,7 +29,10 @@ export default function AdminSidebar({ section, onChange, stats, pendingCount, b
       <ScrollView horizontal className="md:hidden" contentContainerClassName="p-3">
         {navigation.map(({ id, label }) => (
           <Pressable key={id} onPress={() => onChange(id)} className="mr-2 rounded-xl px-4 py-3" style={{ backgroundColor: section === id ? colors.primary : colors.surface }}>
-            <Text className="font-semibold" style={{ color: section === id ? '#0B0B0B' : colors.text }}>{label}</Text>
+            <View className="flex-row items-center">
+              <Text className="font-semibold" style={{ color: section === id ? '#0B0B0B' : colors.text }}>{label}</Text>
+              {badgeFor(id) ? <Text className="ml-2 rounded-full bg-danger px-2 py-1 text-xs font-bold text-white">{badgeFor(id)}</Text> : null}
+            </View>
           </Pressable>
         ))}
       </ScrollView>
@@ -39,12 +46,7 @@ export default function AdminSidebar({ section, onChange, stats, pendingCount, b
           >
             <Icon size={19} color={section === id ? '#0B0B0B' : colors.muted} />
             <Text className="ml-3 font-semibold" style={{ color: section === id ? '#0B0B0B' : colors.muted }}>{label}</Text>
-            {id === 'funding' && pendingCount ? (
-              <Text className="ml-auto rounded-full bg-danger px-2 py-1 text-xs font-bold text-white">{pendingCount}</Text>
-            ) : null}
-            {id === 'bankAccounts' && bankPendingCount ? (
-              <Text className="ml-auto rounded-full bg-danger px-2 py-1 text-xs font-bold text-white">{bankPendingCount}</Text>
-            ) : null}
+            <Badge count={badgeFor(id)} />
           </Pressable>
         ))}
         <View className="mt-6 rounded-2xl border p-4" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>

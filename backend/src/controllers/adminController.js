@@ -4,6 +4,7 @@ const { Op } = require('sequelize');
 const { User, Wallet, Deposit, Withdrawal, Transaction, Trade, TradingAccount, BankAccount } = require('../models');
 const tradingView = require('../services/tradingViewService');
 const { ensureReferralCode } = require('../services/dashboardService');
+const { createNotification } = require('../services/notificationService');
 
 const DEMO_BALANCE = 5000;
 const publicAttributes = { exclude: ['password'] };
@@ -22,6 +23,14 @@ const profitFor = (trade, price) => (
 
 function apiError(message, status = 400) {
   return Object.assign(new Error(message), { status });
+}
+
+async function notifyUser(payload) {
+  try {
+    await createNotification(payload);
+  } catch (error) {
+    console.error('Notification delivery failed:', error.message);
+  }
 }
 
 async function getUser(id, transaction) {
@@ -266,6 +275,12 @@ exports.updateUserDetails = async (req, res, next) => {
     }
     await user.update(updates);
     const updated = await User.findByPk(user.id, { attributes: publicAttributes, include: [{ model: Wallet, as: 'wallet' }, { model: TradingAccount, as: 'tradingAccounts' }] });
+    await notifyUser({
+      userId: user.id,
+      title: 'Account Details Updated',
+      message: 'Your account details were updated by an administrator.',
+      type: 'admin',
+    });
     return res.json({ user: updated });
   } catch (error) {
     return next(error);
@@ -383,6 +398,12 @@ exports.updateBalance = (type) => async (req, res, next) => {
       }, { transaction });
       output = { user, wallet: { ...wallet.toJSON(), ...summary }, transaction: ledger };
     });
+    await notifyUser({
+      userId: output.user.id,
+      title: type === 'admin_add_balance' ? 'Balance Added' : 'Balance Deducted',
+      message: `$${amount.toFixed(2)} has been ${type === 'admin_add_balance' ? 'added to' : 'deducted from'} your trading account.`,
+      type: 'admin',
+    });
     return res.json(output);
   } catch (error) {
     return next(error);
@@ -393,6 +414,14 @@ exports.setTradingStatus = (tradingStatus) => async (req, res, next) => {
   try {
     const user = await getUser(req.params.id);
     await user.update({ tradingStatus });
+    await notifyUser({
+      userId: user.id,
+      title: tradingStatus === 'active' ? 'Trading Enabled' : 'Trading Disabled',
+      message: tradingStatus === 'active'
+        ? 'Your trading access has been enabled.'
+        : 'Your trading access has been temporarily disabled.',
+      type: 'admin',
+    });
     return res.json({ user });
   } catch (error) {
     return next(error);
@@ -407,6 +436,12 @@ exports.updateLeverage = async (req, res, next) => {
     }
     const user = await getUser(req.params.id);
     await user.update({ leverage });
+    await notifyUser({
+      userId: user.id,
+      title: 'Leverage Updated',
+      message: `Your account leverage has been updated to 1:${leverage}.`,
+      type: 'admin',
+    });
     return res.json({ user });
   } catch (error) {
     return next(error);
@@ -436,6 +471,14 @@ exports.reviewVerification = (verificationStatus) => async (req, res, next) => {
       verificationReviewedAt: new Date(),
       verificationReviewedBy: req.user.id,
       tradingStatus: verificationStatus === 'approved' ? 'active' : 'frozen',
+    });
+    await notifyUser({
+      userId: user.id,
+      title: verificationStatus === 'approved' ? 'KYC Verified' : 'KYC Rejected',
+      message: verificationStatus === 'approved'
+        ? 'Your account verification has been approved.'
+        : 'Your account verification was rejected. Please review and upload valid documents.',
+      type: 'kyc',
     });
     return res.json({ user });
   } catch (error) {
@@ -517,6 +560,7 @@ exports.reviewBankAccount = (status) => async (req, res, next) => {
     const account = await BankAccount.findByPk(req.params.id);
     if (!account) throw apiError('Bank account details not found.', 404);
     if (account.status === 'delete_pending' && status === 'approved') {
+      const userId = account.userId;
       await User.update({
         bankAccountHolder: null,
         bankName: null,
@@ -524,6 +568,12 @@ exports.reviewBankAccount = (status) => async (req, res, next) => {
         bankAccountNumber: null,
       }, { where: { id: account.userId } });
       await account.destroy();
+      await notifyUser({
+        userId,
+        title: 'Withdrawal Details Removed',
+        message: 'Your withdrawal details removal request has been approved.',
+        type: 'admin',
+      });
       return res.json({ deleted: true });
     }
     if (account.status === 'delete_pending' && status === 'rejected') {
@@ -532,12 +582,26 @@ exports.reviewBankAccount = (status) => async (req, res, next) => {
         reviewedAt: new Date(),
         reviewedBy: req.user.id,
       });
+      await notifyUser({
+        userId: account.userId,
+        title: 'Withdrawal Details Kept',
+        message: 'Your withdrawal details removal request was rejected.',
+        type: 'admin',
+      });
       return res.json({ account });
     }
     await account.update({
       status,
       reviewedAt: new Date(),
       reviewedBy: req.user.id,
+    });
+    await notifyUser({
+      userId: account.userId,
+      title: status === 'approved' ? 'Withdrawal Details Approved' : 'Withdrawal Details Rejected',
+      message: status === 'approved'
+        ? 'Your withdrawal details have been approved.'
+        : 'Your withdrawal details were rejected. Please submit valid details.',
+      type: 'admin',
     });
     return res.json({ account });
   } catch (error) {
@@ -588,6 +652,14 @@ exports.reviewDeposit = (status) => async (req, res, next) => {
       }
       result = deposit;
     });
+    await notifyUser({
+      userId: result.userId,
+      title: status === 'approved' ? 'Deposit Approved' : 'Deposit Rejected',
+      message: status === 'approved'
+        ? `Your deposit of $${Number(result.amount).toFixed(2)} has been approved.`
+        : `Your deposit of $${Number(result.amount).toFixed(2)} has been rejected.`,
+      type: 'deposit',
+    });
     return res.json({ deposit: result });
   } catch (error) {
     return next(error);
@@ -627,6 +699,14 @@ exports.reviewWithdrawal = (status) => async (req, res, next) => {
         transaction,
       });
       result = withdrawal;
+    });
+    await notifyUser({
+      userId: result.userId,
+      title: status === 'approved' ? 'Withdrawal Approved' : 'Withdrawal Rejected',
+      message: status === 'approved'
+        ? `Your withdrawal request of $${Number(result.amount).toFixed(2)} has been approved.`
+        : `Your withdrawal request of $${Number(result.amount).toFixed(2)} has been rejected.`,
+      type: 'withdraw',
     });
     return res.json({ withdrawal: result });
   } catch (error) {

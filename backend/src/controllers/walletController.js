@@ -1,6 +1,7 @@
 const sequelize = require('../config/db');
 const { Wallet, Deposit, Withdrawal, Transaction, Trade, BankAccount, TradingAccount } = require('../models');
 const tradingView = require('../services/tradingViewService');
+const { createAdminNotifications } = require('../services/notificationService');
 
 const money = (value) => Number(Number(value || 0).toFixed(2));
 const contractSize = (symbol) => (
@@ -15,6 +16,14 @@ const profitFor = (trade, price) => (
   * contractSize(trade.symbol)
 );
 const isTrc20Detail = (account) => String(`${account?.bankName || ''} ${account?.branchName || ''}`).toLowerCase().includes('trc20');
+
+async function notifyAdmins(payload) {
+  try {
+    await createAdminNotifications(payload);
+  } catch (error) {
+    console.error('Admin notification delivery failed:', error.message);
+  }
+}
 
 exports.getWallet = async (req, res, next) => {
   try {
@@ -77,6 +86,11 @@ exports.deposit = async (req, res, next) => {
         description: `Deposit via ${paymentMethod}`,
       }, { transaction });
     });
+    await notifyAdmins({
+      title: 'New Deposit Request',
+      message: `${req.user.name || req.user.email} submitted a deposit request for $${Number(amount).toFixed(2)}.`,
+      type: 'deposit',
+    });
     return res.status(201).json({ deposit });
   } catch (error) {
     return next(error);
@@ -132,6 +146,11 @@ exports.withdraw = async (req, res, next) => {
         referenceId: withdrawal.id,
         description: method === 'Bank' ? `Withdrawal to ${bankName}` : `Crypto withdrawal to ${bankName}`,
       }, { transaction });
+    });
+    await notifyAdmins({
+      title: 'New Withdrawal Request',
+      message: `${req.user.name || req.user.email} submitted a withdrawal request for $${Number(amount).toFixed(2)}.`,
+      type: 'withdraw',
     });
     return res.status(201).json({ withdrawal });
   } catch (error) {

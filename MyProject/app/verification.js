@@ -4,6 +4,7 @@ import { CheckCircle2, FileCheck2, FileText, ShieldCheck, UploadCloud } from 'lu
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import CustomButton from '../src/components/common/CustomButton';
 import AccountSidebar from '../src/components/layout/AccountSidebar';
+import AccountNotificationButton from '../src/components/header/AccountNotificationButton';
 import { useAuth } from '../src/hooks/useAuth';
 import { useAppTheme } from '../src/context/ThemeContext';
 
@@ -58,6 +59,7 @@ function AccountPageShell({ children, user, onSignOut, colors }) {
             <Text className="mt-2" style={{ color: colors.muted }}>{user?.email || 'Complete account verification'}</Text>
           </View>
           <View className="flex-row flex-wrap gap-3">
+            <AccountNotificationButton />
             <Pressable onPress={() => router.push('/trading')} className="rounded-xl border px-4 py-3" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
               <Text className="font-bold" style={{ color: GOLD }}>Back to Trading</Text>
             </Pressable>

@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Modal, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
-import { CircleUserRound, LayoutDashboard, Plus, Settings2, Sun, Moon } from 'lucide-react-native';
+import { Bell, CircleUserRound, LayoutDashboard, Plus, Settings2, Sun, Moon } from 'lucide-react-native';
 import { useAuth } from '../../hooks/useAuth';
 import { useDemoTrading } from '../../hooks/useDemoTrading';
+import { useNotifications } from '../../hooks/useNotifications';
 import { money } from '../../utils/formatters';
 import { useAppTheme } from '../../context/ThemeContext';
 import { dashboardService } from '../../services/dashboardService';
@@ -11,6 +12,7 @@ import NovaLogo from '../brand/NovaLogo';
 import DemoAccountMenu from './DemoAccountMenu';
 import NewOrderModal from '../order/NewOrderModal';
 import ProfileMenu from './ProfileMenu';
+import NotificationMenu from './NotificationMenu';
 
 const visibleMetricCount = 5;
 
@@ -19,6 +21,7 @@ export default function TopAccountBar() {
   const { summary, selectedTradingAccount, setSelectedTradingAccount } = useDemoTrading();
   const params = useLocalSearchParams();
   const { user } = useAuth();
+  const { notifications, unreadCount, loading: notificationsLoading, refresh: refreshNotifications, markRead, markAllRead } = useNotifications();
   const { darkMode, colors, toggleTheme } = useAppTheme();
   const metricsScrollRef = useRef(null);
   const profileHoverCloseRef = useRef(null);
@@ -114,6 +117,22 @@ export default function TopAccountBar() {
 
   const iconColor = (action) => (hoveredAction === action ? colors.primary : colors.text);
 
+  const toggleNotifications = () => {
+    if (menu !== 'notifications') refreshNotifications().catch(() => {});
+    setMenu(menu === 'notifications' ? null : 'notifications');
+  };
+
+  const BellButton = ({ action, className }) => (
+    <Pressable {...hoverProps(action)} onPress={toggleNotifications} className={className} style={iconButtonStyle(action, { backgroundColor: colors.panel, borderColor: colors.border })}>
+      <View style={iconHoverStyle(action)}><Bell size={width < 760 ? 18 : 21} color={iconColor(action)} /></View>
+      {unreadCount > 0 ? (
+        <View className="absolute -right-1 -top-1 min-w-[18px] items-center justify-center rounded-full px-1" style={{ height: 18, backgroundColor: colors.danger }}>
+          <Text className="text-[10px] font-black text-white">{unreadCount > 99 ? '99+' : unreadCount}</Text>
+        </View>
+      ) : null}
+    </Pressable>
+  );
+
   const AuthButtons = () => (
     <View className="flex-row items-center gap-2">
       <Pressable onPress={() => router.push('/login')} className="h-[40px] justify-center rounded-md px-4" style={{ backgroundColor: colors.panel }}>
@@ -162,6 +181,7 @@ export default function TopAccountBar() {
           <Pressable {...hoverProps('mobile-theme')} onPress={toggleTheme} className="h-[40px] w-[40px] items-center justify-center rounded-md border" style={iconButtonStyle('mobile-theme', { backgroundColor: colors.panel, borderColor: colors.border })}>
             <View style={iconHoverStyle('mobile-theme')}>{darkMode ? <Sun size={18} color={iconColor('mobile-theme')} /> : <Moon size={18} color={iconColor('mobile-theme')} />}</View>
           </Pressable>
+          {user ? <BellButton action="mobile-notifications" className="h-[40px] w-[40px] items-center justify-center rounded-md border" /> : null}
           {user ? (
             <Pressable {...profileHoverProps('mobile-profile')} onPress={() => setMenu(menu === 'profile' ? null : 'profile')} className="h-[40px] w-[40px] items-center justify-center rounded-md border" style={iconButtonStyle('mobile-profile', { backgroundColor: colors.panel, borderColor: colors.border })}>
               <View style={iconHoverStyle('mobile-profile')}><Settings2 color={iconColor('mobile-profile')} size={18} /></View>
@@ -206,6 +226,7 @@ export default function TopAccountBar() {
       <Pressable {...hoverProps('theme')} onPress={toggleTheme} className="mt-3 hidden h-[58px] w-[58px] items-center justify-center rounded-xl border lg:flex" style={iconButtonStyle('theme', { backgroundColor: colors.panel, borderColor: colors.border })}>
         <View style={iconHoverStyle('theme')}>{darkMode ? <Sun size={21} color={iconColor('theme')} /> : <Moon size={21} color={iconColor('theme')} />}</View>
       </Pressable>
+      {user ? <BellButton action="notifications" className="mt-3 hidden h-[58px] w-[58px] items-center justify-center rounded-xl border lg:flex" /> : null}
       {user ? (
         <Pressable {...profileHoverProps('profile')} onPress={() => setMenu(menu === 'profile' ? null : 'profile')} className="mt-3 hidden h-[58px] w-[58px] items-center justify-center rounded-xl border lg:flex" style={iconButtonStyle('profile', { backgroundColor: colors.panel, borderColor: colors.border })}>
           <View style={iconHoverStyle('profile')}><Settings2 size={21} color={iconColor('profile')} /></View>
@@ -215,6 +236,7 @@ export default function TopAccountBar() {
         <Pressable className="flex-1" style={{ flex: 1 }} onPress={() => setMenu(null)}>
           <Pressable onPress={(event) => event.stopPropagation()}>
             {menu === 'account' ? <DemoAccountMenu accounts={tradingAccounts} selectedAccount={selectedAccount} onSelectAccount={selectAccount} onClose={() => setMenu(null)} /> : null}
+            {menu === 'notifications' ? <NotificationMenu notifications={notifications} unreadCount={unreadCount} loading={notificationsLoading} onMarkRead={markRead} onMarkAllRead={markAllRead} onClose={() => setMenu(null)} /> : null}
             {menu === 'profile' ? <ProfileMenu onClose={() => setMenu(null)} onHoverIn={cancelProfileHoverClose} toggleTheme={toggleTheme} darkMode={darkMode} /> : null}
           </Pressable>
         </Pressable>

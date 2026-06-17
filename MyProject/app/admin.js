@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useRouter } from 'expo-router';
-import { Alert, Image, Platform, Pressable, ScrollView, Text, View } from 'react-native';
-import { Moon, RefreshCw, Sun } from 'lucide-react-native';
+import { Alert, DeviceEventEmitter, Image, Modal, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { Bell, Moon, RefreshCw, Sun } from 'lucide-react-native';
 import api from '../src/services/api';
 import CustomButton from '../src/components/common/CustomButton';
 import AdminSidebar from '../src/components/admin/AdminSidebar';
@@ -11,7 +11,9 @@ import UpdateBalanceModal from '../src/components/admin/UpdateBalanceModal';
 import UserWalletDetails from '../src/components/admin/UserWalletDetails';
 import UserTransactionsModal from '../src/components/admin/UserTransactionsModal';
 import UserSettingsModal from '../src/components/admin/UserSettingsModal';
+import NotificationMenu from '../src/components/header/NotificationMenu';
 import { useAuth } from '../src/hooks/useAuth';
+import { useNotifications } from '../src/hooks/useNotifications';
 import { useAppTheme } from '../src/context/ThemeContext';
 import { dateTime, money } from '../src/utils/formatters';
 
@@ -68,6 +70,14 @@ function EmptyRow({ children }) {
 export default function AdminScreen() {
   const { isAdmin, logout } = useAuth();
   const { darkMode, colors, toggleTheme } = useAppTheme();
+  const {
+    notifications,
+    unreadCount,
+    loading: notificationsLoading,
+    refresh: refreshNotifications,
+    markRead,
+    markAllRead,
+  } = useNotifications();
   const router = useRouter();
   const [section, setSection] = useState('overview');
   const [data, setData] = useState(empty);
@@ -82,6 +92,7 @@ export default function AdminScreen() {
   const [verificationUser, setVerificationUser] = useState(null);
   const [receiptModal, setReceiptModal] = useState(null);
   const [depositDetails, setDepositDetails] = useState(null);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!isAdmin) return;
@@ -112,12 +123,32 @@ export default function AdminScreen() {
 
   useEffect(() => { load(); }, [load]);
 
+  useEffect(() => {
+    if (!isAdmin) return undefined;
+    const subscription = DeviceEventEmitter.addListener('novafxm:new-notification', () => {
+      load();
+    });
+    return () => subscription.remove();
+  }, [isAdmin, load]);
+
   const pendingCount = useMemo(() => (
     [...data.deposits, ...data.withdrawals].filter((item) => item.status === 'pending').length
   ), [data.deposits, data.withdrawals]);
   const bankPendingCount = useMemo(() => (
     data.bankAccounts.filter((item) => ['pending', 'delete_pending'].includes(item.status)).length
   ), [data.bankAccounts]);
+  const verificationPendingCount = useMemo(() => (
+    data.users.filter((item) => item.role !== 'admin' && item.verificationStatus === 'pending').length
+  ), [data.users]);
+  const userManagementNotificationCount = useMemo(() => (
+    notifications.filter((item) => !item.isRead && item.title === 'New User Registered').length
+  ), [notifications]);
+  const sidebarBadgeCounts = useMemo(() => ({
+    users: verificationPendingCount,
+    userManagement: userManagementNotificationCount,
+    funding: pendingCount,
+    bankAccounts: bankPendingCount,
+  }), [bankPendingCount, pendingCount, userManagementNotificationCount, verificationPendingCount]);
 
   const action = async (id, request, success, closeModal) => {
     setBusyId(id);
@@ -177,6 +208,11 @@ export default function AdminScreen() {
   const signOut = async () => {
     await logout();
     router.replace('/login');
+  };
+
+  const toggleNotifications = () => {
+    if (!notificationsOpen) refreshNotifications().catch(() => {});
+    setNotificationsOpen((open) => !open);
   };
 
   const saveSettings = ({ leverage, adminNotes }) => action(
@@ -442,7 +478,7 @@ export default function AdminScreen() {
 
   return (
     <View className="flex-1 md:flex-row" style={{ backgroundColor: colors.background }}>
-      <AdminSidebar section={section} onChange={setSection} stats={data.stats} pendingCount={pendingCount} bankPendingCount={bankPendingCount} onSignOut={signOut} />
+      <AdminSidebar section={section} onChange={setSection} stats={data.stats} badgeCounts={sidebarBadgeCounts} onSignOut={signOut} />
       <ScrollView className="flex-1" contentContainerClassName="p-5 md:p-8" style={{ backgroundColor: colors.background }}>
         <View className="mb-7 flex-row items-center justify-between">
           <View>
@@ -451,6 +487,14 @@ export default function AdminScreen() {
             <Text className="mt-2" style={{ color: colors.muted }}>Manage client balances, trading access and financial operations.</Text>
           </View>
           <View className="flex-row items-center gap-2">
+            <Pressable onPress={toggleNotifications} className="relative rounded-xl border p-3" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+              <Bell size={20} color={colors.text} />
+              {unreadCount > 0 ? (
+                <View className="absolute -right-1 -top-1 min-w-[18px] items-center justify-center rounded-full px-1" style={{ height: 18, backgroundColor: colors.danger }}>
+                  <Text className="text-[10px] font-black text-white">{unreadCount > 99 ? '99+' : unreadCount}</Text>
+                </View>
+              ) : null}
+            </Pressable>
             <Pressable onPress={toggleTheme} className="rounded-xl border p-3" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
               {darkMode ? <Sun size={20} color={colors.text} /> : <Moon size={20} color={colors.text} />}
             </Pressable>
@@ -520,6 +564,20 @@ export default function AdminScreen() {
       <UserSettingsModal user={settingsUser} loading={busyId === settingsUser?.id} onClose={() => setSettingsUser(null)} onSave={saveSettings} onStatus={() => setTrading(settingsUser)} onReset={() => resetDemo(settingsUser)} />
       <UserWalletDetails user={walletModal?.user} wallet={walletModal?.wallet} loading={walletModal?.loading} onClose={() => setWalletModal(null)} />
       <UserTransactionsModal user={transactionsModal?.user} transactions={transactionsModal?.transactions || []} loading={transactionsModal?.loading} onClose={() => setTransactionsModal(null)} />
+      <Modal visible={notificationsOpen} transparent animationType="none" onRequestClose={() => setNotificationsOpen(false)}>
+        <Pressable className="flex-1" style={{ flex: 1 }} onPress={() => setNotificationsOpen(false)}>
+          <Pressable onPress={(event) => event.stopPropagation()}>
+            <NotificationMenu
+              notifications={notifications}
+              unreadCount={unreadCount}
+              loading={notificationsLoading}
+              onMarkRead={markRead}
+              onMarkAllRead={markAllRead}
+              onClose={() => setNotificationsOpen(false)}
+            />
+          </Pressable>
+        </Pressable>
+      </Modal>
       {depositDetails ? (
         <View className="absolute inset-0 z-50 items-center justify-center bg-black/70 p-4">
           <View className="max-h-[92vh] w-full max-w-[900px] rounded-2xl border p-5" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
