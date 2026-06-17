@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Platform, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { CalendarDays, ChevronDown, CircleDollarSign, Search, Star } from 'lucide-react-native';
@@ -130,16 +130,28 @@ export default function SymbolPanel() {
 
   // "Favourites" added as first tab so it sits right beside Popular
   const marketTabs = ['Favourites', 'Popular', 'Crypto CFD', 'Energies', 'Forex', 'Indices', 'Metals'];
+  const tabForSymbolGroup = (group) => {
+    const lowerGroup = String(group || '').toLowerCase();
+    if (lowerGroup.includes('crypto')) return 'Crypto CFD';
+    if (lowerGroup.includes('forex')) return 'Forex';
+    if (lowerGroup.includes('indice')) return 'Indices';
+    if (lowerGroup.includes('metal')) return 'Metals';
+    if (lowerGroup.includes('energie') || lowerGroup.includes('energy')) return 'Energies';
+    return 'Popular';
+  };
   const tags = ['All', 'New Listing', 'AI', 'Layer-1', 'Layer-2', 'Gaming', 'Meme', 'Infrastructure'];
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
+    const searchingAll = Boolean(query);
     return prices.filter((item) => {
       const matchesSearch = !query || item.symbol.toLowerCase().includes(query) || item.group?.toLowerCase().includes(query);
       const itemGroup = String(item.group || '').toLowerCase();
 
       let matchesTab;
-      if (marketTab === 'Favourites') {
+      if (searchingAll) {
+        matchesTab = true;
+      } else if (marketTab === 'Favourites') {
         matchesTab = favourites.has(item.symbol);
       } else if (marketTab === 'Popular') {
         matchesTab = item.popular;
@@ -149,9 +161,29 @@ export default function SymbolPanel() {
         matchesTab = itemGroup.includes(marketTab.toLowerCase());
       }
 
-      return matchesSearch && matchesTab;
+    return matchesSearch && matchesTab;
+  });
+}, [marketTab, prices, search, favourites]);
+  useEffect(() => {
+    const query = search.trim().toLowerCase();
+    if (!query || !filtered.length) return;
+
+    const compactQuery = query.replace(/[^a-z0-9]/g, '');
+    const exactMatch = filtered.find((item) => {
+      const symbol = String(item.symbol || '').toLowerCase();
+      const compactSymbol = symbol.replace(/[^a-z0-9]/g, '');
+      return symbol === query || compactSymbol === compactQuery;
     });
-  }, [marketTab, prices, search, favourites]);
+    const nextItem = exactMatch || filtered[0];
+    const nextSymbol = nextItem?.symbol;
+    if (nextSymbol && nextSymbol !== selectedSymbol) {
+      setSelectedSymbol(nextSymbol);
+    }
+    const nextTab = tabForSymbolGroup(nextItem?.group);
+    if (nextTab !== marketTab) {
+      setMarketTab(nextTab);
+    }
+  }, [filtered, marketTab, search, selectedSymbol, setSelectedSymbol]);
 
   const isFavouritesTab = marketTab === 'Favourites';
 

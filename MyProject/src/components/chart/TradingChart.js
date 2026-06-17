@@ -1047,21 +1047,56 @@ export default function TradingChart() {
     ['Spread', quote(currentSymbol.spread, currentSymbol.decimals), ui.muted],
   ];
   const symbolTabs = ['Popular', 'Crypto', 'Forex', 'Indices', 'Metals', 'Energies'];
+  const tabForSymbolGroup = (group) => {
+    const lowerGroup = String(group || '').toLowerCase();
+    if (lowerGroup.includes('crypto')) return 'Crypto';
+    if (lowerGroup.includes('forex')) return 'Forex';
+    if (lowerGroup.includes('indice')) return 'Indices';
+    if (lowerGroup.includes('metal')) return 'Metals';
+    if (lowerGroup.includes('energie') || lowerGroup.includes('energy')) return 'Energies';
+    return 'Popular';
+  };
   const favoriteSymbolSet = useMemo(() => new Set(favoriteSymbols), [favoriteSymbols]);
   const filteredSymbols = useMemo(() => {
     const query = symbolSearch.trim().toLowerCase();
+    const searchingAll = Boolean(query);
     return prices.filter((item) => {
       const group = String(item.group || '').toLowerCase();
       const matchesSearch = !query || item.symbol.toLowerCase().includes(query) || group.includes(query);
-      const matchesFavorite = !favoritesOnly || favoriteSymbolSet.has(item.symbol);
-      const matchesTab = symbolTab === 'Popular'
-        ? item.popular
-        : symbolTab === 'Crypto'
-          ? group.includes('crypto')
-          : group.includes(symbolTab.toLowerCase());
+      const matchesFavorite = searchingAll || !favoritesOnly || favoriteSymbolSet.has(item.symbol);
+      const matchesTab = searchingAll
+        ? true
+        : symbolTab === 'Popular'
+          ? item.popular
+          : symbolTab === 'Crypto'
+            ? group.includes('crypto')
+            : group.includes(symbolTab.toLowerCase());
       return matchesSearch && matchesFavorite && matchesTab;
     });
   }, [favoriteSymbolSet, favoritesOnly, prices, symbolSearch, symbolTab]);
+  useEffect(() => {
+    const query = symbolSearch.trim().toLowerCase();
+    if (!query || !filteredSymbols.length) return;
+
+    const compactQuery = query.replace(/[^a-z0-9]/g, '');
+    const exactMatch = filteredSymbols.find((item) => {
+      const symbol = String(item.symbol || '').toLowerCase();
+      const compactSymbol = symbol.replace(/[^a-z0-9]/g, '');
+      return symbol === query || compactSymbol === compactQuery;
+    });
+    const nextItem = exactMatch || filteredSymbols[0];
+    const nextSymbol = nextItem?.symbol;
+    if (nextSymbol && nextSymbol !== currentSymbol.symbol) {
+      setSelectedSymbol(nextSymbol);
+      setViewRange('Full');
+      setHoveredSymbol(null);
+    }
+    const nextTab = tabForSymbolGroup(nextItem?.group);
+    if (nextTab !== symbolTab) {
+      setSymbolTab(nextTab);
+      setSymbolTabMenuOpen(false);
+    }
+  }, [currentSymbol.symbol, filteredSymbols, setSelectedSymbol, symbolSearch, symbolTab]);
   const activeChartType = CHART_TYPES.find(([key]) => key === chartType) || CHART_TYPES[0];
   const ActiveChartIcon = activeChartType[2];
   const activeIndicatorAddLabel = ({
