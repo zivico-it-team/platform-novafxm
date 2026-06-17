@@ -6,6 +6,7 @@ router.use(auth);
 router.post('/open', controller.open);
 router.post('/close/:id', controller.close);
 router.get('/open', controller.openTrades);
+router.get('/pending', controller.pendingTrades);
 router.get('/closed', controller.closedTrades);
 
 module.exports = router;
