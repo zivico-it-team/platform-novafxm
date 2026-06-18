@@ -1,19 +1,56 @@
-import { ScrollView, useWindowDimensions, View } from 'react-native';
+import { Animated, ScrollView, useWindowDimensions, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
 import TopAccountBar from '../header/TopAccountBar';
 import TradingChart from '../chart/TradingChart';
 import OrderPanel from '../order/OrderPanel';
+import NewOrderModal, { NewOrderTicket } from '../order/NewOrderModal';
 import OpenPositions from '../positions/OpenPositions';
 import AccountSummary from '../account/AccountSummary';
 import { useAppTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../hooks/useAuth';
 import { useDemoTrading } from '../../hooks/useDemoTrading';
 
-function OrderRail({ summary, user, showSummary = true, showAvailableMargin = true }) {
+function OrderRail({ summary, user, showSummary = true, showAvailableMargin = true, orderTicketOpen = false, onCloseOrderTicket }) {
+  const ticketAnim = useRef(new Animated.Value(orderTicketOpen ? 1 : 0)).current;
+  const widthAnim = useRef(new Animated.Value(orderTicketOpen ? 460 : 270)).current;
+  const [showTicket, setShowTicket] = useState(orderTicketOpen);
+
+  useEffect(() => {
+    if (orderTicketOpen) setShowTicket(true);
+    Animated.parallel([
+      Animated.timing(widthAnim, {
+        toValue: orderTicketOpen ? 460 : 270,
+        duration: 260,
+        useNativeDriver: false,
+      }),
+      Animated.timing(ticketAnim, {
+        toValue: orderTicketOpen ? 1 : 0,
+        duration: 240,
+        useNativeDriver: false,
+      }),
+    ]).start(({ finished }) => {
+      if (finished && !orderTicketOpen) setShowTicket(false);
+    });
+  }, [orderTicketOpen, ticketAnim, widthAnim]);
+
   return (
-    <View className="h-full w-[270px] gap-3">
-      <OrderPanel showAvailableMargin={showAvailableMargin} />
-      {showSummary ? <AccountSummary summary={summary} user={user} /> : null}
-    </View>
+    <Animated.View className="h-full gap-3 overflow-hidden" style={{ width: widthAnim }}>
+      {showTicket ? (
+        <Animated.View
+          className="h-full"
+          style={{
+            width: 460,
+            opacity: ticketAnim,
+            transform: [{ translateX: ticketAnim.interpolate({ inputRange: [0, 1], outputRange: [34, 0] }) }],
+          }}
+        >
+          <NewOrderTicket embedded visible={orderTicketOpen} onClose={onCloseOrderTicket} />
+        </Animated.View>
+      ) : (
+        <OrderPanel showAvailableMargin={showAvailableMargin} />
+      )}
+      {showSummary && !showTicket ? <AccountSummary summary={summary} user={user} /> : null}
+    </Animated.View>
   );
 }
 
@@ -23,13 +60,23 @@ export default function TradingLayout() {
   const { colors } = useAppTheme();
   const { user } = useAuth();
   const { summary } = useDemoTrading();
+  const [orderTicketOpen, setOrderTicketOpen] = useState(false);
+  const [mobileOrderModal, setMobileOrderModal] = useState(false);
   const desktop = width >= 1100;
   const tablet = width >= 760;
   const mobile = width < 760;
+  const openNewOrder = () => {
+    if (mobile) {
+      setMobileOrderModal(true);
+      return;
+    }
+    setOrderTicketOpen(true);
+  };
+  const closeNewOrder = () => setOrderTicketOpen(false);
 
   return (
     <View className="flex-1" style={{ backgroundColor: colors.background }}>
-      <TopAccountBar />
+      <TopAccountBar onOpenNewOrder={openNewOrder} />
       <ScrollView
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ padding: mobile ? 6 : 12, paddingBottom: mobile ? 16 : 24 }}
@@ -38,14 +85,14 @@ export default function TradingLayout() {
           {desktop ? (
             <>
               <TradingChart />
-              <OrderRail summary={summary} user={user} showSummary={false} showAvailableMargin={false} />
+              <OrderRail summary={summary} user={user} showSummary={false} showAvailableMargin={false} orderTicketOpen={orderTicketOpen} onCloseOrderTicket={closeNewOrder} />
             </>
           ) : (
             <>
               {mobile ? <AccountSummary summary={summary} user={user} compact /> : null}
               <TradingChart />
               <View className={tablet ? 'flex-row gap-3' : 'gap-1.5'}>
-                {!mobile ? <OrderRail summary={summary} user={user} /> : null}
+                {!mobile ? <OrderRail summary={summary} user={user} orderTicketOpen={orderTicketOpen} onCloseOrderTicket={closeNewOrder} /> : null}
               </View>
             </>
           )}
@@ -53,6 +100,7 @@ export default function TradingLayout() {
         <OpenPositions />
       </ScrollView>
       {mobile ? <OrderPanel /> : null}
+      <NewOrderModal visible={mobileOrderModal} onClose={() => setMobileOrderModal(false)} />
     </View>
   );
 }

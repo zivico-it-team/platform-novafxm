@@ -34,7 +34,7 @@ function ValueCard({ pips, setPips, price, setPrice, profit, compact, colors, co
   );
 }
 
-export default function NewOrderModal({ visible, onClose, initialSide = 'BUY' }) {
+export function NewOrderTicket({ visible = true, onClose, initialSide = 'BUY', embedded = false }) {
   const { width } = useWindowDimensions();
   const compact = width < 560;
   const { darkMode, colors } = useAppTheme();
@@ -148,14 +148,12 @@ export default function NewOrderModal({ visible, onClose, initialSide = 'BUY' })
   };
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable onPress={onClose} className="flex-1 items-center justify-center bg-black/70 p-3">
         <Pressable
           onPress={(event) => {
             event.stopPropagation();
             if (symbolMenu) setSymbolMenu(false);
           }}
-          className="max-h-[96%] w-full max-w-[460px] rounded-2xl border p-4 lg:p-5"
+          className={`${embedded ? 'h-full w-full rounded-2xl p-3' : 'max-h-[96%] w-full max-w-[460px] rounded-2xl p-4 lg:p-5'} border`}
           style={{ backgroundColor: modalBackground, borderColor: colors.border }}
         >
           <ScrollView showsVerticalScrollIndicator={false}>
@@ -273,6 +271,14 @@ export default function NewOrderModal({ visible, onClose, initialSide = 'BUY' })
             </View>
           </ScrollView>
         </Pressable>
+  );
+}
+
+export default function NewOrderModal({ visible, onClose, initialSide = 'BUY' }) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable onPress={onClose} className="flex-1 items-center justify-center bg-black/70 p-3">
+        <NewOrderTicket visible={visible} onClose={onClose} initialSide={initialSide} />
       </Pressable>
     </Modal>
   );
