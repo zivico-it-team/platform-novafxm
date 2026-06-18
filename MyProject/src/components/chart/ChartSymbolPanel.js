@@ -23,6 +23,8 @@ export default function ChartSymbolPanel({
   ui,
 }) {
   const favoriteSymbolSet = new Set(favoriteSymbols);
+  const favoritesActive = symbolTab === 'Favorites';
+  const selectedCategory = symbolTabs.includes(symbolTab) ? symbolTab : symbolTabs[0];
 
   return (
     <View
@@ -39,23 +41,23 @@ export default function ChartSymbolPanel({
       }}
     >
       <View className="border-b px-3 py-3" style={{ borderColor: ui.border, zIndex: 3300, elevation: 3300 }}>
-        <View className="flex-row items-center gap-2">
-          <View className="relative" style={{ zIndex: 3400, elevation: 3400 }}>
+        <View className="flex-row items-center gap-2" style={{ zIndex: 3400, elevation: 3400 }}>
+          <View className="relative flex-1" style={{ zIndex: 3400, elevation: 3400 }}>
             <Pressable
               onPress={() => setSymbolTabMenuOpen((value) => !value)}
-              className="h-9 w-[134px] flex-row items-center justify-between rounded-md border px-3"
+              className="h-9 flex-row items-center justify-between rounded-md border px-3"
               style={{
                 backgroundColor: symbolTabMenuOpen ? ui.soft : ui.control,
                 borderColor: symbolTabMenuOpen ? ui.accent : ui.border,
                 cursor: 'pointer',
               }}
             >
-              <Text className="text-xs font-extrabold" numberOfLines={1} style={{ color: symbolTabMenuOpen ? ui.accent : ui.text }}>{symbolTab}</Text>
+              <Text className="text-xs font-extrabold" numberOfLines={1} style={{ color: symbolTabMenuOpen ? ui.accent : ui.text }}>{selectedCategory}</Text>
               <ChevronDown size={13} color={symbolTabMenuOpen ? ui.accent : ui.muted} />
             </Pressable>
             {symbolTabMenuOpen ? (
               <View
-                className="absolute left-0 w-[150px] rounded-md border p-1 shadow-2xl"
+                className="absolute left-0 right-0 rounded-md border p-1 shadow-2xl"
                 style={{ top: 42, backgroundColor: ui.menu, borderColor: ui.menuBorder, zIndex: 3500, elevation: 3500 }}
               >
                 {symbolTabs.map((entry) => (
@@ -71,17 +73,19 @@ export default function ChartSymbolPanel({
               </View>
             ) : null}
           </View>
-          <View className="h-9 flex-1 flex-row items-center rounded-md border px-3" style={{ backgroundColor: ui.control, borderColor: ui.border }}>
-            <Search size={16} color={ui.muted} />
-            <TextInput
-              value={search}
-              onChangeText={onSearchChange}
-              placeholder="Search"
-              placeholderTextColor={ui.muted}
-              className="ml-2 h-9 flex-1 text-sm"
-              style={{ color: ui.text }}
-            />
-          </View>
+          <Pressable
+            onPress={() => onSelectTab('Favorites')}
+            className="h-9 flex-row items-center justify-center rounded-md border px-3"
+            style={{
+              minWidth: 104,
+              backgroundColor: favoritesActive ? ui.accent : ui.control,
+              borderColor: favoritesActive ? ui.accent : ui.border,
+              cursor: 'pointer',
+            }}
+          >
+            <Star size={15} color={favoritesActive ? ui.activeText : ui.muted} fill={favoritesActive ? ui.activeText : 'transparent'} />
+            <Text className="ml-1.5 text-xs font-extrabold" numberOfLines={1} style={{ color: favoritesActive ? ui.activeText : ui.text }}>Favorites</Text>
+          </Pressable>
           <Pressable
             onPress={onClose}
             className="h-9 w-9 items-center justify-center rounded-md border"
@@ -89,6 +93,17 @@ export default function ChartSymbolPanel({
           >
             <ChevronLeft size={16} color={ui.muted} />
           </Pressable>
+        </View>
+        <View className="mt-2 h-10 flex-row items-center rounded-md border px-3" style={{ backgroundColor: ui.control, borderColor: ui.border }}>
+          <Search size={16} color={ui.muted} />
+          <TextInput
+            value={search}
+            onChangeText={onSearchChange}
+            placeholder="Search"
+            placeholderTextColor={ui.muted}
+            className="ml-2 h-10 flex-1 text-sm"
+            style={{ color: ui.text }}
+          />
         </View>
       </View>
 

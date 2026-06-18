@@ -845,6 +845,7 @@ export default function TradingChart() {
   const [hoveredSymbol, setHoveredSymbol] = useState(null);
   const [symbolSearch, setSymbolSearch] = useState('');
   const [symbolTab, setSymbolTab] = useState('Popular');
+  const [previousSymbolTab, setPreviousSymbolTab] = useState('Popular');
   const [symbolTabMenuOpen, setSymbolTabMenuOpen] = useState(false);
   const [favoriteSymbols, setFavoriteSymbols] = useState([]);
   const [indicatorOpen, setIndicatorOpen] = useState(false);
@@ -1047,13 +1048,25 @@ export default function TradingChart() {
     ['Spread', quote(currentSymbol.spread, currentSymbol.decimals), ui.muted],
   ];
   const favoriteSymbolSet = useMemo(() => new Set(favoriteSymbols), [favoriteSymbols]);
-  const symbolTabs = ['Favorites', 'Popular', 'Crypto', 'Forex', 'Indices', 'Metals', 'Energies'];
+  const symbolTabs = ['Popular', 'Crypto', 'Forex', 'Indices', 'Metals', 'Energies'];
+  const tabForSymbolGroup = (group) => {
+    const lowerGroup = String(group || '').toLowerCase();
+    if (lowerGroup.includes('crypto')) return 'Crypto';
+    if (lowerGroup.includes('forex')) return 'Forex';
+    if (lowerGroup.includes('indice')) return 'Indices';
+    if (lowerGroup.includes('metal')) return 'Metals';
+    if (lowerGroup.includes('energie') || lowerGroup.includes('energy')) return 'Energies';
+    return 'Popular';
+  };
   const filteredSymbols = useMemo(() => {
     const query = symbolSearch.trim().toLowerCase();
+    const searchingAll = Boolean(query);
     return prices.filter((item) => {
       const group = String(item.group || '').toLowerCase();
       const matchesSearch = !query || item.symbol.toLowerCase().includes(query) || group.includes(query);
-      const matchesTab = symbolTab === 'Favorites'
+      const matchesTab = searchingAll
+        ? true
+        : symbolTab === 'Favorites'
         ? favoriteSymbolSet.has(item.symbol)
         : symbolTab === 'Popular'
         ? item.popular
@@ -1063,6 +1076,32 @@ export default function TradingChart() {
       return matchesSearch && matchesTab;
     });
   }, [favoriteSymbolSet, prices, symbolSearch, symbolTab]);
+  useEffect(() => {
+    const query = symbolSearch.trim().toLowerCase();
+    if (!query || !filteredSymbols.length) return;
+
+    const compactQuery = query.replace(/[^a-z0-9]/g, '');
+    const exactMatch = filteredSymbols.find((item) => {
+      const symbol = String(item.symbol || '').toLowerCase();
+      const compactSymbol = symbol.replace(/[^a-z0-9]/g, '');
+      return symbol === query || compactSymbol === compactQuery;
+    });
+    const nextItem = exactMatch || filteredSymbols[0];
+    if (!nextItem?.symbol) return;
+
+    if (nextItem.symbol !== currentSymbol.symbol) {
+      setSelectedSymbol(nextItem.symbol);
+      setViewRange('Full');
+      setHoveredSymbol(null);
+    }
+
+    const nextTab = tabForSymbolGroup(nextItem.group);
+    if (nextTab !== symbolTab) {
+      setSymbolTab(nextTab);
+      setPreviousSymbolTab(nextTab);
+      setSymbolTabMenuOpen(false);
+    }
+  }, [currentSymbol.symbol, filteredSymbols, setSelectedSymbol, symbolSearch, symbolTab]);
   const activeChartType = CHART_TYPES.find(([key]) => key === chartType) || CHART_TYPES[0];
   const ActiveChartIcon = activeChartType[2];
   const activeIndicatorAddLabel = ({
@@ -1142,6 +1181,12 @@ export default function TradingChart() {
     setDrawingOpen(false);
   };
   const selectSymbolTab = (entry) => {
+    if (entry === 'Favorites') {
+      setSymbolTab((current) => (current === 'Favorites' ? previousSymbolTab : 'Favorites'));
+      setSymbolTabMenuOpen(false);
+      return;
+    }
+    setPreviousSymbolTab(entry);
     setSymbolTab(entry);
     setSymbolTabMenuOpen(false);
   };
@@ -1151,7 +1196,6 @@ export default function TradingChart() {
         ? current.filter((entry) => entry !== symbol)
         : [...current, symbol]
     ));
-    setSymbolTab('Favorites');
     setSymbolTabMenuOpen(false);
   }, []);
   const selectTimeframe = (entry) => {
@@ -1162,6 +1206,13 @@ export default function TradingChart() {
     setSelectedSymbol(symbol);
     setViewRange('Full');
     setHoveredSymbol(null);
+    const selectedItem = prices.find((item) => item.symbol === symbol);
+    const nextTab = tabForSymbolGroup(selectedItem?.group);
+    if (nextTab !== symbolTab) {
+      setSymbolTab(nextTab);
+      setPreviousSymbolTab(nextTab);
+    }
+    setSymbolTabMenuOpen(false);
   };
   const applyDrawingTool = (key) => {
     if (key === 'clear') {
