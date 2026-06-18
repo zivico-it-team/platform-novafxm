@@ -1049,7 +1049,7 @@ export default function TradingChart() {
   ];
   const favoriteSymbolSet = useMemo(() => new Set(favoriteSymbols), [favoriteSymbols]);
   const symbolTabs = ['Popular', 'Crypto', 'Forex', 'Indices', 'Metals', 'Energies'];
-  const tabForSymbolGroup = (group) => {
+  const tabForSymbolGroup = useCallback((group) => {
     const lowerGroup = String(group || '').toLowerCase();
     if (lowerGroup.includes('crypto')) return 'Crypto';
     if (lowerGroup.includes('forex')) return 'Forex';
@@ -1057,7 +1057,7 @@ export default function TradingChart() {
     if (lowerGroup.includes('metal')) return 'Metals';
     if (lowerGroup.includes('energie') || lowerGroup.includes('energy')) return 'Energies';
     return 'Popular';
-  };
+  }, []);
   const filteredSymbols = useMemo(() => {
     const query = symbolSearch.trim().toLowerCase();
     const searchingAll = Boolean(query);
@@ -1076,32 +1076,6 @@ export default function TradingChart() {
       return matchesSearch && matchesTab;
     });
   }, [favoriteSymbolSet, prices, symbolSearch, symbolTab]);
-  useEffect(() => {
-    const query = symbolSearch.trim().toLowerCase();
-    if (!query || !filteredSymbols.length) return;
-
-    const compactQuery = query.replace(/[^a-z0-9]/g, '');
-    const exactMatch = filteredSymbols.find((item) => {
-      const symbol = String(item.symbol || '').toLowerCase();
-      const compactSymbol = symbol.replace(/[^a-z0-9]/g, '');
-      return symbol === query || compactSymbol === compactQuery;
-    });
-    const nextItem = exactMatch || filteredSymbols[0];
-    if (!nextItem?.symbol) return;
-
-    if (nextItem.symbol !== currentSymbol.symbol) {
-      setSelectedSymbol(nextItem.symbol);
-      setViewRange('Full');
-      setHoveredSymbol(null);
-    }
-
-    const nextTab = tabForSymbolGroup(nextItem.group);
-    if (nextTab !== symbolTab) {
-      setSymbolTab(nextTab);
-      setPreviousSymbolTab(nextTab);
-      setSymbolTabMenuOpen(false);
-    }
-  }, [currentSymbol.symbol, filteredSymbols, setSelectedSymbol, symbolSearch, symbolTab]);
   const activeChartType = CHART_TYPES.find(([key]) => key === chartType) || CHART_TYPES[0];
   const ActiveChartIcon = activeChartType[2];
   const activeIndicatorAddLabel = ({
@@ -1181,6 +1155,7 @@ export default function TradingChart() {
     setDrawingOpen(false);
   };
   const selectSymbolTab = (entry) => {
+    setSymbolSearch('');
     if (entry === 'Favorites') {
       setSymbolTab((current) => (current === 'Favorites' ? previousSymbolTab : 'Favorites'));
       setSymbolTabMenuOpen(false);
