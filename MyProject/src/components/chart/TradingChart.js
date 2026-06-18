@@ -1195,6 +1195,9 @@ export default function TradingChart({ isFullscreen, onFullscreenChange }) {
       setPreviousSymbolTab(nextTab);
     }
     setSymbolTabMenuOpen(false);
+    if (chartFullscreen) {
+      setSymbolMenuOpen(false);
+    }
   };
   const applyDrawingTool = (key) => {
     if (key === 'clear') {
@@ -1440,7 +1443,50 @@ export default function TradingChart({ isFullscreen, onFullscreenChange }) {
         )}
       </View>
 
-        {symbolMenuOpen && !chartFullscreen ? (
+      <View className="flex-1 p-2.5" style={{ marginLeft: chartOffsetLeft, backgroundColor: ui.background, zIndex: 0, elevation: 0 }}>
+        <View className="flex-1 overflow-hidden rounded-lg border shadow-2xl" style={{ backgroundColor: ui.menu, borderColor: ui.menuBorder }}>
+          {Platform.OS === 'web' ? (
+            <iframe
+              key={chartRenderKey}
+              ref={iframeRef}
+              title="Market chart"
+              srcDoc={html}
+              style={{ width: '100%', height: '100%', border: 0, position: 'relative', zIndex: 0 }}
+            />
+          ) : (
+            <WebView
+              key={chartRenderKey}
+              ref={webViewRef}
+              originWhitelist={['*']}
+              domStorageEnabled
+              javaScriptEnabled
+              onMessage={handleChartMessage}
+              source={{ html }}
+              style={{ backgroundColor: colors.chartBackground, zIndex: 0, elevation: 0 }}
+            />
+          )}
+          <Pressable
+            onPress={toggleChartFullscreen}
+            className="absolute items-center justify-center rounded-md border"
+            style={{ top: 10, right: 72, width: iconButtonSize, height: iconButtonSize, backgroundColor: chartFullscreen ? ui.controlActive : ui.control, borderColor: chartFullscreen ? ui.controlActive : ui.border, zIndex: 50, elevation: 50, cursor: 'pointer' }}
+          >
+            {chartFullscreen ? (
+              <Minimize2 size={compactToolbar ? 14 : 16} color={ui.activeText} />
+            ) : (
+              <Maximize2 size={compactToolbar ? 14 : 16} color={ui.text} />
+            )}
+          </Pressable>
+          {historyLoading ? (
+            <View className="absolute inset-0 items-center justify-center" style={{ backgroundColor: `${ui.background}cc`, zIndex: 45, elevation: 45 }}>
+              <View className="items-center rounded-lg border px-5 py-4" style={{ backgroundColor: ui.panel, borderColor: ui.border }}>
+                <ActivityIndicator color={ui.accent} />
+                <Text className="mt-3 text-xs font-bold" style={{ color: ui.muted }}>Loading candles...</Text>
+              </View>
+            </View>
+          ) : null}
+        </View>
+      </View>
+        {symbolMenuOpen ? (
           <ChartSymbolPanel
             currentSymbol={currentSymbol}
             favoriteSymbols={favoriteSymbols}
@@ -1973,49 +2019,7 @@ export default function TradingChart({ isFullscreen, onFullscreenChange }) {
           })}
         </View>
       ) : null}
-      <View className="flex-1 p-2.5" style={{ marginLeft: chartOffsetLeft, backgroundColor: ui.background, zIndex: 0, elevation: 0 }}>
-        <View className="flex-1 overflow-hidden rounded-lg border shadow-2xl" style={{ backgroundColor: ui.menu, borderColor: ui.menuBorder }}>
-          {Platform.OS === 'web' ? (
-            <iframe
-              key={chartRenderKey}
-              ref={iframeRef}
-              title="Market chart"
-              srcDoc={html}
-              style={{ width: '100%', height: '100%', border: 0, position: 'relative', zIndex: 0 }}
-            />
-          ) : (
-            <WebView
-              key={chartRenderKey}
-              ref={webViewRef}
-              originWhitelist={['*']}
-              domStorageEnabled
-              javaScriptEnabled
-              onMessage={handleChartMessage}
-              source={{ html }}
-              style={{ backgroundColor: colors.chartBackground, zIndex: 0, elevation: 0 }}
-            />
-          )}
-          <Pressable
-            onPress={toggleChartFullscreen}
-            className="absolute items-center justify-center rounded-md border"
-            style={{ top: 10, right: 72, width: iconButtonSize, height: iconButtonSize, backgroundColor: chartFullscreen ? ui.controlActive : ui.control, borderColor: chartFullscreen ? ui.controlActive : ui.border, zIndex: 50, elevation: 50, cursor: 'pointer' }}
-          >
-            {chartFullscreen ? (
-              <Minimize2 size={compactToolbar ? 14 : 16} color={ui.activeText} />
-            ) : (
-              <Maximize2 size={compactToolbar ? 14 : 16} color={ui.text} />
-            )}
-          </Pressable>
-          {historyLoading ? (
-            <View className="absolute inset-0 items-center justify-center" style={{ backgroundColor: `${ui.background}cc`, zIndex: 45, elevation: 45 }}>
-              <View className="items-center rounded-lg border px-5 py-4" style={{ backgroundColor: ui.panel, borderColor: ui.border }}>
-                <ActivityIndicator color={ui.accent} />
-                <Text className="mt-3 text-xs font-bold" style={{ color: ui.muted }}>Loading candles...</Text>
-              </View>
-            </View>
-          ) : null}
-        </View>
-      </View>
+
     </View>
   );
 }
