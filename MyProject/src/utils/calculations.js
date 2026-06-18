@@ -11,7 +11,7 @@ export const calculateProfit = (position, price) => {
 
 export const calculateSummary = (balance, positions) => {
   const openProfit = positions.reduce((total, position) => total + Number(position.profit || 0), 0);
-  const margin = positions.reduce((total, position) => total + Number(position.lots) * 100, 0);
+  const margin = positions.reduce((total, position) => total + Number(position.margin ?? Number(position.lots) * 100), 0);
   const equity = Number(balance) + openProfit;
   const freeFunds = equity - margin;
   const marginLevel = margin ? (equity / margin) * 100 : 0;

@@ -103,6 +103,7 @@ export default function SymbolPanel() {
       const query = search.trim().toLowerCase();
       return prices.filter((item) => {
         const matchesSearch = !query || item.symbol.toLowerCase().includes(query) || item.group?.toLowerCase().includes(query);
+        if (query) return matchesSearch;
         const itemGroup = String(item.group || '').toLowerCase();
         const matchesTab = marketTab === 'Popular'
           ? item.popular

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, router } from 'expo-router';
 import { RefreshCcw, UsersRound } from 'lucide-react-native';
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Image, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import CustomButton from '../src/components/common/CustomButton';
 import AccountNotificationButton from '../src/components/header/AccountNotificationButton';
 import { dashboardService } from '../src/services/dashboardService';
@@ -17,6 +17,34 @@ function Metric({ label, value, hint, colors }) {
       <Text className="mt-2 text-2xl font-black" style={{ color: colors.text }}>{value}</Text>
       {hint ? <Text className="mt-1 text-xs" style={{ color: colors.muted }}>{hint}</Text> : null}
     </View>
+  );
+}
+
+function initialsFor(user) {
+  const source = user?.name || user?.email || 'U';
+  return String(source).trim().slice(0, 1).toUpperCase() || 'U';
+}
+
+function HeaderProfilePhoto({ user, colors }) {
+  return (
+    <Pressable
+      onPress={() => router.push('/settings')}
+      className="h-[46px] w-[46px] items-center justify-center rounded-xl border"
+      style={{ backgroundColor: colors.panel, borderColor: colors.border }}
+    >
+      <View
+        className="h-8 w-8 items-center justify-center overflow-hidden rounded-full"
+        style={{ backgroundColor: colors.surface }}
+      >
+        {user?.profileImage ? (
+          <Image source={{ uri: user.profileImage }} className="h-full w-full" resizeMode="cover" />
+        ) : (
+          <Text className="text-sm font-black" style={{ color: colors.primary }}>
+            {initialsFor(user)}
+          </Text>
+        )}
+      </View>
+    </Pressable>
   );
 }
 
@@ -111,6 +139,7 @@ export default function BrokerRewardsScreen() {
             <Text className="mt-1" style={{ color: colors.muted }}>{user?.email || 'Track your referral link, clients, and commission.'}</Text>
           </View>
           <View className="flex-row flex-wrap gap-3">
+            <HeaderProfilePhoto user={dashboard?.user || user} colors={colors} />
             <AccountNotificationButton />
             <Pressable onPress={() => loadDashboard().catch(() => {})} className="flex-row items-center rounded-xl border px-4 py-3" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
               <RefreshCcw size={16} color={loading ? '#D4AF37' : '#8fa0bb'} />

@@ -1,4 +1,5 @@
 const sequelize = require('../config/db');
+const { Op } = require('sequelize');
 const { Wallet, Deposit, Withdrawal, Transaction, Trade, BankAccount, TradingAccount } = require('../models');
 const tradingView = require('../services/tradingViewService');
 const { createAdminNotifications } = require('../services/notificationService');
@@ -39,7 +40,10 @@ exports.getWallet = async (req, res, next) => {
       const market = prices.find((item) => item.symbol === trade.symbol);
       return sum + profitFor(trade, market?.price || trade.openPrice);
     }, 0));
-    const margin = money(trades.reduce((sum, trade) => sum + Number(trade.margin), 0));
+    const marginWhere = { userId: req.user.id, status: { [Op.in]: ['pending', 'open'] } };
+    if (tradingAccount) marginWhere.tradingAccountId = tradingAccount.id;
+    const reservedMargin = await Trade.sum('margin', { where: marginWhere });
+    const margin = money(reservedMargin || trades.reduce((sum, trade) => sum + Number(trade.margin), 0));
     const balance = money(tradingAccount ? tradingAccount.balance : wallet.balance);
     const equity = money(balance + openProfit);
     const freeFunds = money(equity - margin);

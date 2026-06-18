@@ -124,11 +124,15 @@ CREATE TABLE IF NOT EXISTS trades (
   symbol VARCHAR(30) NOT NULL,
   side ENUM('BUY', 'SELL') NOT NULL,
   lots DECIMAL(10,2) NOT NULL,
+  order_type ENUM('spot', 'limit', 'stop') NOT NULL DEFAULT 'spot',
+  entry_price DECIMAL(18,8) NULL,
   open_price DECIMAL(18,8) NOT NULL,
   close_price DECIMAL(18,8) NULL,
+  stop_loss DECIMAL(18,8) NULL,
+  take_profit DECIMAL(18,8) NULL,
   profit DECIMAL(15,2) NOT NULL DEFAULT 0.00,
   margin DECIMAL(15,2) NOT NULL,
-  status ENUM('open', 'closed') NOT NULL DEFAULT 'open',
+  status ENUM('pending', 'open', 'closed') NOT NULL DEFAULT 'open',
   closed_at DATETIME NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -194,6 +198,22 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'transactions' AND COLUMN_NAME = 'note') THEN
     ALTER TABLE transactions ADD COLUMN note TEXT NULL AFTER balance_after;
   END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'trades' AND COLUMN_NAME = 'trading_account_id') THEN
+    ALTER TABLE trades ADD COLUMN trading_account_id INT UNSIGNED NULL AFTER user_id;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'trades' AND COLUMN_NAME = 'order_type') THEN
+    ALTER TABLE trades ADD COLUMN order_type ENUM('spot', 'limit', 'stop') NOT NULL DEFAULT 'spot' AFTER lots;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'trades' AND COLUMN_NAME = 'entry_price') THEN
+    ALTER TABLE trades ADD COLUMN entry_price DECIMAL(18,8) NULL AFTER order_type;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'trades' AND COLUMN_NAME = 'stop_loss') THEN
+    ALTER TABLE trades ADD COLUMN stop_loss DECIMAL(18,8) NULL AFTER close_price;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'trades' AND COLUMN_NAME = 'take_profit') THEN
+    ALTER TABLE trades ADD COLUMN take_profit DECIMAL(18,8) NULL AFTER stop_loss;
+  END IF;
+  ALTER TABLE trades MODIFY COLUMN status ENUM('pending', 'open', 'closed') NOT NULL DEFAULT 'open';
   IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'withdrawals' AND COLUMN_NAME = 'withdrawal_method') THEN
     ALTER TABLE withdrawals ADD COLUMN withdrawal_method ENUM('Bank', 'Crypto') NOT NULL DEFAULT 'Bank' AFTER amount;
   END IF;

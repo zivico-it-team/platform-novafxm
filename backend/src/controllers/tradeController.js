@@ -1,3 +1,4 @@
+const { Op } = require('sequelize');
 const sequelize = require('../config/db');
 const { Wallet, Trade, Transaction, TradingAccount } = require('../models');
 const tradingView = require('../services/tradingViewService');
@@ -16,6 +17,13 @@ const pnl = (trade, closePrice) => money(
   * contractSize(trade.symbol),
 );
 
+const parseOptionalPrice = (value, label) => {
+  if (value === undefined || value === null || value === '') return null;
+  const price = Number(value);
+  if (!(price > 0)) throw Object.assign(new Error(`Valid ${label} is required.`), { status: 400 });
+  return price;
+};
+
 async function notifyUser(payload) {
   try {
     await createNotification(payload);
@@ -29,10 +37,15 @@ exports.open = async (req, res, next) => {
     if (req.user.tradingStatus === 'frozen') {
       return res.status(403).json({ message: 'Trading is temporarily disabled for this account.' });
     }
-    const { symbol, side, lots, tradingAccountId } = req.body;
+    const { symbol, side, lots, tradingAccountId, orderType = 'spot' } = req.body;
     if (!symbol || !['BUY', 'SELL'].includes(side) || !(Number(lots) > 0)) {
       return res.status(400).json({ message: 'Valid symbol, side and lots are required.' });
     }
+    if (!['spot', 'limit', 'stop'].includes(orderType)) {
+      return res.status(400).json({ message: 'Valid order type is required.' });
+    }
+    const stopLoss = parseOptionalPrice(req.body.stopLoss, 'stop loss');
+    const takeProfit = parseOptionalPrice(req.body.takeProfit, 'take profit');
     const tradingAccount = tradingAccountId
       ? await TradingAccount.findOne({ where: { id: tradingAccountId, userId: req.user.id } })
       : await TradingAccount.findOne({ where: { userId: req.user.id, isPrimary: true } });
@@ -49,12 +62,24 @@ exports.open = async (req, res, next) => {
       const account = await TradingAccount.findOne({ where: { id: tradingAccount.id, userId: req.user.id }, transaction, lock: transaction.LOCK.UPDATE });
       if (!account) throw Object.assign(new Error('Select a valid trading account.'), { status: 400 });
       const wallet = await Wallet.findOne({ where: { userId: req.user.id }, transaction, lock: transaction.LOCK.UPDATE });
-      const currentMargin = Number(await Trade.sum('margin', { where: { userId: req.user.id, tradingAccountId: tradingAccount.id, status: 'open' }, transaction }) || 0);
+      const currentMargin = Number(await Trade.sum('margin', { where: { userId: req.user.id, tradingAccountId: tradingAccount.id, status: { [Op.in]: ['pending', 'open'] } }, transaction }) || 0);
       if (Number(account.balance) - currentMargin < margin) {
         throw Object.assign(new Error('Insufficient free funds.'), { status: 400 });
       }
       const openPrice = side === 'BUY' ? market.ask : market.bid;
-      trade = await Trade.create({ userId: req.user.id, tradingAccountId: tradingAccount.id, symbol, side, lots, margin, openPrice }, { transaction });
+      trade = await Trade.create({
+        userId: req.user.id,
+        tradingAccountId: tradingAccount.id,
+        symbol,
+        side,
+        lots,
+        margin,
+        orderType,
+        entryPrice: openPrice,
+        openPrice,
+        stopLoss,
+        takeProfit,
+      }, { transaction });
       const equity = Number(account.balance);
       const nextMargin = money(currentMargin + margin);
       if (account.isPrimary) await wallet.update({ margin: nextMargin, freeFunds: money(equity - nextMargin) }, { transaction });
@@ -63,6 +88,65 @@ exports.open = async (req, res, next) => {
       userId: req.user.id,
       title: 'Order Executed',
       message: `${side} ${symbol} order opened at ${Number(trade.openPrice).toFixed(5)}.`,
+      type: 'trade',
+    });
+    return res.status(201).json({ trade });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+exports.createPending = async (req, res, next) => {
+  try {
+    if (req.user.tradingStatus === 'frozen') {
+      return res.status(403).json({ message: 'Trading is temporarily disabled for this account.' });
+    }
+    const { symbol, side, lots, tradingAccountId, orderType, entryPrice } = req.body;
+    if (!symbol || !['BUY', 'SELL'].includes(side) || !(Number(lots) > 0) || !['limit', 'stop'].includes(orderType) || !(Number(entryPrice) > 0)) {
+      return res.status(400).json({ message: 'Valid symbol, side, lots, order type and entry price are required.' });
+    }
+    const stopLoss = parseOptionalPrice(req.body.stopLoss, 'stop loss');
+    const takeProfit = parseOptionalPrice(req.body.takeProfit, 'take profit');
+    const tradingAccount = tradingAccountId
+      ? await TradingAccount.findOne({ where: { id: tradingAccountId, userId: req.user.id } })
+      : await TradingAccount.findOne({ where: { userId: req.user.id, isPrimary: true } });
+    if (!tradingAccount) {
+      return res.status(400).json({ message: 'Select a valid trading account.' });
+    }
+    if (tradingAccount.status !== 'active') {
+      return res.status(403).json({ message: 'This trading account is not active.' });
+    }
+    const margin = money((Number(lots) * 10000) / Number(req.user.leverage || 100));
+    let trade;
+    await sequelize.transaction(async (transaction) => {
+      const account = await TradingAccount.findOne({ where: { id: tradingAccount.id, userId: req.user.id }, transaction, lock: transaction.LOCK.UPDATE });
+      if (!account) throw Object.assign(new Error('Select a valid trading account.'), { status: 400 });
+      const wallet = await Wallet.findOne({ where: { userId: req.user.id }, transaction, lock: transaction.LOCK.UPDATE });
+      const currentMargin = Number(await Trade.sum('margin', { where: { userId: req.user.id, tradingAccountId: tradingAccount.id, status: { [Op.in]: ['pending', 'open'] } }, transaction }) || 0);
+      if (Number(account.balance) - currentMargin < margin) {
+        throw Object.assign(new Error('Insufficient free funds.'), { status: 400 });
+      }
+      trade = await Trade.create({
+        userId: req.user.id,
+        tradingAccountId: tradingAccount.id,
+        symbol,
+        side,
+        lots,
+        margin,
+        orderType,
+        entryPrice,
+        openPrice: entryPrice,
+        stopLoss,
+        takeProfit,
+        status: 'pending',
+      }, { transaction });
+      const nextMargin = money(currentMargin + margin);
+      if (account.isPrimary) await wallet.update({ margin: nextMargin, freeFunds: money(Number(account.balance) - nextMargin) }, { transaction });
+    });
+    await notifyUser({
+      userId: req.user.id,
+      title: 'Pending Order Created',
+      message: `${side} ${symbol} ${orderType} order created at ${Number(entryPrice).toFixed(5)}.`,
       type: 'trade',
     });
     return res.status(201).json({ trade });
@@ -87,7 +171,7 @@ exports.close = async (req, res, next) => {
       const before = money(tradingAccount.balance);
       const after = money(before + profit);
       const remainingMargin = Number(await Trade.sum('margin', {
-        where: { userId: req.user.id, tradingAccountId: tradingAccount.id, status: 'open' },
+        where: { userId: req.user.id, tradingAccountId: tradingAccount.id, status: { [Op.in]: ['pending', 'open'] } },
         transaction,
       }) || 0);
       const margin = money(Math.max(0, remainingMargin));
@@ -123,6 +207,16 @@ exports.close = async (req, res, next) => {
 exports.openTrades = async (req, res, next) => {
   try {
     const where = { userId: req.user.id, status: 'open' };
+    if (req.query.tradingAccountId) where.tradingAccountId = req.query.tradingAccountId;
+    return res.json({ trades: await Trade.findAll({ where, order: [['createdAt', 'DESC']] }) });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+exports.pendingTrades = async (req, res, next) => {
+  try {
+    const where = { userId: req.user.id, status: 'pending' };
     if (req.query.tradingAccountId) where.tradingAccountId = req.query.tradingAccountId;
     return res.json({ trades: await Trade.findAll({ where, order: [['createdAt', 'DESC']] }) });
   } catch (error) {

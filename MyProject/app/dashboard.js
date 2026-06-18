@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Image, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import {
   ArrowUpRight,
   Bell,
@@ -44,6 +44,29 @@ function Stat({ label, value, colors }) {
       <Text className="text-xs font-semibold uppercase" style={{ color: colors.muted }}>{label}</Text>
       <Text className="mt-2 text-xl font-extrabold" style={{ color: colors.text }}>{value}</Text>
     </View>
+  );
+}
+
+function initialsFor(user) {
+  const source = user?.name || user?.email || 'U';
+  return String(source).trim().slice(0, 1).toUpperCase() || 'U';
+}
+
+function HeaderProfilePhoto({ user, colors }) {
+  return (
+    <Pressable
+      onPress={() => router.push('/settings')}
+      className="h-[46px] w-[46px] items-center justify-center rounded-xl border"
+      style={{ backgroundColor: colors.panel, borderColor: colors.border }}
+    >
+      <View className="h-8 w-8 items-center justify-center overflow-hidden rounded-full" style={{ backgroundColor: colors.surface }}>
+        {user?.profileImage ? (
+          <Image source={{ uri: user.profileImage }} className="h-full w-full" resizeMode="cover" />
+        ) : (
+          <Text className="text-sm font-black" style={{ color: colors.primary }}>{initialsFor(user)}</Text>
+        )}
+      </View>
+    </Pressable>
   );
 }
 
@@ -432,6 +455,7 @@ export default function DashboardScreen() {
             <Text className="mt-2" style={{ color: colors.muted }}>Manage accounts, funds, verification and rewards.</Text>
           </View>
           <View className="flex-row flex-wrap gap-3">
+            <HeaderProfilePhoto user={dashboard?.user || user} colors={colors} />
             <Pressable onPress={toggleNotifications} className="relative h-[46px] w-[46px] items-center justify-center rounded-xl border" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
               <Bell size={20} color={colors.text} />
               {unreadCount > 0 ? (

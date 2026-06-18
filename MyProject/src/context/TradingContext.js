@@ -51,11 +51,12 @@ export function TradingProvider({ children }) {
 
   const syncAccount = useCallback(async () => {
     if (!user || !serverAccount) return;
-    const [open, closed, account, history] = await Promise.all([
-      tradeService.openTrades(selectedAccountId), tradeService.closedTrades(selectedAccountId), walletService.getWallet(selectedAccountId), walletService.getTransactions(),
+    const [open, closed, pending, account, history] = await Promise.all([
+      tradeService.openTrades(selectedAccountId), tradeService.closedTrades(selectedAccountId), tradeService.pendingTrades(selectedAccountId), walletService.getWallet(selectedAccountId), walletService.getTransactions(),
     ]);
     setPositions(open.trades || []);
     setClosedPositions(closed.trades || []);
+    setPendingOrders(pending.trades || []);
     setWallet({ balance: Number(account.summary.balance) });
     if (account.tradingAccount) {
       setSelectedTradingAccount((current) => (
@@ -118,9 +119,10 @@ export function TradingProvider({ children }) {
   const summaryBalance = Number.isFinite(Number(selectedTradingAccount?.balance))
     ? Number(selectedTradingAccount.balance)
     : wallet.balance;
+  const marginPositions = useMemo(() => [...livePositions, ...pendingOrders], [livePositions, pendingOrders]);
   const summary = useMemo(
-    () => ({ ...calculateSummary(summaryBalance, livePositions), ...depositTotals }),
-    [summaryBalance, livePositions, depositTotals],
+    () => ({ ...calculateSummary(summaryBalance, marginPositions), ...depositTotals }),
+    [summaryBalance, marginPositions, depositTotals],
   );
   const currentSymbol =
     prices.find((item) => item.symbol === selectedSymbol) ||
@@ -146,7 +148,7 @@ export function TradingProvider({ children }) {
   }, [transactions, ready]);
 
   const openPosition = useCallback(
-    async (side, lots) => {
+    async (side, lots, options = {}) => {
       if (!user) throw new Error('Please log in to place trades.');
       if (isAdmin) throw new Error(CLIENT_ONLY_MESSAGE);
       const quantity = Number(lots);
@@ -162,7 +164,14 @@ export function TradingProvider({ children }) {
         openPrice: price,
         openedAt: new Date().toISOString(),
       };
-      const result = await tradeService.open({ symbol: selectedSymbol, side, lots: quantity, tradingAccountId: selectedAccountId });
+      const result = await tradeService.open({
+        symbol: selectedSymbol,
+        side,
+        lots: quantity,
+        tradingAccountId: selectedAccountId,
+        stopLoss: options.stopLoss,
+        takeProfit: options.takeProfit,
+      });
       position = result.trade;
       setPositions((existing) => [position, ...existing]);
     },
@@ -170,13 +179,13 @@ export function TradingProvider({ children }) {
   );
 
   const createPendingOrder = useCallback(
-    (values) => {
+    async (values) => {
       if (!user) throw new Error('Please log in to place trades.');
       if (isAdmin) throw new Error(CLIENT_ONLY_MESSAGE);
       const quantity = Number(values.lots);
       if (!quantity || quantity <= 0) throw new Error('Enter a valid lot size.');
-      const order = {
-        id: String(Date.now()),
+      if (!Number(values.entryPrice)) throw new Error('Enter a valid entry price.');
+      const result = await tradeService.createPending({
         symbol: selectedSymbol,
         side: values.side,
         lots: quantity,
@@ -184,14 +193,13 @@ export function TradingProvider({ children }) {
         entryPrice: Number(values.entryPrice),
         stopLoss: values.stopLoss ? Number(values.stopLoss) : null,
         takeProfit: values.takeProfit ? Number(values.takeProfit) : null,
-        status: 'pending',
-        openedAt: new Date().toISOString(),
-        tradingAccountId: selectedTradingAccount?.id,
-      };
+        tradingAccountId: selectedAccountId,
+      });
+      const order = result.trade;
       setPendingOrders((existing) => [order, ...existing]);
       return order;
     },
-    [isAdmin, selectedSymbol, selectedTradingAccount?.id, user],
+    [isAdmin, selectedAccountId, selectedSymbol, user],
   );
 
   const closePosition = useCallback(

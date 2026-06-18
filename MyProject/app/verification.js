@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { router } from 'expo-router';
 import { CheckCircle2, FileCheck2, FileText, ShieldCheck, UploadCloud } from 'lucide-react-native';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Image, Pressable, ScrollView, Text, View } from 'react-native';
 import CustomButton from '../src/components/common/CustomButton';
 import AccountSidebar from '../src/components/layout/AccountSidebar';
 import AccountNotificationButton from '../src/components/header/AccountNotificationButton';
@@ -18,6 +18,34 @@ function Card({ title, children, colors }) {
       <Text className="mb-4 text-lg font-extrabold" style={{ color: colors.text }}>{title}</Text>
       {children}
     </View>
+  );
+}
+
+function initialsFor(user) {
+  const source = user?.name || user?.email || 'U';
+  return String(source).trim().slice(0, 1).toUpperCase() || 'U';
+}
+
+function HeaderProfilePhoto({ user, colors }) {
+  return (
+    <Pressable
+      onPress={() => router.push('/settings')}
+      className="h-[46px] w-[46px] items-center justify-center rounded-xl border"
+      style={{ backgroundColor: colors.panel, borderColor: colors.border }}
+    >
+      <View
+        className="h-8 w-8 items-center justify-center overflow-hidden rounded-full"
+        style={{ backgroundColor: colors.surface }}
+      >
+        {user?.profileImage ? (
+          <Image source={{ uri: user.profileImage }} className="h-full w-full" resizeMode="cover" />
+        ) : (
+          <Text className="text-sm font-black" style={{ color: colors.primary }}>
+            {initialsFor(user)}
+          </Text>
+        )}
+      </View>
+    </Pressable>
   );
 }
 
@@ -59,6 +87,7 @@ function AccountPageShell({ children, user, onSignOut, colors }) {
             <Text className="mt-2" style={{ color: colors.muted }}>{user?.email || 'Complete account verification'}</Text>
           </View>
           <View className="flex-row flex-wrap gap-3">
+            <HeaderProfilePhoto user={user} colors={colors} />
             <AccountNotificationButton />
             <Pressable onPress={() => router.push('/trading')} className="rounded-xl border px-4 py-3" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
               <Text className="font-bold" style={{ color: GOLD }}>Back to Trading</Text>

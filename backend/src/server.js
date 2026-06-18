@@ -9,6 +9,7 @@ require('./models');
 const ensureSchema = require('./config/ensureSchema');
 const seedAdmin = require('./seed/seedAdmin');
 const tradingView = require('./services/tradingViewService');
+const { checkRiskOrders } = require('./services/tradeRiskService');
 const { startCandleCatchupScheduler } = require('./services/candleCatchupScheduler');
 const { setNotificationIo } = require('./services/notificationService');
 
@@ -59,10 +60,13 @@ async function start() {
   });
   const stopPriceStream = tradingView.startPriceStream((prices) => {
     if (io.engine.clientsCount) io.emit('market:prices', prices);
+    checkRiskOrders(prices).catch((error) => console.error('Risk order check failed:', error.message));
   });
   const stopCandleCatchupScheduler = startCandleCatchupScheduler();
   const ticker = setInterval(async () => {
-    if (io.engine.clientsCount) io.emit('market:prices', await tradingView.getPrices());
+    const prices = await tradingView.getPrices();
+    if (io.engine.clientsCount) io.emit('market:prices', prices);
+    checkRiskOrders(prices).catch((error) => console.error('Risk order check failed:', error.message));
   }, 2000);
   server.on('close', () => {
     clearInterval(ticker);

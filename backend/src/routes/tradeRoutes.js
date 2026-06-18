@@ -5,8 +5,10 @@ const client = require('../middleware/clientMiddleware');
 
 router.use(auth);
 router.post('/open', client, controller.open);
+router.post('/pending', client, controller.createPending);
 router.post('/close/:id', client, controller.close);
 router.get('/open', controller.openTrades);
+router.get('/pending', controller.pendingTrades);
 router.get('/closed', controller.closedTrades);
 
 module.exports = router;
