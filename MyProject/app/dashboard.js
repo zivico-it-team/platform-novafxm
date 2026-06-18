@@ -271,7 +271,7 @@ function CreateAccountConfirm({ type, loading, onCancel, onConfirm, colors }) {
 
 export default function DashboardScreen() {
   const params = useLocalSearchParams();
-  const { user, logout, loading: authLoading } = useAuth();
+  const { user, logout, loading: authLoading, isAdmin } = useAuth();
   const { colors } = useAppTheme();
   const { deposit, withdraw, loading: walletLoading } = useWallet();
   const {
@@ -312,12 +312,16 @@ export default function DashboardScreen() {
 
   useEffect(() => {
     if (authLoading) return;
+    if (isAdmin) {
+      router.replace('/admin');
+      return;
+    }
     if (!user) {
       router.replace('/login');
       return;
     }
     loadDashboard().catch(() => {});
-  }, [authLoading, user]);
+  }, [authLoading, isAdmin, user]);
 
   useEffect(() => {
     if (params.section) setActiveSection(String(params.section));
@@ -392,7 +396,7 @@ export default function DashboardScreen() {
     setNotificationsOpen((open) => !open);
   };
 
-  if (authLoading || !user) {
+  if (authLoading || !user || isAdmin) {
     return <View className="flex-1" style={{ backgroundColor: colors.background }} />;
   }
 

@@ -10,9 +10,10 @@ import { walletService } from '../services/walletService';
 
 export const TradingContext = createContext(null);
 const INITIAL_BALANCE = 5000;
+const CLIENT_ONLY_MESSAGE = 'Admin accounts cannot trade, deposit, or withdraw as clients.';
 
 export function TradingProvider({ children }) {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, isAdmin } = useAuth();
   const { prices, connected } = useMarketPrices();
   const [selectedSymbol, setSelectedSymbol] = useState(DEFAULT_SYMBOL);
   const [positions, setPositions] = useState([]);
@@ -147,6 +148,7 @@ export function TradingProvider({ children }) {
   const openPosition = useCallback(
     async (side, lots) => {
       if (!user) throw new Error('Please log in to place trades.');
+      if (isAdmin) throw new Error(CLIENT_ONLY_MESSAGE);
       const quantity = Number(lots);
       if (!quantity || quantity <= 0) throw new Error('Enter a valid lot size.');
       const requiredMargin = quantity * 100;
@@ -164,12 +166,13 @@ export function TradingProvider({ children }) {
       position = result.trade;
       setPositions((existing) => [position, ...existing]);
     },
-    [currentSymbol, selectedAccountId, selectedSymbol, summary.freeFunds, user],
+    [currentSymbol, isAdmin, selectedAccountId, selectedSymbol, summary.freeFunds, user],
   );
 
   const createPendingOrder = useCallback(
     (values) => {
       if (!user) throw new Error('Please log in to place trades.');
+      if (isAdmin) throw new Error(CLIENT_ONLY_MESSAGE);
       const quantity = Number(values.lots);
       if (!quantity || quantity <= 0) throw new Error('Enter a valid lot size.');
       const order = {
@@ -188,12 +191,13 @@ export function TradingProvider({ children }) {
       setPendingOrders((existing) => [order, ...existing]);
       return order;
     },
-    [selectedSymbol, selectedTradingAccount?.id, user],
+    [isAdmin, selectedSymbol, selectedTradingAccount?.id, user],
   );
 
   const closePosition = useCallback(
     async (id) => {
       if (!user) throw new Error('Please log in to manage trades.');
+      if (isAdmin) throw new Error(CLIENT_ONLY_MESSAGE);
       const position = livePositions.find((item) => String(item.id) === String(id));
       if (!position) return;
       const response = await tradeService.close(id, position.currentPrice);
@@ -211,23 +215,25 @@ export function TradingProvider({ children }) {
         ));
       }
     },
-    [livePositions, selectedAccountId, user, wallet.balance],
+    [isAdmin, livePositions, selectedAccountId, user, wallet.balance],
   );
 
   const submitDeposit = useCallback((values) => {
+    if (isAdmin) throw new Error(CLIENT_ONLY_MESSAGE);
     const transaction = { id: String(Date.now()), type: 'deposit', status: 'pending', createdAt: new Date().toISOString(), ...values };
     setTransactions((existing) => [transaction, ...existing]);
     return transaction;
-  }, []);
+  }, [isAdmin]);
 
   const submitWithdrawal = useCallback(
     (values) => {
+      if (isAdmin) throw new Error(CLIENT_ONLY_MESSAGE);
       if (Number(values.amount) > summary.freeFunds) throw new Error('Withdrawal exceeds available free funds.');
       const transaction = { id: String(Date.now()), type: 'withdrawal', status: 'pending', createdAt: new Date().toISOString(), ...values };
       setTransactions((existing) => [transaction, ...existing]);
       return transaction;
     },
-    [summary.freeFunds],
+    [isAdmin, summary.freeFunds],
   );
 
   const value = useMemo(

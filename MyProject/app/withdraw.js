@@ -1,4 +1,5 @@
 import { Link, router } from 'expo-router';
+import { useEffect } from 'react';
 import { ArrowLeft } from 'lucide-react-native';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import WithdrawForm from '../src/components/wallet/WithdrawForm';
@@ -7,7 +8,7 @@ import { useAuth } from '../src/hooks/useAuth';
 import { useAppTheme } from '../src/context/ThemeContext';
 
 export default function WithdrawScreen() {
-  const { user, logout } = useAuth();
+  const { user, logout, loading: authLoading, isAdmin } = useAuth();
   const { colors } = useAppTheme();
   const { summary, transactions, withdraw, loading } = useWallet();
   const fundingLocked = Boolean(user && user.verificationStatus !== 'approved');
@@ -15,6 +16,14 @@ export default function WithdrawScreen() {
     await logout();
     router.replace('/login');
   };
+
+  useEffect(() => {
+    if (!authLoading && isAdmin) router.replace('/admin');
+  }, [authLoading, isAdmin]);
+
+  if (authLoading || isAdmin) {
+    return <View className="flex-1" style={{ backgroundColor: colors.background }} />;
+  }
 
   return (
     <ScrollView className="flex-1" style={{ backgroundColor: colors.background }} contentContainerClassName="mx-auto w-full max-w-[650px] p-6">

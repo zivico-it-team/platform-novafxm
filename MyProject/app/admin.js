@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useRouter } from 'expo-router';
 import { Alert, DeviceEventEmitter, Image, Modal, Platform, Pressable, ScrollView, Text, View } from 'react-native';
-import { Bell, Moon, RefreshCw, Sun } from 'lucide-react-native';
+import { Bell, LogOut, Moon, RefreshCw, Sun } from 'lucide-react-native';
 import api from '../src/services/api';
 import CustomButton from '../src/components/common/CustomButton';
 import AdminSidebar from '../src/components/admin/AdminSidebar';
@@ -500,6 +500,9 @@ export default function AdminScreen() {
             </Pressable>
             <Pressable onPress={load} className="rounded-xl border p-3" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
               <RefreshCw size={20} color={loading ? '#27a8e9' : colors.muted} />
+            </Pressable>
+            <Pressable onPress={signOut} className="rounded-xl border p-3" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+              <LogOut size={20} color={colors.danger} />
             </Pressable>
           </View>
         </View>

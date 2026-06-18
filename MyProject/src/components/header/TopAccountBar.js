@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Modal, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
-import { Bell, CircleUserRound, LayoutDashboard, Plus, Settings2, Sun, Moon } from 'lucide-react-native';
+import { Bell, CircleUserRound, LayoutDashboard, LogOut, Plus, Sun, Moon } from 'lucide-react-native';
 import { useAuth } from '../../hooks/useAuth';
 import { useDemoTrading } from '../../hooks/useDemoTrading';
 import { useNotifications } from '../../hooks/useNotifications';
@@ -20,11 +20,10 @@ export default function TopAccountBar() {
   const { width } = useWindowDimensions();
   const { summary, selectedTradingAccount, setSelectedTradingAccount } = useDemoTrading();
   const params = useLocalSearchParams();
-  const { user } = useAuth();
+  const { user, isAdmin, logout } = useAuth();
   const { notifications, unreadCount, loading: notificationsLoading, refresh: refreshNotifications, markRead, markAllRead } = useNotifications();
   const { darkMode, colors, toggleTheme } = useAppTheme();
   const metricsScrollRef = useRef(null);
-  const profileHoverCloseRef = useRef(null);
   const [metricsWidth, setMetricsWidth] = useState(0);
   const [menu, setMenu] = useState(null);
   const [orderModal, setOrderModal] = useState(false);
@@ -32,6 +31,8 @@ export default function TopAccountBar() {
   const [hoveredAction, setHoveredAction] = useState(null);
   const mobile = width < 760;
   const iconButtonHoverBg = darkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(11, 11, 11, 0.04)';
+  const desktopActionGroupBg = darkMode ? 'rgba(255, 255, 255, 0.035)' : '#f8fafc';
+  const desktopActionBg = darkMode ? colors.panel : '#ffffff';
 
   const fallbackAccount = useMemo(() => ({
     id: `user-${user?.id || 'demo'}`,
@@ -100,12 +101,27 @@ export default function TopAccountBar() {
       router.push('/login');
       return;
     }
+    if (isAdmin) {
+      router.push('/admin');
+      return;
+    }
     setOrderModal(true);
   };
 
-  const hoverProps = (action) => ({ onHoverIn: () => setHoveredAction(action), onHoverOut: () => setHoveredAction(null) });
+  const signOut = async () => {
+    await logout();
+    setMenu(null);
+    router.replace('/login');
+  };
+  const openProfileMenu = () => {
+    if (isAdmin) {
+      signOut();
+      return;
+    }
+    setMenu(menu === 'profile' ? null : 'profile');
+  };
 
-  const cancelProfileHoverClose = () => { if (!profileHoverCloseRef.current) return; clearTimeout(profileHoverCloseRef.current); profileHoverCloseRef.current = null; };
+  const hoverProps = (action) => ({ onHoverIn: () => setHoveredAction(action), onHoverOut: () => setHoveredAction(null) });
 
   const profileHoverProps = (action) => ({ onHoverIn: () => setHoveredAction(action), onHoverOut: () => setHoveredAction(null) });
 
@@ -120,8 +136,8 @@ export default function TopAccountBar() {
     setMenu(menu === 'notifications' ? null : 'notifications');
   };
 
-  const BellButton = ({ action, className }) => (
-    <Pressable {...hoverProps(action)} onPress={toggleNotifications} className={className} style={iconButtonStyle(action, { backgroundColor: colors.panel, borderColor: colors.border })}>
+  const BellButton = ({ action, className, backgroundColor = colors.panel }) => (
+    <Pressable {...hoverProps(action)} onPress={toggleNotifications} className={className} style={iconButtonStyle(action, { backgroundColor, borderColor: colors.border })}>
       <View style={iconHoverStyle(action)}><Bell size={width < 760 ? 18 : 21} color={iconColor(action)} /></View>
       {unreadCount > 0 ? (
         <View className="absolute -right-1 -top-1 min-w-[18px] items-center justify-center rounded-full px-1" style={{ height: 18, backgroundColor: colors.danger }}>
@@ -142,8 +158,6 @@ export default function TopAccountBar() {
     </View>
   );
 
-  useEffect(() => () => cancelProfileHoverClose(), []);
-
   useEffect(() => {
     if (!metricsWidth || maxMetricStep === 0) return undefined;
     let step = 0;
@@ -158,7 +172,7 @@ export default function TopAccountBar() {
     <View className={`${mobile ? 'relative z-40 gap-1.5 px-2 py-1.5' : 'relative z-40 border-b px-2 py-1.5'} lg:flex-row lg:items-center lg:gap-3 lg:px-3 lg:py-3`} style={{ backgroundColor: colors.background, borderColor: colors.border }}>
       {mobile ? (
         <View className="flex-row items-center gap-2">
-          {user ? (
+          {user && !isAdmin ? (
             <Pressable onPress={() => setMenu(menu === 'account' ? null : 'account')} className="h-[40px] flex-1 flex-row items-center rounded-md border px-2" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
               <CircleUserRound color={colors.muted} size={18} />
               <View className="ml-2 min-w-0 flex-1">
@@ -167,10 +181,18 @@ export default function TopAccountBar() {
               </View>
               <View className="ml-1 h-2 w-2 rounded-full" style={{ backgroundColor: colors.success }} />
             </Pressable>
+          ) : user && isAdmin ? (
+            <Pressable onPress={() => router.push('/admin')} className="h-[40px] flex-1 flex-row items-center rounded-md border px-2" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+              <CircleUserRound color={colors.primary} size={18} />
+              <View className="ml-2 min-w-0 flex-1">
+                <Text className="text-xs font-bold" numberOfLines={1} style={{ color: colors.text }}>Admin</Text>
+                <Text className="text-[10px]" numberOfLines={1} style={{ color: colors.muted }}>Management access</Text>
+              </View>
+            </Pressable>
           ) : (
             <AuthButtons />
           )}
-          {user ? (
+          {user && !isAdmin ? (
             <Pressable onPress={openNewOrder} className="h-[40px] flex-row items-center justify-center rounded-md px-3" style={{ backgroundColor: colors.primary }}>
               <Plus color="#0B0B0B" size={16} />
               <Text className="ml-1.5 text-xs font-bold text-black">New Order</Text>
@@ -181,8 +203,8 @@ export default function TopAccountBar() {
           </Pressable>
           {user ? <BellButton action="mobile-notifications" className="h-[40px] w-[40px] items-center justify-center rounded-md border" /> : null}
           {user ? (
-            <Pressable {...profileHoverProps('mobile-profile')} onPress={() => setMenu(menu === 'profile' ? null : 'profile')} className="h-[40px] w-[40px] items-center justify-center rounded-md border" style={iconButtonStyle('mobile-profile', { backgroundColor: colors.panel, borderColor: colors.border })}>
-              <View style={iconHoverStyle('mobile-profile')}><Settings2 color={iconColor('mobile-profile')} size={18} /></View>
+            <Pressable {...profileHoverProps('mobile-profile')} onPress={openProfileMenu} className="h-[40px] w-[40px] items-center justify-center rounded-md border" style={iconButtonStyle('mobile-profile', { backgroundColor: colors.panel, borderColor: colors.border })}>
+              <View style={iconHoverStyle('mobile-profile')}><LogOut color={colors.danger} size={18} /></View>
             </Pressable>
           ) : null}
         </View>
@@ -191,7 +213,7 @@ export default function TopAccountBar() {
           <NovaLogo dark={darkMode} width={180} height={44} />
         </View>
       )}
-      {!mobile && user ? (
+      {!mobile && user && !isAdmin ? (
         <Pressable onPress={openNewOrder} className="mb-3 flex-row items-center justify-center rounded-xl px-5 py-4 lg:mb-0" style={{ backgroundColor: colors.primary }}>
           <Plus color="#0B0B0B" size={18} />
           <Text className="ml-2 font-bold text-black">New Order</Text>
@@ -205,37 +227,57 @@ export default function TopAccountBar() {
           </View>
         ))}
       </ScrollView>
-      {!mobile && user ? (
-        <Pressable onPress={() => setMenu(menu === 'account' ? null : 'account')} className="mt-3 flex-row items-center rounded-xl border px-4 py-3 lg:mt-0 lg:w-[250px]" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
-          <CircleUserRound color={colors.muted} size={23} />
-          <View>
-            <Text className="ml-4 font-bold" style={{ color: colors.text }}>{selectedAccount?.type || 'Demo'}</Text>
-            <Text className="ml-4 text-xs" style={{ color: colors.muted }}>{selectedAccount?.name || 'Demo account 1'}</Text>
-          </View>
-          <View className="ml-auto h-2.5 w-2.5 rounded-full" style={{ backgroundColor: colors.success }} />
-        </Pressable>
-      ) : null}
       {!mobile && !user ? <AuthButtons /> : null}
-      {user ? (
-        <Pressable {...hoverProps('dashboard')} onPress={() => router.push('/dashboard')} className="mt-3 hidden h-[58px] w-[58px] items-center justify-center rounded-xl border lg:flex" style={iconButtonStyle('dashboard', { backgroundColor: colors.panel, borderColor: colors.border })}>
-          <View style={iconHoverStyle('dashboard')}><LayoutDashboard size={21} color={iconColor('dashboard')} /></View>
-        </Pressable>
+      {!mobile && user && !isAdmin ? (
+        <View className="mt-3 hidden flex-row items-center gap-1.5 rounded-2xl border p-1.5 lg:mt-0 lg:flex" style={{ backgroundColor: desktopActionGroupBg, borderColor: colors.border }}>
+          <Pressable onPress={() => setMenu(menu === 'account' ? null : 'account')} className="h-[48px] w-[230px] flex-row items-center rounded-xl border px-3" style={{ backgroundColor: desktopActionBg, borderColor: colors.border }}>
+            <View className="h-9 w-9 items-center justify-center rounded-lg" style={{ backgroundColor: colors.primarySoft }}>
+              <CircleUserRound color={colors.primary} size={20} />
+            </View>
+            <View className="ml-3 min-w-0 flex-1">
+              <View className="flex-row items-center">
+                <Text className="min-w-0 flex-1 text-sm font-extrabold" numberOfLines={1} style={{ color: colors.text }}>{selectedAccount?.type || 'Demo'}</Text>
+                <View className="ml-2 h-2 w-2 rounded-full" style={{ backgroundColor: colors.success }} />
+              </View>
+              <Text className="mt-0.5 text-[10px] font-semibold" numberOfLines={1} style={{ color: colors.muted }}>{selectedAccount?.name || 'Demo account 1'}</Text>
+            </View>
+          </Pressable>
+          <Pressable {...hoverProps('dashboard')} onPress={() => router.push('/dashboard')} className="h-[48px] w-[48px] items-center justify-center rounded-xl border" style={iconButtonStyle('dashboard', { backgroundColor: desktopActionBg, borderColor: colors.border })}>
+            <View style={iconHoverStyle('dashboard')}><LayoutDashboard size={19} color={iconColor('dashboard')} /></View>
+          </Pressable>
+          <Pressable {...hoverProps('theme')} onPress={toggleTheme} className="h-[48px] w-[48px] items-center justify-center rounded-xl border" style={iconButtonStyle('theme', { backgroundColor: desktopActionBg, borderColor: colors.border })}>
+            <View style={iconHoverStyle('theme')}>{darkMode ? <Sun size={19} color={iconColor('theme')} /> : <Moon size={19} color={iconColor('theme')} />}</View>
+          </Pressable>
+          <BellButton action="notifications" className="h-[48px] w-[48px] items-center justify-center rounded-xl border" backgroundColor={desktopActionBg} />
+          <Pressable {...profileHoverProps('profile')} onPress={openProfileMenu} className="h-[48px] w-[48px] items-center justify-center rounded-xl border" style={iconButtonStyle('profile', { backgroundColor: desktopActionBg, borderColor: colors.border })}>
+            <View style={iconHoverStyle('profile')}><LogOut size={19} color={colors.danger} /></View>
+          </Pressable>
+        </View>
       ) : null}
-      <Pressable {...hoverProps('theme')} onPress={toggleTheme} className="mt-3 hidden h-[58px] w-[58px] items-center justify-center rounded-xl border lg:flex" style={iconButtonStyle('theme', { backgroundColor: colors.panel, borderColor: colors.border })}>
-        <View style={iconHoverStyle('theme')}>{darkMode ? <Sun size={21} color={iconColor('theme')} /> : <Moon size={21} color={iconColor('theme')} />}</View>
-      </Pressable>
-      {user ? <BellButton action="notifications" className="mt-3 hidden h-[58px] w-[58px] items-center justify-center rounded-xl border lg:flex" /> : null}
-      {user ? (
-        <Pressable {...profileHoverProps('profile')} onPress={() => setMenu(menu === 'profile' ? null : 'profile')} className="mt-3 hidden h-[58px] w-[58px] items-center justify-center rounded-xl border lg:flex" style={iconButtonStyle('profile', { backgroundColor: colors.panel, borderColor: colors.border })}>
-          <View style={iconHoverStyle('profile')}><Settings2 size={21} color={iconColor('profile')} /></View>
-        </Pressable>
+      {!mobile && user && isAdmin ? (
+        <View className="mt-3 hidden flex-row items-center gap-1.5 rounded-2xl border p-1.5 lg:mt-0 lg:flex" style={{ backgroundColor: desktopActionGroupBg, borderColor: colors.border }}>
+          <Pressable onPress={() => router.push('/admin')} className="h-[48px] flex-row items-center rounded-xl border px-4" style={{ backgroundColor: desktopActionBg, borderColor: colors.border }}>
+            <CircleUserRound color={colors.primary} size={20} />
+            <View className="ml-3">
+              <Text className="text-sm font-extrabold" style={{ color: colors.text }}>Admin</Text>
+              <Text className="mt-0.5 text-[10px] font-semibold" style={{ color: colors.muted }}>Management access</Text>
+            </View>
+          </Pressable>
+          <Pressable {...hoverProps('theme')} onPress={toggleTheme} className="h-[48px] w-[48px] items-center justify-center rounded-xl border" style={iconButtonStyle('theme', { backgroundColor: desktopActionBg, borderColor: colors.border })}>
+            <View style={iconHoverStyle('theme')}>{darkMode ? <Sun size={19} color={iconColor('theme')} /> : <Moon size={19} color={iconColor('theme')} />}</View>
+          </Pressable>
+          <BellButton action="notifications" className="h-[48px] w-[48px] items-center justify-center rounded-xl border" backgroundColor={desktopActionBg} />
+          <Pressable {...profileHoverProps('profile')} onPress={signOut} className="h-[48px] w-[48px] items-center justify-center rounded-xl border" style={iconButtonStyle('profile', { backgroundColor: desktopActionBg, borderColor: colors.border })}>
+            <View style={iconHoverStyle('profile')}><LogOut size={19} color={colors.danger} /></View>
+          </Pressable>
+        </View>
       ) : null}
       <Modal visible={Boolean(menu)} transparent animationType="none" onRequestClose={() => setMenu(null)}>
         <Pressable className="flex-1" style={{ flex: 1 }} onPress={() => setMenu(null)}>
           <Pressable onPress={(event) => event.stopPropagation()}>
             {menu === 'account' ? <DemoAccountMenu accounts={tradingAccounts} selectedAccount={selectedAccount} onSelectAccount={selectAccount} onClose={() => setMenu(null)} /> : null}
             {menu === 'notifications' ? <NotificationMenu notifications={notifications} unreadCount={unreadCount} loading={notificationsLoading} onMarkRead={markRead} onMarkAllRead={markAllRead} onClose={() => setMenu(null)} /> : null}
-            {menu === 'profile' ? <ProfileMenu onClose={() => setMenu(null)} onHoverIn={cancelProfileHoverClose} toggleTheme={toggleTheme} darkMode={darkMode} /> : null}
+            {menu === 'profile' ? <ProfileMenu onClose={() => setMenu(null)} /> : null}
           </Pressable>
         </Pressable>
       </Modal>

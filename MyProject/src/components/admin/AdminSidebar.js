@@ -35,6 +35,9 @@ export default function AdminSidebar({ section, onChange, stats, badgeCounts = {
             </View>
           </Pressable>
         ))}
+        <Pressable onPress={onSignOut} className="mr-2 items-center justify-center rounded-xl px-4 py-3" style={{ backgroundColor: colors.surface }}>
+          <LogOut size={18} color={colors.danger} />
+        </Pressable>
       </ScrollView>
       <View className="hidden p-4 md:flex">
         {navigation.map(({ id, label, icon: Icon }) => (

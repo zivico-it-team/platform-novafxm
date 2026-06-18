@@ -1,4 +1,5 @@
 import { Link, router } from 'expo-router';
+import { useEffect } from 'react';
 import { ArrowLeft, CheckCircle2, ShieldCheck, Wallet, XCircle } from 'lucide-react-native';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import DepositForm from '../src/components/wallet/DepositForm';
@@ -9,7 +10,7 @@ import { useAuth } from '../src/hooks/useAuth';
 import { useAppTheme } from '../src/context/ThemeContext';
 
 export default function DepositScreen() {
-  const { user, logout } = useAuth();
+  const { user, logout, loading: authLoading, isAdmin } = useAuth();
   const { colors } = useAppTheme();
   const { deposit, transactions, loading } = useWallet();
   const depositTransactions = transactions.filter((item) => item.type === 'deposit');
@@ -19,6 +20,14 @@ export default function DepositScreen() {
     await logout();
     router.replace('/login');
   };
+
+  useEffect(() => {
+    if (!authLoading && isAdmin) router.replace('/admin');
+  }, [authLoading, isAdmin]);
+
+  if (authLoading || isAdmin) {
+    return <View className="flex-1" style={{ backgroundColor: colors.background }} />;
+  }
 
   return (
     <ScrollView className="flex-1" style={{ backgroundColor: colors.background }} contentContainerClassName="mx-auto w-full max-w-[1180px] p-4 lg:p-8">

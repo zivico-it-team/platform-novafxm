@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { router } from 'expo-router';
 import { Image, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import {
-  Bell,
   CalendarDays,
   Camera,
   CheckCircle2,
@@ -254,7 +253,6 @@ function readFileDataUrl(file) {
 const settingsSections = [
   { key: 'profile', icon: UserRound, title: 'Profile', subtitle: 'Edit your profile details' },
   { key: 'security', icon: Shield, title: 'Security', subtitle: 'Password and 2FA' },
-  { key: 'notifications', icon: Bell, title: 'Notifications', subtitle: 'Manage your alerts' },
   { key: 'payments', icon: CreditCard, title: 'Payments', subtitle: 'Payment methods' },
   { key: 'session', icon: LogOut, title: 'Session', subtitle: 'Sign out and sessions' },
 ];
@@ -402,22 +400,6 @@ function SettingsPanel({ icon: Icon, title, subtitle, children }) {
         </View>
       </View>
       {children}
-    </View>
-  );
-}
-
-function ToggleRow({ title, subtitle, enabled = false }) {
-  const { colors } = useAppTheme();
-
-  return (
-    <View className="mb-3 flex-row items-center justify-between rounded-xl border p-4" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
-      <View className="flex-1 pr-4">
-        <Text className="font-bold" style={{ color: colors.text }}>{title}</Text>
-        <Text className="mt-1 text-sm" style={{ color: colors.muted }}>{subtitle}</Text>
-      </View>
-      <View className={`h-7 w-12 justify-center rounded-full px-1 ${enabled ? 'items-end bg-primary' : 'items-start'}`} style={{ backgroundColor: enabled ? colors.primary : colors.surface }}>
-        <View className="h-5 w-5 rounded-full bg-white" />
-      </View>
     </View>
   );
 }
@@ -1058,15 +1040,6 @@ export default function SettingsScreen() {
           ) : null}
 
           
-          {activeSection === 'notifications' ? (
-            <SettingsPanel icon={Bell} title="Notifications" subtitle="Choose which account alerts you want to receive.">
-              <ToggleRow title="Trade Alerts" subtitle="Notify me when orders open, close, or change status." enabled />
-              <ToggleRow title="Deposit and Withdrawal Updates" subtitle="Receive updates for payment review and wallet changes." enabled />
-              <ToggleRow title="Security Alerts" subtitle="Get notified about sign-ins and important account activity." enabled />
-              <ToggleRow title="Marketing Updates" subtitle="Receive product news and promotional messages." />
-            </SettingsPanel>
-          ) : null}
-
           {activeSection === 'payments' ? (
             <SettingsPanel icon={CreditCard} title="Withdrawal Details" subtitle="Save bank and USDT TRC20 withdrawal details.">
               {showBankForm ? (

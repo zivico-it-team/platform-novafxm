@@ -1,16 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { router } from 'expo-router';
 import {
-  Award,
   Download,
   LogOut,
-  Moon,
   ReceiptText,
-  Sun,
-  TrendingUp,
   UserRound,
-  Volume2,
-  VolumeX,
 } from 'lucide-react-native';
 import { Pressable, Text, View } from 'react-native';
 import { useAuth } from '../../hooks/useAuth';
@@ -32,29 +26,13 @@ function Action({ icon: Icon, title, onPress, colors }) {
 
 export default function ProfileMenu({ onClose, onHoverIn, onHoverOut }) {
   const { user, logout } = useAuth();
-  const { darkMode, toggleTheme, colors } = useAppTheme();
-  const [sounds, setSounds] = useState(true);
+  const { colors } = useAppTheme();
   const fetchedAt = useMemo(() => new Date().toLocaleString(), []);
-
-  const navigate = (path) => {
-    onClose();
-    router.push(path);
-  };
 
   const signOut = async () => {
     await logout();
     onClose();
     router.replace('/login');
-  };
-
-  const switchMode = () => {
-    toggleTheme();
-    onClose();
-  };
-
-  const toggleSounds = () => {
-    setSounds((value) => !value);
-    onClose();
   };
 
   return (
@@ -65,38 +43,6 @@ export default function ProfileMenu({ onClose, onHoverIn, onHoverOut }) {
       style={{ backgroundColor: colors.panel, borderColor: colors.border }}
     >
       <View className="py-3">
-        <Action icon={ReceiptText} title="Withdraw" onPress={() => navigate('/dashboard?section=withdraw')} colors={colors} />
-        <Action icon={TrendingUp} title="Deposit" onPress={() => navigate('/dashboard?section=deposit')} colors={colors} />
-        <Action icon={Award} title="My Rewards" onPress={() => navigate('/broker-rewards')} colors={colors} />
-        {/* <Pressable
-          onPress={(event) => {
-            event.stopPropagation?.();
-            switchMode();
-          }}
-          className="relative flex-row items-center px-5 py-4"
-        >
-          <View className="flex-row items-center">
-            <Moon size={21} color={colors.text} />
-            <Text className="ml-4 text-base font-semibold" style={{ color: colors.text }}>Mode</Text>
-          </View>
-          <View className="absolute right-5 flex-row items-center rounded-full p-1" style={{ backgroundColor: colors.surface }}>
-            <View className="h-6 w-6 rounded-full" style={{ backgroundColor: darkMode ? colors.muted : colors.primary }} />
-            {darkMode ? <Moon size={18} color="#f4ca38" /> : <Sun size={18} color="#f4ca38" />}
-          </View>
-        </Pressable> */}
-        <Pressable
-          onPress={(event) => {
-            event.stopPropagation?.();
-            toggleSounds();
-          }}
-          className="flex-row items-center justify-between px-5 py-4"
-        >
-          <View className="flex-row items-center">
-            {sounds ? <Volume2 size={21} color={colors.text} /> : <VolumeX size={21} color={colors.muted} />}
-            <Text className="ml-4 text-base font-semibold" style={{ color: colors.text }}>Sounds</Text>
-          </View>
-          {sounds ? <Volume2 size={21} color={colors.text} /> : <VolumeX size={21} color={colors.muted} />}
-        </Pressable>
         <Action icon={LogOut} title="Sign Out" onPress={signOut} colors={colors} />
       </View>
       <View className="border-t px-5 py-3" style={{ borderColor: colors.border }}>
