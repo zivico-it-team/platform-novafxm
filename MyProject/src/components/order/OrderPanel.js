@@ -10,11 +10,11 @@ import NewOrderModal from './NewOrderModal';
 
 function SwitchRow({ active, label, onPress, colors }) {
   return (
-    <Pressable onPress={onPress} className="h-11 flex-row items-center justify-between rounded-xl px-3.5" style={{ backgroundColor: colors.surface }}>
+    <Pressable onPress={onPress} className="flex-row items-center justify-between">
       <Text className="text-[11px] font-bold" style={{ color: colors.text }}>{label}</Text>
       <View
         className="h-6 w-11 justify-center rounded-full px-1"
-        style={{ backgroundColor: active ? colors.success : '#4b5568' }}
+        style={{ backgroundColor: active ? colors.success : colors.border }}
       >
         <View
           className="h-4 w-4 rounded-full bg-white"
@@ -45,21 +45,19 @@ export default function OrderPanel({ showAvailableMargin = true }) {
   const orderDanger = '#f24d58';
   const mobileActionWidth = Math.min(width - 48, 300);
   const lotSize = Number(lots) || 0;
-  const requiredMargin = Math.max(0, Number(currentSymbol.ask || currentSymbol.price || 0) * lotSize * 0.1);
+  const requiredMargin = lotSize * 100;
   const freeAfterTrade = Math.max(0, Number(summary.freeFunds || 0) - requiredMargin);
-  const marginPercent = Number(summary.freeFunds || 0) > 0 ? Math.min(100, (requiredMargin / Number(summary.freeFunds || 0)) * 100) : Math.min(100, requiredMargin);
   const spread = Number(currentSymbol.ask || 0) - Number(currentSymbol.bid || 0);
   const spreadText = Number.isFinite(spread) ? quote(Math.max(spread, 0), currentSymbol.decimals) : quote(0, currentSymbol.decimals);
-  const orderSummaryRows = [
-    ['Symbol', currentSymbol.symbol],
-    ['Volume', `${money(lotSize)} lots`],
+  const snapshotRows = [
     ['Spread', spreadText],
-    ['Required Margin', `$${quote(requiredMargin, 2)}`],
-    ['Free After Order', `$${quote(freeAfterTrade, 2)}`],
+    ['Volume', `${money(lotSize)} lots`],
+    ['Required margin', `${quote(requiredMargin, 2)} USD`],
+    ['Free margin', `${quote(summary.freeFunds, 2)} USD`],
+    ['After trade', `${quote(freeAfterTrade, 2)} USD`],
   ];
 
   const open = async (side) => {
-    setOrderSide(side);
     if (!user) {
       router.push('/login');
       return;
@@ -148,18 +146,6 @@ export default function OrderPanel({ showAvailableMargin = true }) {
             <Text className="text-xs font-bold" style={{ color: colors.success }}>{quote(currentSymbol.ask, currentSymbol.decimals)}</Text>
           </View>
         </View>
-        <View className="mb-3">
-          <Text className="mb-2 text-[11px] font-bold" style={{ color: colors.muted }}>Required Margin ${quote(requiredMargin, 2)}</Text>
-          <View className="flex-row items-center">
-            <View className="mr-3 h-2 flex-1 overflow-hidden rounded-full" style={{ backgroundColor: darkMode ? '#667085' : '#cbd5d1' }}>
-              <View className="h-full rounded-full" style={{ width: `${marginPercent}%`, backgroundColor: orderSuccess }} />
-            </View>
-            <Text className="w-[48px] text-right text-sm font-black" style={{ color: colors.text }}>{quote(marginPercent, 2)}%</Text>
-          </View>
-        </View>
-        <View className="mb-3">
-          <SwitchRow active={tpSlOn} onPress={() => setTpSlOn((value) => !value)} label="TP/SL" colors={colors} />
-        </View>
         <View className="flex-row gap-2">
           <Pressable
             disabled={loading}
@@ -178,9 +164,10 @@ export default function OrderPanel({ showAvailableMargin = true }) {
             <Text className="text-xs font-extrabold text-white">{loading ? '...' : 'BUY'}</Text>
           </Pressable>
         </View>
-        {tpSlOn ? (
-          <View className="mt-3 rounded-xl border p-2.5" style={{ backgroundColor: priceBackground, borderColor: colors.border }}>
-            <View className="gap-2">
+        <View className="mt-3 rounded-xl border p-2.5" style={{ backgroundColor: priceBackground, borderColor: colors.border }}>
+          <SwitchRow active={tpSlOn} onPress={() => setTpSlOn((value) => !value)} label="TP/SL" colors={colors} />
+          {tpSlOn ? (
+            <View className="mt-3 gap-2">
               <TextInput
                 value={takeProfit}
                 onChangeText={setTakeProfit}
@@ -203,28 +190,35 @@ export default function OrderPanel({ showAvailableMargin = true }) {
                 Add one or both levels. Empty fields are ignored.
               </Text>
             </View>
+          ) : null}
+        </View>
+        <View className="mt-3 rounded-xl border p-2.5" style={{ backgroundColor: priceBackground, borderColor: colors.border }}>
+          <View className="mb-1.5 flex-row items-center justify-between">
+            <Text className="text-[11px] font-bold uppercase" style={{ color: colors.muted }}>Trade snapshot</Text>
+            <View className="h-2 w-2 rounded-full" style={{ backgroundColor: colors.success }} />
           </View>
-        ) : null}
-        <View className="mt-3 rounded-xl border p-3" style={{ backgroundColor: priceBackground, borderColor: colors.border }}>
-          <View className="mb-3 flex-row items-center justify-between">
-            <View>
-              <Text className="text-[11px] font-black uppercase" style={{ color: colors.text }}>Order Summary</Text>
-              <Text className="mt-0.5 text-[9px]" style={{ color: colors.muted }}>Review key trade values</Text>
+          {snapshotRows.map(([label, value]) => (
+            <View key={label} className="mb-1 flex-row items-center justify-between">
+              <Text className="text-[10px]" style={{ color: colors.muted }}>{label}</Text>
+              <Text className="text-[10px] font-bold" style={{ color: colors.text }}>{value}</Text>
             </View>
-            <View className="rounded-full px-2.5 py-1" style={{ backgroundColor: darkMode ? '#243244' : '#e6f4ec' }}>
-              <Text className="text-[9px] font-black uppercase" style={{ color: colors.success }}>Market</Text>
-            </View>
+          ))}
+          <View className="mt-1 rounded-lg px-2.5 py-1.5" style={{ backgroundColor: darkMode ? colors.background : '#ffffff' }}>
+            <Text className="text-[9px] leading-3" style={{ color: colors.muted }}>
+              Choose Sell or Buy to place a quick market order for the selected symbol.
+            </Text>
           </View>
-          <View className="mb-2 rounded-lg px-2.5 py-2" style={{ backgroundColor: darkMode ? colors.background : '#ffffff' }}>
-            <View className="flex-row items-center justify-between">
-              <Text className="text-[10px] font-bold" style={{ color: colors.muted }}>Selected Side</Text>
-              <Text className="text-xs font-black" style={{ color: orderSide === 'SELL' ? orderDanger : orderSuccess }}>{orderSide}</Text>
-            </View>
-          </View>
-          {orderSummaryRows.map(([label, value]) => (
-            <View key={label} className="mb-1.5 flex-row items-center justify-between">
-              <Text className="text-[10px] font-semibold" style={{ color: colors.muted }}>{label}</Text>
-              <Text className="text-[10px] font-black" style={{ color: colors.text }}>{value}</Text>
+        </View>
+        <View className="mt-3 rounded-xl border p-2.5" style={{ backgroundColor: darkMode ? colors.background : '#ffffff', borderColor: colors.border }}>
+          <Text className="text-[11px] font-bold uppercase" style={{ color: colors.muted }}>Before you trade</Text>
+          {[
+            'Check the spread before opening.',
+            'Start small when markets move fast.',
+            'Review open positions below.',
+          ].map((item) => (
+            <View key={item} className="mt-1.5 flex-row items-start">
+              <View className="mr-2 mt-1 h-1.5 w-1.5 rounded-full" style={{ backgroundColor: colors.primary }} />
+              <Text className="flex-1 text-[9px] leading-3" style={{ color: colors.muted }}>{item}</Text>
             </View>
           ))}
         </View>
