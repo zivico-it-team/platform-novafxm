@@ -132,8 +132,10 @@ export default function TopAccountBar() {
   const iconColor = (action) => (hoveredAction === action ? colors.primary : colors.text);
 
   const toggleNotifications = () => {
-    if (menu !== 'notifications') refreshNotifications().catch(() => {});
-    setMenu(menu === 'notifications' ? null : 'notifications');
+    setMenu((currentMenu) => {
+      if (currentMenu !== 'notifications') refreshNotifications().catch(() => {});
+      return currentMenu === 'notifications' ? null : 'notifications';
+    });
   };
 
   const BellButton = ({ action, className, backgroundColor = colors.panel }) => (

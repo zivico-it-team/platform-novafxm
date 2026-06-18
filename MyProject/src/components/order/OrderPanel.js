@@ -237,8 +237,8 @@ export default function OrderPanel({ showAvailableMargin = true }) {
             'Start small when markets move fast.',
             'Review open positions below.',
           ].map((item) => (
-            <View key={item} className="mb-0.5 flex-row items-start">
-              <View className="mr-2 mt-1.5 h-1.5 w-1.5 rounded-full" style={{ backgroundColor: colors.primary }} />
+            <View key={item} className="mb-0.5 flex-row items-center">
+              <View className="mr-2 h-1.5 w-1.5 rounded-full" style={{ backgroundColor: colors.primary }} />
               <Text className="flex-1 text-[9px] leading-3" numberOfLines={1} style={{ color: colors.muted }}>{item}</Text>
             </View>
           ))}

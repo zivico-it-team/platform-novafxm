@@ -18,8 +18,10 @@ export default function AccountNotificationButton({ className = 'h-[46px] w-[46p
   const [open, setOpen] = useState(false);
 
   const toggleOpen = () => {
-    if (!open) refresh().catch(() => {});
-    setOpen((value) => !value);
+    setOpen((value) => {
+      if (!value) refresh().catch(() => {});
+      return !value;
+    });
   };
 
   return (

@@ -26,8 +26,10 @@ export default function GlobalNotificationBell() {
   if (!user || pagesWithLocalBell.has(pathname)) return null;
 
   const toggleOpen = () => {
-    if (!open) refresh().catch(() => {});
-    setOpen((value) => !value);
+    setOpen((value) => {
+      if (!value) refresh().catch(() => {});
+      return !value;
+    });
   };
 
   return (

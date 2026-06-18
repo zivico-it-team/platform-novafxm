@@ -854,7 +854,7 @@ export default function TradingChart({ onFullscreenChange }) {
   const [toolbarHeight, setToolbarHeight] = useState(0);
   const chartCardInset = mobile ? 10 : 6;
   const chartListGap = mobile ? 10 : 6;
-  const symbolPanelWidth = mobile ? Math.min(width - 20, 330) : compactToolbar ? 250 : 260;
+  const symbolPanelWidth = mobile ? Math.min(width - 20, 360) : compactToolbar ? 292 : 320;
   const symbolPanelTop = mobile ? toolbarMenuTop : (toolbarHeight || 38) + chartCardInset;
   const chartOffsetLeft = symbolMenuOpen && !mobile && !chartFullscreen ? symbolPanelWidth + chartListGap : 0;
   const chartPopoverLeft = chartOffsetLeft > 0 ? chartOffsetLeft + chartCardInset : 4;
@@ -1154,8 +1154,10 @@ export default function TradingChart({ onFullscreenChange }) {
     setSettingsOpen(false);
   };
   const toggleChartFullscreen = () => {
-    setChartFullscreen((value) => !value);
-    setSymbolMenuOpen(false);
+    setChartFullscreen((value) => {
+      setSymbolMenuOpen(value);
+      return !value;
+    });
     setSymbolTabMenuOpen(false);
     setChartMenuOpen(false);
     setIndicatorOpen(false);
@@ -1174,6 +1176,10 @@ export default function TradingChart({ onFullscreenChange }) {
     setSelectedSymbol(symbol);
     setViewRange('Full');
     setHoveredSymbol(null);
+    if (chartFullscreen) {
+      setSymbolTabMenuOpen(false);
+      setSymbolMenuOpen(false);
+    }
   };
   const applyDrawingTool = (key) => {
     if (key === 'clear') {
