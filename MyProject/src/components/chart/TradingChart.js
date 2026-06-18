@@ -819,7 +819,7 @@ document.addEventListener('message', receiveLiveUpdate);
 </body></html>`;
 }
 
-export default function TradingChart() {
+export default function TradingChart({ isFullscreen, onFullscreenChange }) {
   const { currentSymbol, prices, setSelectedSymbol } = useDemoTrading();
   const { colors } = useAppTheme();
   const { height, width } = useWindowDimensions();
@@ -833,7 +833,8 @@ export default function TradingChart() {
   const indicatorPanelHeight = mobile ? Math.min(Math.max(Math.round(height * 0.54), 300), 430) : 330;
   const [timeframe, setTimeframe] = useState('15m');
   const [chartType, setChartType] = useState('candles');
-  const [chartFullscreen, setChartFullscreen] = useState(false);
+  const [localFullscreen, setLocalFullscreen] = useState(false);
+  const chartFullscreen = isFullscreen !== undefined ? isFullscreen : localFullscreen;
   const [chartMenuOpen, setChartMenuOpen] = useState(false);
   const [symbolMenuOpen, setSymbolMenuOpen] = useState(true);
   const chartCardInset = 10;
@@ -1147,7 +1148,13 @@ export default function TradingChart() {
     setSettingsOpen(false);
   };
   const toggleChartFullscreen = () => {
-    setChartFullscreen((value) => !value);
+    const nextVal = !chartFullscreen;
+    if (isFullscreen === undefined) {
+      setLocalFullscreen(nextVal);
+    }
+    if (onFullscreenChange) {
+      onFullscreenChange(nextVal);
+    }
     setSymbolTabMenuOpen(false);
     setChartMenuOpen(false);
     setIndicatorOpen(false);
@@ -1284,13 +1291,10 @@ export default function TradingChart() {
 
   const chartRootStyle = chartFullscreen
     ? {
-      position: Platform.OS === 'web' ? 'fixed' : 'absolute',
-      top: 0,
-      right: 0,
-      bottom: 0,
-      left: 0,
-      minHeight: Platform.OS === 'web' ? '100vh' : height,
-      width: Platform.OS === 'web' ? '100vw' : width,
+      flex: 1,
+      height: '100%',
+      minHeight: Platform.OS === 'web' ? (mobile ? 'calc(100vh - 95px)' : 'calc(100vh - 82px)') : '100%',
+      width: '100%',
       backgroundColor: ui.background,
       borderColor: ui.border,
       zIndex: 9000,

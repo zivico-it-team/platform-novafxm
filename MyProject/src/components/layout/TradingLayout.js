@@ -62,6 +62,7 @@ export default function TradingLayout() {
   const { summary } = useDemoTrading();
   const [orderTicketOpen, setOrderTicketOpen] = useState(false);
   const [mobileOrderModal, setMobileOrderModal] = useState(false);
+  const [chartFullscreen, setChartFullscreen] = useState(false);
   const desktop = width >= 1100;
   const tablet = width >= 760;
   const mobile = width < 760;
@@ -78,29 +79,35 @@ export default function TradingLayout() {
     <View className="flex-1" style={{ backgroundColor: colors.background }}>
       <TopAccountBar onOpenNewOrder={openNewOrder} />
       <ScrollView
+        scrollEnabled={!chartFullscreen}
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ padding: mobile ? 6 : 12, paddingBottom: mobile ? 16 : 24 }}
+        style={{ flex: 1 }}
+        contentContainerStyle={{ flexGrow: 1, padding: chartFullscreen ? 0 : (mobile ? 6 : 12), paddingBottom: chartFullscreen ? 0 : (mobile ? 16 : 24) }}
       >
-        <View className={desktop ? 'h-[600px] flex-row gap-3' : mobile ? 'gap-1.5' : 'gap-3'}>
+        <View className={chartFullscreen ? 'flex-1' : (desktop ? 'h-[600px] flex-row gap-3' : mobile ? 'gap-1.5' : 'gap-3')}>
           {desktop ? (
             <>
-              <TradingChart />
-              <OrderRail summary={summary} user={user} showSummary={false} showAvailableMargin={false} orderTicketOpen={orderTicketOpen} onCloseOrderTicket={closeNewOrder} />
+              <TradingChart isFullscreen={chartFullscreen} onFullscreenChange={setChartFullscreen} />
+              {!chartFullscreen && (
+                <OrderRail summary={summary} user={user} showSummary={false} showAvailableMargin={false} orderTicketOpen={orderTicketOpen} onCloseOrderTicket={closeNewOrder} />
+              )}
             </>
           ) : (
             <>
-              {mobile ? <AccountSummary summary={summary} user={user} compact /> : null}
-              <TradingChart />
-              <View className={tablet ? 'flex-row gap-3' : 'gap-1.5'}>
-                {!mobile ? <OrderRail summary={summary} user={user} orderTicketOpen={orderTicketOpen} onCloseOrderTicket={closeNewOrder} /> : null}
-              </View>
+              {mobile && !chartFullscreen ? <AccountSummary summary={summary} user={user} compact /> : null}
+              <TradingChart isFullscreen={chartFullscreen} onFullscreenChange={setChartFullscreen} />
+              {!chartFullscreen && (
+                <View className={tablet ? 'flex-row gap-3' : 'gap-1.5'}>
+                  {!mobile ? <OrderRail summary={summary} user={user} orderTicketOpen={orderTicketOpen} onCloseOrderTicket={closeNewOrder} /> : null}
+                </View>
+              )}
             </>
           )}
         </View>
-        <OpenPositions />
+        {!chartFullscreen && <OpenPositions />}
       </ScrollView>
-      {mobile ? <OrderPanel /> : null}
-      <NewOrderModal visible={mobileOrderModal} onClose={() => setMobileOrderModal(false)} />
+      {mobile && !chartFullscreen ? <OrderPanel /> : null}
+      <NewOrderModal visible={mobileOrderModal && !chartFullscreen} onClose={() => setMobileOrderModal(false)} />
     </View>
   );
 }
