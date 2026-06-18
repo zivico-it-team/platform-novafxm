@@ -8,7 +8,7 @@ const contractSize = (symbol) => (
     ? 1
     : symbol.includes('XAU') || symbol.includes('OIL') ? 100 : 100000
 );
-const profitFor = (rade, price) => (
+const profitFor = (trade, price) => (
   (Number(price) - Number(trade.openPrice))
   * (trade.side === 'BUY' ? 1 : -1)
   * Number(trade.lots)
