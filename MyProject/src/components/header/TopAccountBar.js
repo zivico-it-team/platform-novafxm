@@ -11,12 +11,11 @@ import NovaLogo from '../brand/NovaLogo';
 import DemoAccountMenu from './DemoAccountMenu';
 import FundingMenu from './FundingMenu';
 import HeaderSidePanel from './HeaderSidePanel';
-import NewOrderModal from '../order/NewOrderModal';
 import ProfileMenu from './ProfileMenu';
 
 const visibleMetricCount = 5;
 
-export default function TopAccountBar() {
+export default function TopAccountBar({ onOpenNewOrder }) {
   const { width } = useWindowDimensions();
   const { summary, selectedTradingAccount, setSelectedTradingAccount } = useDemoTrading();
   const params = useLocalSearchParams();
@@ -27,7 +26,6 @@ export default function TopAccountBar() {
   const [metricsWidth, setMetricsWidth] = useState(0);
   const [menu, setMenu] = useState(null);
   const [sidePanel, setSidePanel] = useState(null);
-  const [orderModal, setOrderModal] = useState(false);
   const [accounts, setAccounts] = useState([]);
   const [hoveredAction, setHoveredAction] = useState(null);
   const mobile = width < 760;
@@ -104,7 +102,7 @@ export default function TopAccountBar() {
       router.push('/login');
       return;
     }
-    setOrderModal(true);
+    onOpenNewOrder?.();
   };
 
   const hoverProps = (action) => ({ onHoverIn: () => setHoveredAction(action), onHoverOut: () => setHoveredAction(null) });
@@ -254,7 +252,6 @@ export default function TopAccountBar() {
           />
         ) : null}
       </Modal>
-      <NewOrderModal visible={orderModal} onClose={() => setOrderModal(false)} />
     </View>
   );
 }
