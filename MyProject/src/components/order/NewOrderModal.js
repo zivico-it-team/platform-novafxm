@@ -241,7 +241,7 @@ export default function NewOrderModal({ visible, onClose, initialSide = 'BUY' })
                     <TextInput value={entryPrice} onChangeText={setEntryPrice} keyboardType="decimal-pad" className="h-[46px] rounded-xl border px-4 text-base" style={{ backgroundColor: controlBackground, borderColor: colors.border, color: colors.text }} />
                   </View>
                 ) : null}
-                <View className={orderType === 'spot' ? 'w-[286px]' : 'flex-1'}>
+                <View className={orderType === 'spot' ? 'w-[350px]' : 'flex-1'}>
                   <Text className="mb-2 text-center font-semibold" style={{ color: colors.text }}>Quantity</Text>
                   <View className="h-[42px] flex-row overflow-hidden rounded-xl border" style={{ backgroundColor: controlBackground, borderColor: colors.border }}>
                     <TextInput value={lots} onChangeText={setLots} keyboardType="decimal-pad" className="flex-1 px-4 text-base" style={{ color: colors.text }} />
