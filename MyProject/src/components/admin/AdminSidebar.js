@@ -5,7 +5,7 @@ import { useAppTheme } from '../../context/ThemeContext';
 import NovaLogo from '../brand/NovaLogo';
 
 const navigation = [
-  { id: 'overview', label: 'Dashboard', icon: LayoutDashboard },
+  { id: 'overview', label: 'Overview', icon: LayoutDashboard },
   { id: 'users', label: 'User Wallets', icon: UsersRound },
   { id: 'userManagement', label: 'User Management', icon: UsersRound },
   { id: 'funding', label: 'Deposits & Withdrawals', icon: ReceiptText },
@@ -55,6 +55,12 @@ export default function AdminSidebar({ section, onChange, stats, pendingCount, b
         </View>
       </View>
       <View className="hidden mt-auto border-t p-4 md:flex" style={{ borderColor: colors.border }}>
+        <Link href="/dashboard" asChild>
+          <Pressable className="mb-2 flex-row items-center rounded-xl px-4 py-4" style={{ backgroundColor: colors.surface }}>
+            <LayoutDashboard size={18} color={colors.muted} />
+            <Text className="ml-3 font-semibold" style={{ color: colors.muted }}>Dashboard</Text>
+          </Pressable>
+        </Link>
         <Link href="/trading" asChild>
           <Pressable className="mb-2 flex-row items-center rounded-xl px-4 py-4" style={{ backgroundColor: colors.surface }}>
             <BriefcaseBusiness size={18} color={colors.muted} />

@@ -447,7 +447,7 @@ export default function AdminScreen() {
         <View className="mb-7 flex-row items-center justify-between">
           <View>
 
-            <Text className="text-3xl font-bold" style={{ color: colors.text }}>{section === 'overview' ? 'Dashboard' : section === 'users' ? 'User Wallet Management' : section === 'funding' ? 'Funding Requests' : section === 'bankAccounts' ? 'Withdrawal Detail Approvals' : 'Trade Monitor'}</Text>
+            <Text className="text-3xl font-bold" style={{ color: colors.text }}>{section === 'overview' ? 'Overview' : section === 'users' ? 'User Wallet Management' : section === 'funding' ? 'Funding Requests' : section === 'bankAccounts' ? 'Withdrawal Detail Approvals' : 'Trade Monitor'}</Text>
             <Text className="mt-2" style={{ color: colors.muted }}>Manage client balances, trading access and financial operations.</Text>
           </View>
           <View className="flex-row items-center gap-2">
@@ -481,6 +481,21 @@ export default function AdminScreen() {
                   ))}
                   {!data.trades.length ? <Text style={{ color: colors.muted }}>No trading activity.</Text> : null}
                 </View>
+              </View>
+            </View>
+            <View className="rounded-2xl border p-5" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+              <View className="flex-col justify-between gap-4 md:flex-row md:items-center">
+                <View className="flex-1">
+                  <Text className="text-xl font-bold" style={{ color: colors.text }}>Trading Chart</Text>
+                  <Text className="mt-2" style={{ color: colors.muted }}>Open the live chart and trading workspace from the admin overview.</Text>
+                </View>
+                <Pressable
+                  onPress={() => router.push('/trading')}
+                  className="min-h-[46px] items-center justify-center rounded-xl px-6"
+                  style={{ backgroundColor: colors.primary }}
+                >
+                  <Text className="font-bold text-black">View Chart</Text>
+                </Pressable>
               </View>
             </View>
           </View>
