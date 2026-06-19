@@ -28,9 +28,11 @@
   },
   "scripts": {
     "start": "expo start",
+    "start:clean": "expo start --clear",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "web:clean": "expo start --web --clear"
   },
   "private": true,
   "devDependencies": {

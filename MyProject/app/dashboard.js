@@ -8,8 +8,10 @@ import {
   Clock3,
   Copy,
   Gift,
+  Moon,
   Plus,
   ShieldCheck,
+  Sun,
   TrendingUp,
   Wallet,
   Zap,
@@ -407,7 +409,7 @@ function CreateAccountConfirm({ type, loading, onCancel, onConfirm, colors }) {
 export default function DashboardScreen() {
   const params = useLocalSearchParams();
   const { user, logout, loading: authLoading, isAdmin } = useAuth();
-  const { colors } = useAppTheme();
+  const { darkMode, colors, toggleTheme } = useAppTheme();
   const { deposit, withdraw, loading: walletLoading } = useWallet();
   const {
     notifications,
@@ -575,6 +577,14 @@ export default function DashboardScreen() {
                   <Text className="text-[10px] font-black text-white">{unreadCount > 99 ? '99+' : unreadCount}</Text>
                 </View>
               ) : null}
+            </Pressable>
+            <Pressable
+              onPress={toggleTheme}
+              accessibilityLabel={darkMode ? 'Switch to light theme' : 'Switch to dark theme'}
+              className="h-[46px] w-[46px] items-center justify-center rounded-xl border"
+              style={{ backgroundColor: colors.panel, borderColor: colors.border }}
+            >
+              {darkMode ? <Sun size={20} color={colors.primary} /> : <Moon size={20} color={colors.primary} />}
             </Pressable>
             <Pressable onPress={() => router.push('/trading')} className="rounded-xl border px-4 py-3" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
               <Text className="font-bold" style={{ color: '#D4AF37' }}>Back to Trading</Text>

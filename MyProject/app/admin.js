@@ -1,7 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useRouter } from 'expo-router';
 import { Alert, DeviceEventEmitter, Image, Modal, Platform, Pressable, ScrollView, Text, View } from 'react-native';
-import { Bell, LogOut, Moon, RefreshCw, Sun } from 'lucide-react-native';
+import {
+  Activity,
+  ArrowRight,
+  Bell,
+  CircleDollarSign,
+  Clock3,
+  LogOut,
+  Moon,
+  RefreshCw,
+  ShieldAlert,
+  Sun,
+  UsersRound,
+} from 'lucide-react-native';
 import api from '../src/services/api';
 import CustomButton from '../src/components/common/CustomButton';
 import AdminSidebar from '../src/components/admin/AdminSidebar';
@@ -49,15 +61,42 @@ function ask(message, onConfirm) {
   Alert.alert('Confirm admin action', message, [{ text: 'Cancel', style: 'cancel' }, { text: 'Confirm', style: 'destructive', onPress: onConfirm }]);
 }
 
-function StatCard({ title, value, accent }) {
+function StatCard({ title, value, accent, helper, icon: Icon }) {
   const { colors } = useAppTheme();
   const valueColor = accent === 'text-danger' ? colors.danger : accent === 'text-success' ? colors.success : accent === 'text-primary' ? colors.primary : colors.text;
 
   return (
-    <View className="mb-4 mr-4 min-w-[190px] flex-1 rounded-2xl border p-5" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
-      <Text className="text-xs font-semibold uppercase" style={{ color: colors.muted }}>{title}</Text>
-      <Text className="mt-3 text-3xl font-bold" style={{ color: valueColor }}>{value}</Text>
+    <View className="min-w-[190px] flex-1 rounded-2xl border p-4" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+      <View className="flex-row items-start justify-between gap-3">
+        <View className="min-w-0 flex-1">
+          <Text className="text-xs font-black uppercase" style={{ color: colors.muted }}>{title}</Text>
+          <Text className="mt-2 text-2xl font-black" numberOfLines={1} adjustsFontSizeToFit style={{ color: valueColor }}>{value}</Text>
+          <Text className="mt-2 text-xs" style={{ color: colors.muted }}>{helper}</Text>
+        </View>
+        <View className="h-11 w-11 items-center justify-center rounded-2xl" style={{ backgroundColor: `${valueColor}20` }}>
+          <Icon size={21} color={valueColor} />
+        </View>
+      </View>
     </View>
+  );
+}
+
+function ReviewQueueRow({ icon: Icon, title, description, count, tone, onPress }) {
+  const { colors } = useAppTheme();
+  return (
+    <Pressable onPress={onPress} className="mb-3 flex-row items-center rounded-xl border p-3.5" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
+      <View className="h-10 w-10 items-center justify-center rounded-xl" style={{ backgroundColor: `${tone}20` }}>
+        <Icon size={19} color={tone} />
+      </View>
+      <View className="ml-3 min-w-0 flex-1">
+        <Text className="font-extrabold" style={{ color: colors.text }}>{title}</Text>
+        <Text className="mt-0.5 text-xs" numberOfLines={1} style={{ color: colors.muted }}>{description}</Text>
+      </View>
+      <View className="ml-3 min-w-[32px] items-center rounded-full px-2 py-1" style={{ backgroundColor: `${tone}20` }}>
+        <Text className="text-xs font-black" style={{ color: tone }}>{count}</Text>
+      </View>
+      <ArrowRight size={17} color={colors.muted} style={{ marginLeft: 8 }} />
+    </Pressable>
   );
 }
 
@@ -342,11 +381,11 @@ export default function AdminScreen() {
   }
 
   const renderCards = () => (
-    <View className="flex-row flex-wrap">
-      <StatCard title="Frozen Accounts" value={String(data.stats.frozenAccounts || 0)} accent="text-danger" />
-      <StatCard title="Total Wallet Funds" value={`$${money(data.stats.totalWalletFunds)}`} />
-      <StatCard title="Active Traders" value={String(data.stats.activeTraders || 0)} accent="text-success" />
-      <StatCard title="Total Open Positions" value={String(data.stats.totalOpenPositions || 0)} accent="text-primary" />
+    <View className="flex-row flex-wrap gap-3">
+      <StatCard title="Total Wallet Funds" value={`$${money(data.stats.totalWalletFunds)}`} helper="Funds across client wallets" icon={CircleDollarSign} accent="text-primary" />
+      <StatCard title="Active Traders" value={String(data.stats.activeTraders || 0)} helper="Clients currently enabled" icon={UsersRound} accent="text-success" />
+      <StatCard title="Open Positions" value={String(data.stats.totalOpenPositions || 0)} helper="Positions requiring monitoring" icon={Activity} />
+      <StatCard title="Frozen Accounts" value={String(data.stats.frozenAccounts || 0)} helper="Restricted trading accounts" icon={ShieldAlert} accent="text-danger" />
     </View>
   );
 
@@ -479,14 +518,14 @@ export default function AdminScreen() {
   return (
     <View className="flex-1 md:flex-row" style={{ backgroundColor: colors.background }}>
       <AdminSidebar section={section} onChange={setSection} stats={data.stats} badgeCounts={sidebarBadgeCounts} onSignOut={signOut} />
-      <ScrollView className="flex-1" contentContainerClassName="p-5 md:p-8" style={{ backgroundColor: colors.background }}>
-        <View className="mb-7 flex-row items-center justify-between">
-          <View>
+      <ScrollView className="flex-1" contentContainerClassName="px-3 py-4 sm:p-5 md:p-8" style={{ backgroundColor: colors.background }}>
+        <View className="mb-7 flex-row flex-wrap items-center justify-between gap-3">
+          <View className="min-w-[220px] flex-1">
 
             <Text className="text-3xl font-bold" style={{ color: colors.text }}>{section === 'overview' ? 'Dashboard' : section === 'users' ? 'User Wallet Management' : section === 'funding' ? 'Funding Requests' : section === 'bankAccounts' ? 'Withdrawal Detail Approvals' : 'Trade Monitor'}</Text>
             <Text className="mt-2" style={{ color: colors.muted }}>Manage client balances, trading access and financial operations.</Text>
           </View>
-          <View className="flex-row items-center gap-2">
+          <View className="flex-row flex-wrap items-center gap-2">
             <Pressable onPress={toggleNotifications} className="relative rounded-xl border p-3" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
               <Bell size={20} color={colors.text} />
               {unreadCount > 0 ? (
@@ -495,8 +534,13 @@ export default function AdminScreen() {
                 </View>
               ) : null}
             </Pressable>
-            <Pressable onPress={toggleTheme} className="rounded-xl border p-3" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
-              {darkMode ? <Sun size={20} color={colors.text} /> : <Moon size={20} color={colors.text} />}
+            <Pressable
+              onPress={toggleTheme}
+              accessibilityLabel={darkMode ? 'Switch to light theme' : 'Switch to dark theme'}
+              className="h-[46px] w-[46px] items-center justify-center rounded-xl border"
+              style={{ backgroundColor: colors.panel, borderColor: colors.border }}
+            >
+              {darkMode ? <Sun size={20} color={colors.primary} /> : <Moon size={20} color={colors.primary} />}
             </Pressable>
             <Pressable onPress={load} className="rounded-xl border p-3" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
               <RefreshCw size={20} color={loading ? '#27a8e9' : colors.muted} />
@@ -510,24 +554,75 @@ export default function AdminScreen() {
         {error ? <Text className="mb-5 rounded-xl border border-danger/40 bg-danger/10 p-4 text-danger">{error}</Text> : null}
         {section === 'overview' ? (
           <View>
-            {renderCards()}
-            <View className="mt-4 flex-col lg:flex-row">
-              <View className="mb-6 flex-1 lg:mr-6">
-                <Text className="mb-4 text-xl font-bold" style={{ color: colors.text }}>Pending Funding</Text>
-                <View className="rounded-2xl border p-4" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
-                  <Text className="text-4xl font-bold text-primary">{pendingCount}</Text>
-                  <Text className="mb-4 mt-1" style={{ color: colors.muted }}>Requests waiting for review</Text>
-                  <CustomButton title="Review Requests" onPress={() => setSection('funding')} />
+            <View className="mb-5 overflow-hidden rounded-2xl border" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+              <View className="p-5 md:p-6" style={{ backgroundColor: darkMode ? '#111820' : '#fffaf0' }}>
+                <View className="flex-row flex-wrap items-center justify-between gap-4">
+                  <View className="min-w-[240px] flex-1">
+                    <View className="mb-3 self-start rounded-full px-3 py-1" style={{ backgroundColor: `${colors.primary}26` }}>
+                      <Text className="text-xs font-black uppercase" style={{ color: colors.primary }}>Admin command center</Text>
+                    </View>
+                    <Text className="text-3xl font-black md:text-4xl" style={{ color: colors.text }}>Operations overview</Text>
+                    <Text className="mt-2 max-w-[620px] text-sm leading-5" style={{ color: colors.muted }}>
+                      Monitor platform health, resolve client requests, and review trading activity from one workspace.
+                    </Text>
+                    <View className="mt-4 flex-row flex-wrap gap-2">
+                      <Pressable onPress={() => setSection('users')} className="flex-row items-center rounded-lg px-3 py-2" style={{ backgroundColor: colors.primary }}>
+                        <UsersRound size={16} color="#0B0B0B" />
+                        <Text className="ml-2 text-xs font-black" style={{ color: '#0B0B0B' }}>Manage users</Text>
+                      </Pressable>
+                      <Pressable onPress={() => setSection('funding')} className="flex-row items-center rounded-lg border px-3 py-2" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+                        <Clock3 size={16} color={colors.text} />
+                        <Text className="ml-2 text-xs font-bold" style={{ color: colors.text }}>Review funding</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                  <View className="min-w-[220px] rounded-2xl border p-4" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+                    <Text className="text-xs font-black uppercase" style={{ color: colors.muted }}>Awaiting review</Text>
+                    <Text className="mt-2 text-4xl font-black" style={{ color: colors.primary }}>{pendingCount + bankPendingCount + verificationPendingCount}</Text>
+                    <Text className="mt-1 text-xs" style={{ color: colors.muted }}>items across funding, payouts, and KYC</Text>
+                    <View className="mt-4 flex-row flex-wrap gap-2">
+                      <View className="rounded-full px-2.5 py-1" style={{ backgroundColor: `${colors.success}1f` }}><Text className="text-[10px] font-bold" style={{ color: colors.success }}>{data.stats.activeTraders || 0} active traders</Text></View>
+                      <View className="rounded-full px-2.5 py-1" style={{ backgroundColor: colors.surface }}><Text className="text-[10px] font-bold" style={{ color: colors.muted }}>{data.users.filter((item) => item.role !== 'admin').length} clients</Text></View>
+                    </View>
+                  </View>
                 </View>
               </View>
-              <View className="mb-6 flex-1">
-                <Text className="mb-4 text-xl font-bold" style={{ color: colors.text }}>Recent Trades</Text>
-                <View className="rounded-2xl border p-4" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
-                  {data.trades.slice(0, 4).map((trade) => (
-                    <Text key={trade.id} className="mb-3 text-sm" style={{ color: colors.muted }}>{trade.symbol} {trade.side} | {trade.status} | ${money(trade.profit)}</Text>
-                  ))}
-                  {!data.trades.length ? <Text style={{ color: colors.muted }}>No trading activity.</Text> : null}
+            </View>
+            {renderCards()}
+            <View className="mt-5 gap-4 lg:flex-row">
+              <View className="flex-1 rounded-2xl border p-4" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+                <View className="mb-4">
+                  <Text className="text-xl font-black" style={{ color: colors.text }}>Review queue</Text>
+                  <Text className="mt-1 text-sm" style={{ color: colors.muted }}>Prioritized tasks waiting for an administrator.</Text>
                 </View>
+                <ReviewQueueRow icon={CircleDollarSign} title="Funding requests" description="Deposits and withdrawals" count={pendingCount} tone={colors.primary} onPress={() => setSection('funding')} />
+                <ReviewQueueRow icon={ShieldAlert} title="Verification reviews" description="Client identity checks" count={verificationPendingCount} tone={colors.danger} onPress={() => setSection('users')} />
+                <ReviewQueueRow icon={Clock3} title="Withdrawal details" description="Bank and TRC20 approvals" count={bankPendingCount} tone="#38bdf8" onPress={() => setSection('bankAccounts')} />
+              </View>
+              <View className="flex-1 rounded-2xl border p-4" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+                <View className="mb-4 flex-row items-center justify-between">
+                  <View>
+                    <Text className="text-xl font-black" style={{ color: colors.text }}>Recent trades</Text>
+                    <Text className="mt-1 text-sm" style={{ color: colors.muted }}>Latest platform activity.</Text>
+                  </View>
+                  <Pressable onPress={() => setSection('trades')} className="rounded-lg px-3 py-2" style={{ backgroundColor: colors.surface }}><Text className="text-xs font-bold" style={{ color: colors.primary }}>View all</Text></Pressable>
+                </View>
+                {data.trades.slice(0, 4).map((trade) => {
+                  const profit = Number(trade.profit || 0);
+                  return (
+                    <View key={trade.id} className="mb-3 flex-row items-center rounded-xl border p-3" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
+                      <View className="h-9 w-9 items-center justify-center rounded-lg" style={{ backgroundColor: trade.side === 'BUY' ? `${colors.success}20` : `${colors.danger}20` }}>
+                        <Text className="text-[10px] font-black" style={{ color: trade.side === 'BUY' ? colors.success : colors.danger }}>{trade.side}</Text>
+                      </View>
+                      <View className="ml-3 min-w-0 flex-1">
+                        <Text className="font-extrabold" style={{ color: colors.text }}>{trade.symbol}</Text>
+                        <Text className="mt-0.5 text-xs capitalize" style={{ color: colors.muted }}>{trade.status} · {Number(trade.lots || 0)} lots</Text>
+                      </View>
+                      <Text className="font-black" style={{ color: profit < 0 ? colors.danger : colors.success }}>{profit >= 0 ? '+' : ''}${money(profit)}</Text>
+                    </View>
+                  );
+                })}
+                {!data.trades.length ? <EmptyRow>No trading activity yet.</EmptyRow> : null}
               </View>
             </View>
           </View>
