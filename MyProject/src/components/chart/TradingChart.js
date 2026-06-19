@@ -840,7 +840,7 @@ export default function TradingChart({ isFullscreen, onFullscreenChange }) {
   const chartCardInset = 10;
   const chartListGap = 10;
   const symbolPanelWidth = mobile ? Math.min(width - 20, 330) : compactToolbar ? 285 : 310;
-  const symbolPanelTop = mobile ? toolbarMenuTop : toolbarMenuTop + 4;
+  const symbolPanelTop = mobile ? toolbarMenuTop : (compactToolbar ? 47 : 51);
   const chartOffsetLeft = symbolMenuOpen && !mobile && !chartFullscreen ? symbolPanelWidth + chartListGap : 0;
   const chartPopoverLeft = chartOffsetLeft > 0 ? chartOffsetLeft + chartCardInset : 4;
   const [hoveredSymbol, setHoveredSymbol] = useState(null);

@@ -132,11 +132,45 @@ export default function TopAccountBar({ chartFullscreen = false, onOpenNewOrder 
   const profileHoverProps = (action) => ({ onHoverIn: () => openProfileMenu(action), onHoverOut: () => setHoveredAction(null) });
   const openWalletMenu = () => setMenu((current) => (current === 'wallet' ? null : 'wallet'));
 
-  const iconButtonStyle = (action, baseStyle) => [baseStyle, { cursor: 'pointer' }, hoveredAction === action ? { backgroundColor: iconButtonHoverBg, borderColor: colors.primary, shadowColor: colors.primary, shadowOpacity: darkMode ? 0.28 : 0.18, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, transform: [{ translateY: -1 }], elevation: 4 } : null];
+  const isMenuActionActive = (action) => {
+    if (menu === 'wallet' && (action === 'wallet' || action === 'mobile-wallet')) return true;
+    if (menu === 'profile' && (action === 'profile' || action === 'mobile-profile')) return true;
+    return false;
+  };
 
-  const iconHoverStyle = (action) => ({ transform: [{ scale: hoveredAction === action ? 1.12 : 1 }, { rotate: hoveredAction === action ? '8deg' : '0deg' }] });
+  const iconButtonStyle = (action, baseStyle) => {
+    const active = isMenuActionActive(action);
+    const hovered = hoveredAction === action;
+    return [
+      baseStyle,
+      { cursor: 'pointer' },
+      hovered || active
+        ? {
+            backgroundColor: active ? `${colors.primary}12` : iconButtonHoverBg,
+            borderColor: colors.primary,
+            shadowColor: colors.primary,
+            shadowOpacity: darkMode ? 0.28 : 0.18,
+            shadowRadius: 10,
+            shadowOffset: { width: 0, height: 4 },
+            transform: [{ translateY: -1 }],
+            elevation: 4,
+          }
+        : null
+    ];
+  };
 
-  const iconColor = (action) => (hoveredAction === action ? colors.primary : colors.text);
+  const iconHoverStyle = (action) => {
+    const active = isMenuActionActive(action);
+    const hovered = hoveredAction === action;
+    return {
+      transform: [
+        { scale: hovered || active ? 1.15 : 1 },
+        { rotate: active ? '15deg' : (hovered ? '8deg' : '0deg') }
+      ]
+    };
+  };
+
+  const iconColor = (action) => (hoveredAction === action || isMenuActionActive(action) ? colors.primary : colors.text);
 
   const AuthButtons = () => (
     <View className="flex-row items-center gap-2">

@@ -34,7 +34,7 @@ function OrderRail({ summary, user, showSummary = true, showAvailableMargin = tr
   }, [orderTicketOpen, ticketAnim, widthAnim]);
 
   return (
-    <Animated.View className="h-full gap-3 overflow-hidden" style={{ width: widthAnim, maxWidth: '100%', overflow: 'hidden' }}>
+    <Animated.View className="h-full gap-3 overflow-hidden" style={{ width: widthAnim, maxWidth: '100%', overflow: 'hidden', paddingBottom: 10 }}>
       {showTicket ? (
         <Animated.View
           className="h-full"
