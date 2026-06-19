@@ -555,13 +555,36 @@ exports.reviewDeposit = (status) => async (req, res, next) => {
       let before;
       let after;
       if (status === 'approved') {
-        const { wallet } = await storedSummary(deposit.userId, transaction);
-        const liveAccount = await TradingAccount.findOne({
+        let liveAccount = await TradingAccount.findOne({
           where: { userId: deposit.userId, type: 'Live' },
           order: [['isPrimary', 'DESC'], ['createdAt', 'ASC']],
           transaction,
           lock: transaction.LOCK.UPDATE,
         });
+        if (!liveAccount) {
+          // De-select any other primary accounts first
+          await TradingAccount.update(
+            { isPrimary: false },
+            { where: { userId: deposit.userId }, transaction }
+          );
+          
+          const existingCount = await TradingAccount.count({ where: { userId: deposit.userId, type: 'Live' }, transaction });
+          
+          liveAccount = await TradingAccount.create({
+            userId: deposit.userId,
+            type: 'Live',
+            name: `Live account ${existingCount + 1}`,
+            balance: 0.00,
+            status: 'active',
+            isPrimary: true,
+          }, { transaction });
+
+          const user = await User.findByPk(deposit.userId, { transaction });
+          if (user) {
+            await user.update({ accountType: 'Live' }, { transaction });
+          }
+        }
+        const { wallet } = await storedSummary(deposit.userId, transaction);
         before = money(wallet.balance);
         after = money(before + Number(deposit.amount));
         await wallet.update({ balance: after }, { transaction });

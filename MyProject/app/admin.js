@@ -52,9 +52,12 @@ function StatCard({ title, value, accent }) {
   const valueColor = accent === 'text-danger' ? colors.danger : accent === 'text-success' ? colors.success : accent === 'text-primary' ? colors.primary : colors.text;
 
   return (
-    <View className="mb-4 mr-4 min-w-[190px] flex-1 rounded-2xl border p-5" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
-      <Text className="text-xs font-semibold uppercase" style={{ color: colors.muted }}>{title}</Text>
-      <Text className="mt-3 text-3xl font-bold" style={{ color: valueColor }}>{value}</Text>
+    <View className="mb-4 mr-4 min-w-[220px] flex-1 overflow-hidden rounded-xl border" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+      <View className="h-1.5" style={{ backgroundColor: valueColor }} />
+      <View className="p-5">
+        <Text className="text-[11px] font-extrabold uppercase" style={{ color: colors.muted }}>{title}</Text>
+        <Text className="mt-4 text-3xl font-extrabold" style={{ color: valueColor }}>{value}</Text>
+      </View>
     </View>
   );
 }
@@ -63,6 +66,17 @@ function EmptyRow({ children }) {
   const { colors } = useAppTheme();
 
   return <Text className="rounded-xl p-5" style={{ backgroundColor: colors.surface, color: colors.muted }}>{children}</Text>;
+}
+
+function SectionHeading({ title, subtitle }) {
+  const { colors } = useAppTheme();
+
+  return (
+    <View className="mb-4">
+      <Text className="text-xl font-extrabold" style={{ color: colors.text }}>{title}</Text>
+      {subtitle ? <Text className="mt-1 text-sm" style={{ color: colors.muted }}>{subtitle}</Text> : null}
+    </View>
+  );
 }
 
 export default function AdminScreen() {

@@ -46,7 +46,8 @@ exports.register = async (req, res, next) => {
         verificationStatus: 'unverified',
         referredById: referrer?.id || null,
       }, { transaction });
-      await Wallet.create({ userId: created.id, balance: startingBalance, equity: startingBalance, freeFunds: startingBalance }, { transaction });
+      const walletBalance = selectedAccountType === 'Live' ? startingBalance : 0;
+      await Wallet.create({ userId: created.id, balance: walletBalance, equity: walletBalance, freeFunds: walletBalance }, { transaction });
       await TradingAccount.create({
         userId: created.id,
         type: selectedAccountType,

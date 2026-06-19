@@ -28,6 +28,7 @@ export default function TopAccountBar({ chartFullscreen = false, onOpenNewOrder 
   const [menu, setMenu] = useState(null);
   const [accounts, setAccounts] = useState([]);
   const [hoveredAction, setHoveredAction] = useState(null);
+  const [hasSwitchedToLive, setHasSwitchedToLive] = useState(false);
   const mobile = width < 900;
   const iconButtonHoverBg = darkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(11, 11, 11, 0.04)';
 
@@ -104,9 +105,17 @@ export default function TopAccountBar({ chartFullscreen = false, onOpenNewOrder 
     if (!tradingAccounts.length) return;
     const routeAccount = routeAccountId ? tradingAccounts.find((account) => String(account.id) === routeAccountId) : null;
     if (routeAccount && String(selectedTradingAccount?.id) !== String(routeAccount.id)) { setSelectedTradingAccount(routeAccount); return; }
+
+    const liveAccount = tradingAccounts.find((account) => account.type === 'Live');
+    if (liveAccount && selectedTradingAccount?.type === 'Demo' && !hasSwitchedToLive) {
+      setHasSwitchedToLive(true);
+      setSelectedTradingAccount(liveAccount);
+      return;
+    }
+
     const selectedExists = tradingAccounts.some((account) => String(account.id) === String(selectedTradingAccount?.id));
-    if (!selectedExists) setSelectedTradingAccount(tradingAccounts[0]);
-  }, [routeAccountId, selectedTradingAccount?.id, setSelectedTradingAccount, tradingAccounts]);
+    if (!selectedExists) setSelectedTradingAccount(liveAccount || tradingAccounts[0]);
+  }, [routeAccountId, selectedTradingAccount?.id, setSelectedTradingAccount, tradingAccounts, hasSwitchedToLive]);
 
   const selectAccount = (account) => { setSelectedTradingAccount(account); setMenu(null); };
   const openSidePanel = (panel) => {
