@@ -149,9 +149,9 @@ export default function ProfileMenu({ onClose, onHoverIn, onHoverOut, onOpenPane
         zIndex: 50,
         width: panelWidth,
         height: panelHeight,
-        paddingTop: 28,
+        paddingTop: 24,
         paddingBottom: 20,
-        paddingHorizontal: 28,
+        paddingHorizontal: 20,
         backgroundColor: palette.panel,
         borderLeftWidth: 1,
         borderLeftColor: palette.border,
@@ -253,17 +253,7 @@ export default function ProfileMenu({ onClose, onHoverIn, onHoverOut, onOpenPane
             palette={palette}
           />
 
-          <Pressable
-            onPress={() => openPanel('settings')}
-            className="mb-4 flex-row items-center justify-between rounded-xl px-4 py-3"
-            style={{ backgroundColor: palette.softAccent }}
-          >
-            <View className="flex-row flex-1 items-center">
-              <MessageSquarePlus size={18} color={colors.text} />
-              <Text className="ml-3 flex-1 text-base font-semibold" style={{ color: colors.text }}>Suggest new features or share your opinion</Text>
-            </View>
-            <ChevronRight size={18} color={colors.text} />
-          </Pressable>
+          
         </Animated.View>
       </ScrollView>
     </Animated.View>

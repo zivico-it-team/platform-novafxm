@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { router } from 'expo-router';
-import { Image, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Image, Platform, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import {
   Bell,
   CalendarDays,
@@ -433,6 +433,8 @@ const limitWithdrawalDetails = (accounts) => ['Bank', 'TRC20']
   .filter(Boolean);
 
 export default function SettingsScreen() {
+  const { width } = useWindowDimensions();
+  const isMobile = width < 992;
   const { user, logout, updateProfile } = useAuth();
   const { colors } = useAppTheme();
   const profileImageInputRef = useRef(null);
@@ -831,21 +833,46 @@ export default function SettingsScreen() {
 
       <DashboardTabs activeKey="settings" />
 
-      <View className="overflow-hidden rounded-2xl border lg:flex-row" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
-        <View className="border-b p-5 lg:w-[320px] lg:border-b-0 lg:border-r" style={{ borderColor: colors.border }}>
-
-
-          <View className="mt-7 gap-2">
-            {settingsSections.map((section) => (
-              <SettingsMenuItem
-                key={section.key}
-                icon={section.icon}
-                title={section.title}
-                subtitle={section.subtitle}
-                active={activeSection === section.key}
-                onPress={() => setActiveSection(section.key)}
-              />
-            ))}
+      <View className="overflow-hidden rounded-2xl border flex-row" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+        <View
+          className="border-r"
+          style={{
+            width: isMobile ? 64 : 320,
+            padding: isMobile ? 8 : 20,
+            borderColor: colors.border,
+            alignItems: isMobile ? 'center' : 'stretch',
+          }}
+        >
+          <View className={isMobile ? "gap-4" : "mt-7 gap-2"}>
+            {settingsSections.map((section) => {
+              const active = activeSection === section.key;
+              const Icon = section.icon;
+              if (isMobile) {
+                return (
+                  <Pressable
+                    key={section.key}
+                    onPress={() => setActiveSection(section.key)}
+                    className="h-11 w-11 items-center justify-center rounded-xl border"
+                    style={{
+                      borderColor: active ? colors.primary : colors.border,
+                      backgroundColor: active ? `${colors.primary}18` : colors.surface,
+                    }}
+                  >
+                    <Icon size={18} color={active ? colors.primary : colors.muted} />
+                  </Pressable>
+                );
+              }
+              return (
+                <SettingsMenuItem
+                  key={section.key}
+                  icon={section.icon}
+                  title={section.title}
+                  subtitle={section.subtitle}
+                  active={active}
+                  onPress={() => setActiveSection(section.key)}
+                />
+              );
+            })}
           </View>
         </View>
 

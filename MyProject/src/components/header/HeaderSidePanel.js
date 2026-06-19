@@ -302,6 +302,8 @@ function ToggleRow({ title, subtitle, active, onPress, colors }) {
 }
 
 function SettingsPanel({ colors, darkMode, toggleTheme, user, updateProfile }) {
+  const { width } = useWindowDimensions();
+  const isMobile = width < 992;
   const { logout } = useAuth();
   const profileImageInputRef = useRef(null);
   const [activeSection, setActiveSection] = useState('profile');
@@ -513,15 +515,55 @@ function SettingsPanel({ colors, darkMode, toggleTheme, user, updateProfile }) {
     ['session', 'Session', 'Sign out and sessions', LogOut],
   ];
 
+  const ContentWrapper = isMobile ? View : ScrollView;
+  const contentWrapperProps = isMobile
+    ? { className: 'p-4', style: { flex: 1 } }
+    : { className: 'flex-1', contentContainerStyle: { padding: 24 } };
+
   return (
-    <View className="min-h-[620px] lg:flex-row">
-      <View className="border-b p-4 lg:w-[300px] lg:border-b-0 lg:border-r" style={{ borderColor: colors.border, backgroundColor: colors.background }}>
-        {tabs.map(([key, title, subtitle, Icon]) => (
-          <SettingsTab key={key} active={activeSection === key} title={title} subtitle={subtitle} icon={Icon} onPress={() => setActiveSection(key)} colors={colors} />
-        ))}
+    <View className="min-h-[620px] flex-row">
+      <View
+        className="border-r"
+        style={{
+          width: isMobile ? 64 : 300,
+          padding: isMobile ? 8 : 16,
+          borderColor: colors.border,
+          backgroundColor: colors.background,
+          alignItems: isMobile ? 'center' : 'stretch',
+        }}
+      >
+        {tabs.map(([key, title, subtitle, Icon]) => {
+          const active = activeSection === key;
+          if (isMobile) {
+            return (
+              <Pressable
+                key={key}
+                onPress={() => setActiveSection(key)}
+                className="mb-4 h-11 w-11 items-center justify-center rounded-xl border"
+                style={{
+                  borderColor: active ? colors.primary : colors.border,
+                  backgroundColor: active ? `${colors.primary}18` : colors.surface,
+                }}
+              >
+                <Icon size={18} color={active ? colors.primary : colors.muted} />
+              </Pressable>
+            );
+          }
+          return (
+            <SettingsTab
+              key={key}
+              active={active}
+              title={title}
+              subtitle={subtitle}
+              icon={Icon}
+              onPress={() => setActiveSection(key)}
+              colors={colors}
+            />
+          );
+        })}
       </View>
 
-      <ScrollView className="flex-1" contentContainerStyle={{ padding: 24 }}>
+      <ContentWrapper {...contentWrapperProps}>
         {activeSection === 'profile' ? (
           <View className="rounded-lg border p-5" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
             <View className="mb-4 flex-row items-center justify-between">
@@ -687,7 +729,7 @@ function SettingsPanel({ colors, darkMode, toggleTheme, user, updateProfile }) {
         ) : null}
 
         {message ? <Text className="mt-4 rounded-lg border p-3 text-sm" style={{ borderColor: colors.border, color: colors.text }}>{message}</Text> : null}
-      </ScrollView>
+      </ContentWrapper>
     </View>
   );
 }
@@ -841,6 +883,7 @@ export default function HeaderSidePanel({ type, selectedAccount, summary, onClos
   const [loading, setLoading] = useState(false);
   const slideAnim = useRef(new Animated.Value(-34)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const contentAnim = useRef(new Animated.Value(0)).current;
   const panelWidth = Math.min(1180, Math.max(340, width * 0.96));
   const panelHeight = Math.min(height * 0.9, height - 32);
 
@@ -860,19 +903,30 @@ export default function HeaderSidePanel({ type, selectedAccount, summary, onClos
   }, [type, user]);
 
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 280,
-        useNativeDriver: true,
-      }),
-      Animated.timing(fadeAnim, {
+    slideAnim.setValue(-34);
+    fadeAnim.setValue(0);
+    contentAnim.setValue(0);
+
+    Animated.sequence([
+      Animated.parallel([
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 280,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 220,
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.timing(contentAnim, {
         toValue: 1,
-        duration: 220,
+        duration: 260,
         useNativeDriver: true,
       }),
     ]).start();
-  }, [fadeAnim, slideAnim]);
+  }, [fadeAnim, slideAnim, contentAnim]);
 
   const wallet = dashboard?.wallet || {};
   const transactions = dashboard?.transactions || [];
@@ -909,6 +963,7 @@ export default function HeaderSidePanel({ type, selectedAccount, summary, onClos
         className="overflow-hidden rounded-lg border shadow-2xl"
         style={{
           width: panelWidth,
+          minHeight: Math.min(580, panelHeight),
           maxHeight: panelHeight,
           backgroundColor: colors.background,
           borderColor: colors.border,
@@ -921,41 +976,56 @@ export default function HeaderSidePanel({ type, selectedAccount, summary, onClos
       >
         <PanelHeader title={title} subtitle={subtitle} icon={Icon || BadgeCheck} onClose={onClose} colors={colors} />
         <ScrollView showsVerticalScrollIndicator>
-          {['deposit', 'withdraw', 'history'].includes(type) ? summaryCards : null}
-          {type === 'account' ? (
-            <AccountPanel
-              dashboard={dashboard}
-              selectedAccount={selectedAccount}
-              summary={summary}
-              colors={colors}
-              onAccountsChanged={onAccountsChanged}
-            />
-          ) : null}
-          {type === 'deposit' ? (
-            <View className="p-6">
-              <DepositForm onSubmit={(values) => deposit(values, Boolean(user))} loading={walletLoading} disabled={false} />
-            </View>
-          ) : null}
-          {type === 'withdraw' ? (
-            <View className="p-6">
-              <WithdrawForm
-                onSubmit={(values) => withdraw(values, Boolean(user))}
-                loading={walletLoading}
-                disabled={fundingLocked}
-                disabledMessage={fundingLockedMessage}
-                summary={{ balance }}
-                transactions={transactions}
+          <Animated.View
+            style={{
+              flex: 1,
+              opacity: contentAnim,
+              transform: [
+                {
+                  translateY: contentAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [15, 0],
+                  }),
+                },
+              ],
+            }}
+          >
+            {['deposit', 'withdraw', 'history'].includes(type) ? summaryCards : null}
+            {type === 'account' ? (
+              <AccountPanel
+                dashboard={dashboard}
+                selectedAccount={selectedAccount}
+                summary={summary}
+                colors={colors}
+                onAccountsChanged={onAccountsChanged}
               />
-            </View>
-          ) : null}
-          {type === 'history' ? (
-            <View className="p-6">
-              <TransactionList transactions={transactions} title={loading ? 'Loading History...' : 'Transaction History'} />
-            </View>
-          ) : null}
-          {type === 'settings' ? <SettingsPanel colors={colors} darkMode={darkMode} toggleTheme={toggleTheme} user={user} updateProfile={updateProfile} /> : null}
-          {type === 'verification' ? <VerificationPanel user={user} colors={colors} submitVerification={submitVerification} refreshUser={refreshUser} /> : null}
-          {type === 'referral' ? <ReferralPanel dashboard={dashboard} colors={colors} /> : null}
+            ) : null}
+            {type === 'deposit' ? (
+              <View className="p-6">
+                <DepositForm onSubmit={(values) => deposit(values, Boolean(user))} loading={walletLoading} disabled={false} />
+              </View>
+            ) : null}
+            {type === 'withdraw' ? (
+              <View className="p-6">
+                <WithdrawForm
+                  onSubmit={(values) => withdraw(values, Boolean(user))}
+                  loading={walletLoading}
+                  disabled={fundingLocked}
+                  disabledMessage={fundingLockedMessage}
+                  summary={{ balance }}
+                  transactions={transactions}
+                />
+              </View>
+            ) : null}
+            {type === 'history' ? (
+              <View className="p-6">
+                <TransactionList transactions={transactions} title={loading ? 'Loading History...' : 'Transaction History'} />
+              </View>
+            ) : null}
+            {type === 'settings' ? <SettingsPanel colors={colors} darkMode={darkMode} toggleTheme={toggleTheme} user={user} updateProfile={updateProfile} /> : null}
+            {type === 'verification' ? <VerificationPanel user={user} colors={colors} submitVerification={submitVerification} refreshUser={refreshUser} /> : null}
+            {type === 'referral' ? <ReferralPanel dashboard={dashboard} colors={colors} /> : null}
+          </Animated.View>
         </ScrollView>
       </Animated.View>
     </View>

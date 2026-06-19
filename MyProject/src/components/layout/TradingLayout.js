@@ -4,6 +4,7 @@ import TopAccountBar from '../header/TopAccountBar';
 import TradingChart from '../chart/TradingChart';
 import OrderPanel from '../order/OrderPanel';
 import NewOrderModal, { NewOrderTicket } from '../order/NewOrderModal';
+import InsufficientFundsModal from '../order/InsufficientFundsModal';
 import OpenPositions from '../positions/OpenPositions';
 import AccountSummary from '../account/AccountSummary';
 import { useAppTheme } from '../../context/ThemeContext';
@@ -34,12 +35,13 @@ function OrderRail({ summary, user, showSummary = true, showAvailableMargin = tr
   }, [orderTicketOpen, ticketAnim, widthAnim]);
 
   return (
-    <Animated.View className="h-full gap-3 overflow-hidden" style={{ width: widthAnim, maxWidth: '100%', overflow: 'hidden', paddingBottom: 10 }}>
+    <Animated.View className="h-full gap-3 overflow-hidden" style={{ width: widthAnim, maxWidth: '100%', overflow: 'hidden', paddingBottom: 0, height: '100%' }}>
       {showTicket ? (
         <Animated.View
           className="h-full"
           style={{
             width: 320,
+            height: '100%',
             overflow: 'hidden',
             opacity: ticketAnim,
             transform: [{ translateX: ticketAnim.interpolate({ inputRange: [0, 1], outputRange: [34, 0] }) }],
@@ -60,7 +62,7 @@ export default function TradingLayout() {
   const { width, height } = useWindowDimensions();
   const { colors } = useAppTheme();
   const { user } = useAuth();
-  const { summary } = useDemoTrading();
+  const { summary, insufficientFundsVisible, setInsufficientFundsVisible } = useDemoTrading();
   const [orderTicketOpen, setOrderTicketOpen] = useState(false);
   const [initialOrderSide, setInitialOrderSide] = useState('BUY');
   const [mobileOrderModal, setMobileOrderModal] = useState(false);
@@ -105,7 +107,6 @@ export default function TradingLayout() {
             </>
           ) : (
             <>
-              {mobile && !chartFullscreen ? <AccountSummary summary={summary} user={user} compact /> : null}
               <TradingChart isFullscreen={chartFullscreen} onFullscreenChange={setChartFullscreen} />
               {!chartFullscreen && (
                 <View className={tablet ? 'flex-row gap-3' : 'gap-1.5'}>
@@ -125,6 +126,10 @@ export default function TradingLayout() {
           setMobileOrderModal(false);
           closeNewOrder();
         }}
+      />
+      <InsufficientFundsModal
+        visible={insufficientFundsVisible}
+        onClose={() => setInsufficientFundsVisible(false)}
       />
     </View>
   );

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Modal, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
-import { ChevronDown, Plus, Sun, Moon, UserRound, Wallet } from 'lucide-react-native';
+import { ChevronDown, Plus, Sun, Moon, UserRound, Wallet, ArrowUp } from 'lucide-react-native';
 import Svg, { Polyline } from 'react-native-svg';
 import { useAuth } from '../../hooks/useAuth';
 import { useDemoTrading } from '../../hooks/useDemoTrading';
@@ -18,7 +18,7 @@ const visibleMetricCount = 5;
 
 export default function TopAccountBar({ chartFullscreen = false, onOpenNewOrder }) {
   const { width } = useWindowDimensions();
-  const { currentSymbol, summary, selectedTradingAccount, setSelectedTradingAccount } = useDemoTrading();
+  const { currentSymbol, summary, selectedTradingAccount, setSelectedTradingAccount, sidePanel, setSidePanel } = useDemoTrading();
   const params = useLocalSearchParams();
   const { user } = useAuth();
   const { darkMode, colors, toggleTheme } = useAppTheme();
@@ -26,7 +26,6 @@ export default function TopAccountBar({ chartFullscreen = false, onOpenNewOrder 
   const profileHoverCloseRef = useRef(null);
   const [metricsWidth, setMetricsWidth] = useState(0);
   const [menu, setMenu] = useState(null);
-  const [sidePanel, setSidePanel] = useState(null);
   const [accounts, setAccounts] = useState([]);
   const [hoveredAction, setHoveredAction] = useState(null);
   const mobile = width < 900;
@@ -198,42 +197,91 @@ export default function TopAccountBar({ chartFullscreen = false, onOpenNewOrder 
   return (
     <View className={`${mobile ? 'relative z-40 gap-1.5 px-2 py-1.5' : 'relative z-40 px-5 py-2'} lg:flex-row lg:items-center lg:gap-3`} style={{ backgroundColor: mobile ? colors.background : desktopHeaderBg, borderColor: colors.border }}>
       {mobile ? (
-        <View className="flex-row items-center gap-2">
-          {user ? (
-            <Pressable onPress={() => setMenu(menu === 'account' ? null : 'account')} className="h-[40px] flex-1 flex-row items-center rounded-md px-2" style={{ backgroundColor: colors.panel }}>
-              <View className="ml-2 min-w-0 flex-1">
-                <Text className="text-xs font-black" numberOfLines={1} style={{ color: colors.primary }}>{selectedAccount?.type || 'Demo'}</Text>
-                <Text className="text-[11px] font-black" numberOfLines={1} style={{ color: colors.text }}>{money(selectedAccountBalance)} USD</Text>
-              </View>
-              <ChevronDown className="ml-1" size={14} color={colors.muted} />
-              <View className="ml-1 h-2 w-2 rounded-full" style={{ backgroundColor: colors.success }} />
+        <View className="gap-2">
+          {/* Row 1: Logo & Utility Icons */}
+          <View className="flex-row items-center justify-between">
+            <Pressable onPress={() => router.push('/')} style={{ cursor: 'pointer' }}>
+              <NovaLogo dark={darkMode} width={130} height={34} />
             </Pressable>
-          ) : (
-            <AuthButtons />
-          )}
-          {user ? (
-            <Pressable onPress={() => openNewOrder('BUY')} className="h-[40px] flex-row items-center justify-center rounded-md px-3" style={{ backgroundColor: colors.primary }}>
-              <Plus color="#0B0B0B" size={16} />
-              <Text className="ml-1.5 text-xs font-bold text-black">New Order</Text>
-            </Pressable>
-          ) : null}
-          <Pressable {...hoverProps('mobile-theme')} onPress={toggleTheme} className="h-[40px] w-[40px] items-center justify-center rounded-md border" style={iconButtonStyle('mobile-theme', { backgroundColor: colors.panel, borderColor: colors.border })}>
-            <View style={iconHoverStyle('mobile-theme')}>{darkMode ? <Sun size={18} color={iconColor('mobile-theme')} /> : <Moon size={18} color={iconColor('mobile-theme')} />}</View>
-          </Pressable>
-          {user ? (
-            <Pressable {...hoverProps('mobile-wallet')} onPress={openWalletMenu} className="h-[40px] w-[40px] items-center justify-center rounded-md border" style={iconButtonStyle('mobile-wallet', { backgroundColor: colors.panel, borderColor: colors.border })}>
-              <View style={iconHoverStyle('mobile-wallet')}><Wallet color={iconColor('mobile-wallet')} size={18} /></View>
-            </Pressable>
-          ) : null}
-          {user ? (
-            <Pressable {...hoverProps('mobile-profile')} onPress={() => setMenu(menu === 'profile' ? null : 'profile')} className="h-[40px] w-[40px] items-center justify-center rounded-md border" style={iconButtonStyle('mobile-profile', { backgroundColor: colors.panel, borderColor: colors.border })}>
-              <View style={iconHoverStyle('mobile-profile')}><UserRound color={iconColor('mobile-profile')} size={18} /></View>
-            </Pressable>
-          ) : null}
+            <View className="flex-row items-center gap-1.5">
+              <Pressable {...hoverProps('mobile-theme')} onPress={toggleTheme} className="h-[36px] w-[36px] items-center justify-center rounded-md border" style={iconButtonStyle('mobile-theme', { backgroundColor: colors.panel, borderColor: colors.border })}>
+                <View style={iconHoverStyle('mobile-theme')}>{darkMode ? <Sun size={16} color={iconColor('mobile-theme')} /> : <Moon size={16} color={iconColor('mobile-theme')} />}</View>
+              </Pressable>
+              {user ? (
+                <Pressable {...hoverProps('mobile-wallet')} onPress={openWalletMenu} className="h-[36px] w-[36px] items-center justify-center rounded-md border" style={iconButtonStyle('mobile-wallet', { backgroundColor: colors.panel, borderColor: colors.border })}>
+                  <View style={iconHoverStyle('mobile-wallet')}><Wallet color={iconColor('mobile-wallet')} size={16} /></View>
+                </Pressable>
+              ) : null}
+              {user ? (
+                <Pressable {...hoverProps('mobile-profile')} onPress={() => setMenu(menu === 'profile' ? null : 'profile')} className="h-[36px] w-[36px] items-center justify-center rounded-md border" style={iconButtonStyle('mobile-profile', { backgroundColor: colors.panel, borderColor: colors.border })}>
+                  <View style={iconHoverStyle('mobile-profile')}><UserRound color={iconColor('mobile-profile')} size={16} /></View>
+                </Pressable>
+              ) : null}
+            </View>
+          </View>
+
+          {/* Row 2: Account Select & Action Buttons */}
+          <View className="flex-row items-center gap-2">
+            {user ? (
+              <Pressable onPress={() => setMenu(menu === 'account' ? null : 'account')} className="h-[38px] flex-1 flex-row items-center rounded-md px-2" style={{ backgroundColor: colors.panel }}>
+                <View className="ml-1 min-w-0 flex-1">
+                  <Text className="text-[10px] font-black" numberOfLines={1} style={{ color: colors.primary }}>{selectedAccount?.type || 'Demo'}</Text>
+                  <Text className="text-[11px] font-black" numberOfLines={1} style={{ color: colors.text }}>{money(selectedAccountBalance)} USD</Text>
+                </View>
+                <ChevronDown className="ml-1" size={13} color={colors.muted} />
+                <View className="ml-1 h-1.5 w-1.5 rounded-full" style={{ backgroundColor: colors.success }} />
+              </Pressable>
+            ) : (
+              <AuthButtons />
+            )}
+            {user ? (
+              <Pressable
+                {...hoverProps('mobile-trade')}
+                onPress={() => openNewOrder('BUY')}
+                className="h-[38px] flex-row items-center justify-center rounded-md px-2"
+                style={[
+                  { backgroundColor: colors.primary, cursor: 'pointer' },
+                  hoveredAction === 'mobile-trade' ? { transform: [{ translateY: -1 }] } : null
+                ]}
+              >
+                <Plus color="#0B0B0B" size={14} />
+                <Text className="ml-1 text-xs font-bold text-black">Trade</Text>
+              </Pressable>
+            ) : null}
+            {user ? (
+              <Pressable
+                {...hoverProps('mobile-deposit')}
+                onPress={() => openSidePanel('deposit')}
+                className="h-[38px] flex-row items-center justify-center rounded-md px-2 border"
+                style={[
+                  {
+                    backgroundColor: darkMode ? '#143a22' : '#e6f7ed',
+                    borderColor: colors.success,
+                    cursor: 'pointer',
+                  },
+                  hoveredAction === 'mobile-deposit'
+                    ? {
+                        shadowColor: colors.success,
+                        shadowOpacity: darkMode ? 0.35 : 0.2,
+                        shadowRadius: 5,
+                        shadowOffset: { width: 0, height: 1.5 },
+                        transform: [{ translateY: -1 }],
+                        elevation: 1.5,
+                      }
+                    : null
+                ]}
+              >
+                <ArrowUp color={colors.success} size={13} strokeWidth={2.5} />
+                <Text className="ml-1 text-xs font-bold text-success" style={{ color: colors.success }}>Deposit</Text>
+              </Pressable>
+            ) : null}
+          </View>
         </View>
       ) : (
         <View className="mb-3 flex-row items-center justify-between lg:mb-0">
-          <NovaLogo dark={darkMode} width={170} height={44} />
+          <Pressable onPress={() => router.push('/')} style={{ cursor: 'pointer' }}>
+            <NovaLogo dark={darkMode} width={170} height={44} />
+          </Pressable>
         </View>
       )}
       {!mobile && (
@@ -276,17 +324,82 @@ export default function TopAccountBar({ chartFullscreen = false, onOpenNewOrder 
         </View>
       )}
       {!mobile && user && !chartFullscreen ? (
-        <Pressable onPress={() => openNewOrder('BUY')} className="h-[52px] w-[144px] flex-row items-center justify-center rounded-md" style={{ backgroundColor: tradeButtonBg }}>
-          <Plus color={colors.primary} size={20} />
-          <Text className="ml-2 text-sm font-black" style={{ color: colors.primary }}>New Trade</Text>
-        </Pressable>
+        <View className="flex-row gap-2 items-center">
+          <Pressable
+            {...hoverProps('desktop-trade')}
+            onPress={() => openNewOrder('BUY')}
+            className="h-[42px] flex-row items-center justify-center rounded-lg px-4"
+            style={[
+              { backgroundColor: tradeButtonBg, cursor: 'pointer' },
+              hoveredAction === 'desktop-trade'
+                ? {
+                    shadowColor: colors.primary,
+                    shadowOpacity: darkMode ? 0.28 : 0.18,
+                    shadowRadius: 8,
+                    shadowOffset: { width: 0, height: 3 },
+                    transform: [{ translateY: -1 }],
+                    elevation: 3,
+                  }
+                : null
+            ]}
+          >
+            <Plus color={colors.primary} size={18} />
+            <Text className="ml-1.5 text-sm font-black" style={{ color: colors.primary }}>New Trade</Text>
+          </Pressable>
+
+          <Pressable
+            {...hoverProps('desktop-deposit')}
+            onPress={() => openSidePanel('deposit')}
+            className="h-[42px] flex-row items-center justify-center rounded-lg border px-4"
+            style={[
+              {
+                backgroundColor: darkMode ? '#143a22' : '#e6f7ed',
+                borderColor: colors.success,
+                cursor: 'pointer',
+              },
+              hoveredAction === 'desktop-deposit'
+                ? {
+                    shadowColor: colors.success,
+                    shadowOpacity: darkMode ? 0.35 : 0.2,
+                    shadowRadius: 8,
+                    shadowOffset: { width: 0, height: 3 },
+                    transform: [{ translateY: -1 }],
+                    elevation: 3,
+                  }
+                : null
+            ]}
+          >
+            <ArrowUp color={colors.success} size={16} strokeWidth={2.4} />
+            <Text className="ml-1.5 text-sm font-black" style={{ color: colors.success }}>Deposit</Text>
+          </Pressable>
+        </View>
       ) : null}
       {!mobile && user ? (
-        <Pressable onPress={() => setMenu(menu === 'account' ? null : 'account')} className="h-[52px] flex-row items-center rounded-md border px-3" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+        <Pressable
+          onPress={() => setMenu(menu === 'account' ? null : 'account')}
+          className="h-[52px] flex-row items-center rounded-md border px-3"
+          style={{
+            backgroundColor: colors.panel,
+            borderColor: menu === 'account' ? colors.primary : colors.border,
+            shadowColor: colors.primary,
+            shadowOpacity: menu === 'account' ? (darkMode ? 0.28 : 0.18) : 0,
+            shadowRadius: 10,
+            shadowOffset: { width: 0, height: 4 },
+            elevation: menu === 'account' ? 4 : 0,
+            cursor: 'pointer',
+          }}
+        >
           <View className="rounded-full px-2 py-1" style={{ backgroundColor: `${colors.primary}22` }}>
             <Text className="text-xs font-black" style={{ color: colors.primary }}>{selectedAccount?.type || 'Demo'}</Text>
           </View>
-          <ChevronDown className="ml-2" size={15} color={colors.muted} />
+          <ChevronDown
+            className="ml-2"
+            size={15}
+            color={colors.muted}
+            style={{
+              transform: [{ rotate: menu === 'account' ? '180deg' : '0deg' }],
+            }}
+          />
         </Pressable>
       ) : null}
       {!mobile && !user ? <AuthButtons /> : null}

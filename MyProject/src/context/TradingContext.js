@@ -21,6 +21,8 @@ export function TradingProvider({ children }) {
   const [transactions, setTransactions] = useState([]);
   const [selectedTradingAccount, setSelectedTradingAccount] = useState(null);
   const [ready, setReady] = useState(false);
+  const [sidePanel, setSidePanel] = useState(null);
+  const [insufficientFundsVisible, setInsufficientFundsVisible] = useState(false);
 
   useEffect(() => {
     async function restore() {
@@ -140,7 +142,10 @@ export function TradingProvider({ children }) {
       const quantity = Number(lots);
       if (!quantity || quantity <= 0) throw new Error('Enter a valid lot size.');
       const requiredMargin = quantity * 100;
-      if (summary.freeFunds < requiredMargin) throw new Error('Insufficient free funds.');
+      if (summary.freeFunds < requiredMargin) {
+        setInsufficientFundsVisible(true);
+        throw new Error('Insufficient free funds.');
+      }
       const price = side === 'BUY' ? currentSymbol.ask : currentSymbol.bid;
       let position = {
         id: String(Date.now()),
@@ -247,8 +252,12 @@ export function TradingProvider({ children }) {
       submitWithdrawal,
       syncAccount,
       ready,
+      sidePanel,
+      setSidePanel,
+      insufficientFundsVisible,
+      setInsufficientFundsVisible,
     }),
-    [prices, connected, selectedSymbol, currentSymbol, livePositions, closedPositions, pendingOrders, summary, selectedTradingAccount, transactions, openPosition, closePosition, createPendingOrder, submitDeposit, submitWithdrawal, syncAccount, ready],
+    [prices, connected, selectedSymbol, currentSymbol, livePositions, closedPositions, pendingOrders, summary, selectedTradingAccount, transactions, openPosition, closePosition, createPendingOrder, submitDeposit, submitWithdrawal, syncAccount, ready, sidePanel, insufficientFundsVisible],
   );
 
   return <TradingContext.Provider value={value}>{children}</TradingContext.Provider>;

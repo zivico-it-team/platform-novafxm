@@ -155,7 +155,7 @@ export function NewOrderTicket({ visible = true, onClose, initialSide = 'BUY', e
             if (symbolMenu) setSymbolMenu(false);
           }}
           className={`${embedded ? 'h-full w-full rounded-xl p-2' : 'max-h-[96%] w-full max-w-[500px] rounded-2xl p-4'} border`}
-          style={{ backgroundColor: modalBackground, borderColor: colors.border }}
+          style={{ backgroundColor: modalBackground, borderColor: colors.border, height: embedded ? '100%' : undefined }}
         >
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={embedded ? { flexGrow: 1 } : undefined}>
             <View className={`${embedded ? 'mb-3' : 'mb-5'} flex-row items-center justify-between`}>

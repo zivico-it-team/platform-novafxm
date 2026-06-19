@@ -122,7 +122,7 @@ export default function OrderPanel({ showAvailableMargin = true }) {
   }
 
   return (
-    <View className="h-full rounded-xl border lg:w-[300px]" style={{ backgroundColor: panelBackground, borderColor: colors.border }}>
+    <View className="h-full rounded-xl border lg:w-[300px]" style={{ backgroundColor: panelBackground, borderColor: colors.border, height: '100%' }}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 14 }}>
         <View>
           <Text className="text-lg font-extrabold" style={{ color: colors.text }}>New Order</Text>

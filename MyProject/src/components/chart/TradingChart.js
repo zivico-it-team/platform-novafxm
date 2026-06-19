@@ -826,7 +826,7 @@ export default function TradingChart({ isFullscreen, onFullscreenChange }) {
   const compactToolbar = width < 640;
   const mobile = width < 760;
   const iconButtonSize = compactToolbar ? 26 : 32;
-  const toolbarMenuTop = mobile ? 126 : compactToolbar ? 58 : 68;
+  const toolbarMenuTop = mobile ? 94 : compactToolbar ? 58 : 68;
   const timeframeHeight = compactToolbar ? 22 : 24;
   const timeframeMinWidth = compactToolbar ? 27 : 32;
   const chartMinHeight = mobile ? Math.min(Math.max(Math.round(height * 0.62), 500), 620) : compactToolbar ? 430 : 520;
@@ -836,7 +836,7 @@ export default function TradingChart({ isFullscreen, onFullscreenChange }) {
   const [localFullscreen, setLocalFullscreen] = useState(false);
   const chartFullscreen = isFullscreen !== undefined ? isFullscreen : localFullscreen;
   const [chartMenuOpen, setChartMenuOpen] = useState(false);
-  const [symbolMenuOpen, setSymbolMenuOpen] = useState(true);
+  const [symbolMenuOpen, setSymbolMenuOpen] = useState(!mobile);
   const chartCardInset = 10;
   const chartListGap = 10;
   const symbolPanelWidth = mobile ? Math.min(width - 20, 330) : compactToolbar ? 285 : 310;
@@ -1219,7 +1219,7 @@ export default function TradingChart({ isFullscreen, onFullscreenChange }) {
       setPreviousSymbolTab(nextTab);
     }
     setSymbolTabMenuOpen(false);
-    if (chartFullscreen) {
+    if (chartFullscreen || mobile) {
       setSymbolMenuOpen(false);
     }
   };
@@ -1327,88 +1327,87 @@ export default function TradingChart({ isFullscreen, onFullscreenChange }) {
       zIndex: 9000,
       elevation: 9000,
     }
-    : { minHeight: chartMinHeight, backgroundColor: ui.background, borderColor: ui.border };
+    : { minHeight: chartMinHeight, height: '100%', backgroundColor: ui.background, borderColor: ui.border };
 
   return (
     <View className="relative flex-1 overflow-hidden border" style={chartRootStyle}>
       <View className="relative border-b px-2 py-1.5 sm:px-3" style={{ backgroundColor: ui.toolbar, borderColor: ui.border, zIndex: 1000, elevation: 1000 }}>
         {mobile ? (
           <View className="px-0.5 pt-0.5">
+            {/* Row 1: Active Symbol Selector & Price/Change */}
             <View className="flex-row items-center justify-between">
               <Pressable onPress={toggleSymbolMenu} className="min-w-0 flex-row items-center rounded-md px-1.5 py-1" style={{ backgroundColor: symbolMenuOpen ? ui.soft : 'transparent', cursor: 'pointer' }}>
                 <Star size={14} color={symbolMenuOpen ? ui.accent : ui.muted} />
                 <View className="mx-1.5 h-5 w-5 items-center justify-center rounded-full" style={{ backgroundColor: ui.accent }}>
                   <Text className="text-[10px] font-black" style={{ color: ui.activeText }}>{currentSymbol.symbol?.[0] || '$'}</Text>
                 </View>
-                <Text className="max-w-[150px] text-[17px] font-extrabold" numberOfLines={1} style={{ color: ui.text }}>{currentSymbol.symbol}</Text>
+                <Text className="max-w-[120px] text-[17px] font-extrabold" numberOfLines={1} style={{ color: ui.text }}>{currentSymbol.symbol}</Text>
                 <Text className="ml-1 rounded px-1 py-0.5 text-[9px] font-extrabold" style={{ backgroundColor: ui.control, color: ui.muted }}>Perp</Text>
                 <ChevronDown size={15} color={symbolMenuOpen ? ui.accent : ui.muted} strokeWidth={2.4} />
               </Pressable>
-              <View className="flex-row items-center">
-                <View className="mr-1.5 h-1.5 w-1.5 rounded-full" style={{ backgroundColor: priceTone }} />
-                <Text className="text-[10px] font-bold" style={{ color: ui.muted }}>Live</Text>
+              <View className="items-end">
+                <Text className="text-xl font-extrabold" numberOfLines={1} style={{ color: priceTone }}>{quote(currentSymbol.price, currentSymbol.decimals)}</Text>
+                <Text className="text-[10px] font-bold" numberOfLines={1} style={{ color: priceTone }}>{percent(currentSymbol.change)}</Text>
               </View>
             </View>
 
-            <View className="mt-1.5 flex-row items-end justify-between">
-              <Text className="text-[32px] font-extrabold" numberOfLines={1} style={{ color: priceTone }}>{quote(currentSymbol.price, currentSymbol.decimals)}</Text>
-              <View className="items-end pb-1.5">
-                <Text className="text-[15px] font-extrabold" numberOfLines={1} style={{ color: priceTone }}>{percent(currentSymbol.change)}</Text>
-                <Text className="text-[9px] font-bold uppercase" numberOfLines={1} style={{ color: ui.muted }}>24h change</Text>
-              </View>
-            </View>
-
-            <View className="mt-1.5 flex-row items-center justify-between border-b pb-2.5" style={{ borderColor: ui.border }}>
-              {mobileStats.map(([label, value, color], index) => (
-                <View key={label} className="min-w-0 flex-1" style={{ borderColor: 'rgba(132, 142, 156, .24)', borderRightWidth: index === mobileStats.length - 1 ? 0 : 1, paddingLeft: index === 0 ? 0 : 8, paddingRight: index === mobileStats.length - 1 ? 0 : 8 }}>
-                  <Text className="text-[9px] font-bold uppercase" numberOfLines={1} style={{ color: ui.muted, textAlign: index === 0 ? 'left' : 'right' }}>{label}</Text>
-                  <Text className="text-[11px] font-extrabold" numberOfLines={1} style={{ color, textAlign: index === 0 ? 'left' : 'right' }}>{value}</Text>
+            {/* Row 2: Bid, Ask, Spread Stats */}
+            <View className="mt-1 flex-row items-center justify-between border-b pb-1" style={{ borderColor: ui.border }}>
+              {mobileStats.slice(1).map(([label, value, color], index) => (
+                <View key={label} className="min-w-0 flex-1" style={{ borderColor: 'rgba(132, 142, 156, .24)', borderRightWidth: index === 2 ? 0 : 1, paddingLeft: index === 0 ? 0 : 6, paddingRight: index === 2 ? 0 : 6 }}>
+                  <Text className="text-[8px] font-bold uppercase" numberOfLines={1} style={{ color: ui.muted, textAlign: index === 0 ? 'left' : (index === 2 ? 'right' : 'center') }}>{label}</Text>
+                  <Text className="text-[10px] font-bold" numberOfLines={1} style={{ color, textAlign: index === 0 ? 'left' : (index === 2 ? 'right' : 'center') }}>{value}</Text>
                 </View>
               ))}
             </View>
 
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              className="mt-1.5"
-              contentContainerStyle={{ alignItems: 'center', columnGap: 3, paddingRight: 6 }}
-            >
-              {TIMEFRAMES.map((entry) => (
-                <Pressable
-                  key={entry}
-                  onPress={() => selectTimeframe(entry)}
-                  className="items-center justify-center border-b-2"
-                  style={{ height: 26, minWidth: 32, paddingHorizontal: 7, backgroundColor: 'transparent', borderColor: entry === timeframe ? ui.controlActive : 'transparent' }}
-                >
-                  <Text className="font-extrabold" style={{ color: entry === timeframe ? ui.text : ui.muted, fontSize: 11 }}>{entry}</Text>
-                </Pressable>
-              ))}
-              <View className="mx-1 h-5 w-px" style={{ backgroundColor: ui.border }} />
-              {VIEW_RANGES.map((entry) => (
-                <Pressable
-                  key={entry}
-                  onPress={() => setViewRange(entry)}
-                  className="items-center justify-center rounded"
-                  style={{ height: 26, minWidth: 54, paddingHorizontal: 8, backgroundColor: entry === viewRange ? ui.controlActive : 'transparent' }}
-                >
-                  <Text className="font-extrabold" style={{ color: entry === viewRange ? ui.activeText : ui.muted, fontSize: 11 }}>{entry}</Text>
-                </Pressable>
-              ))}
-            </ScrollView>
+            {/* Row 3: Icons on Left, Timeframes ScrollView on Right */}
+            <View className="mt-1 flex-row items-center justify-between">
+              <View className="flex-row items-center" style={{ columnGap: 3 }}>
+                <IconButton active={chartMenuOpen} ui={ui} size={24} onPress={toggleChartMenu}>
+                  <ActiveChartIcon size={12} color={chartMenuOpen ? ui.activeText : ui.text} />
+                </IconButton>
+                <IconButton active={indicatorOpen} ui={ui} size={24} onPress={toggleIndicatorMenu}>
+                  <IndicatorGlyph active={indicatorOpen} ui={ui} size={8} />
+                </IconButton>
+                <IconButton active={settingsOpen} ui={ui} size={24} onPress={toggleSettingsMenu}>
+                  <Settings size={12} color={settingsOpen ? ui.activeText : ui.text} />
+                </IconButton>
+                <IconButton active={drawingOpen || Boolean(activeDrawingTool)} ui={ui} size={24} onPress={toggleDrawingMenu}>
+                  <LineChart size={13} color={drawingOpen || activeDrawingTool ? ui.activeText : ui.text} />
+                </IconButton>
+              </View>
 
-            <View className="mt-1.5 flex-row items-center justify-start" style={{ columnGap: 4 }}>
-              <IconButton active={chartMenuOpen} ui={ui} size={iconButtonSize} onPress={toggleChartMenu}>
-                <ActiveChartIcon size={14} color={chartMenuOpen ? ui.activeText : ui.text} />
-              </IconButton>
-              <IconButton active={indicatorOpen} ui={ui} size={iconButtonSize} onPress={toggleIndicatorMenu}>
-                <IndicatorGlyph active={indicatorOpen} ui={ui} size={10} />
-              </IconButton>
-              <IconButton active={settingsOpen} ui={ui} size={iconButtonSize} onPress={toggleSettingsMenu}>
-                <Settings size={14} color={settingsOpen ? ui.activeText : ui.text} />
-              </IconButton>
-              <IconButton active={drawingOpen || Boolean(activeDrawingTool)} ui={ui} size={iconButtonSize} onPress={toggleDrawingMenu}>
-                <LineChart size={15} color={drawingOpen || activeDrawingTool ? ui.activeText : ui.text} />
-              </IconButton>
+              <View className="mx-1.5 h-4 w-px" style={{ backgroundColor: ui.border }} />
+
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                className="flex-1"
+                contentContainerStyle={{ alignItems: 'center', columnGap: 3, paddingRight: 6 }}
+              >
+                {TIMEFRAMES.map((entry) => (
+                  <Pressable
+                    key={entry}
+                    onPress={() => selectTimeframe(entry)}
+                    className="items-center justify-center border-b-2"
+                    style={{ height: 24, minWidth: 28, paddingHorizontal: 5, backgroundColor: 'transparent', borderColor: entry === timeframe ? ui.controlActive : 'transparent' }}
+                  >
+                    <Text className="font-extrabold" style={{ color: entry === timeframe ? ui.text : ui.muted, fontSize: 10 }}>{entry}</Text>
+                  </Pressable>
+                ))}
+                <View className="mx-1 h-4 w-px" style={{ backgroundColor: ui.border }} />
+                {VIEW_RANGES.map((entry) => (
+                  <Pressable
+                    key={entry}
+                    onPress={() => setViewRange(entry)}
+                    className="items-center justify-center rounded"
+                    style={{ height: 24, minWidth: 44, paddingHorizontal: 6, backgroundColor: entry === viewRange ? ui.controlActive : 'transparent' }}
+                  >
+                    <Text className="font-extrabold" style={{ color: entry === viewRange ? ui.activeText : ui.muted, fontSize: 10 }}>{entry}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
             </View>
           </View>
         ) : (
@@ -1490,7 +1489,7 @@ export default function TradingChart({ isFullscreen, onFullscreenChange }) {
             />
           )}
           {chartFullscreen ? (
-            <View className="absolute" style={{ top: 10, right: compactToolbar ? 52 : 112, zIndex: 70, elevation: 70 }}>
+            <View className="absolute" style={{ top: compactToolbar ? 44 : 54, right: 12, zIndex: 70, elevation: 70 }}>
               <View className="flex-row overflow-hidden rounded-md shadow-xl">
                 <Pressable
                   disabled={Boolean(quickTradeLoading)}

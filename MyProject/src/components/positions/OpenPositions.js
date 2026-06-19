@@ -143,7 +143,7 @@ export default function OpenPositions() {
           </View>
         </ScrollView>
       )}
-      {!mobile ? (
+      {!mobile && tab !== 'closed' ? (
         <View className="mt-3 flex-row overflow-hidden border-t" style={{ borderColor: colors.border, backgroundColor: panelBackground }}>
           <SummaryItem Icon={Network} label="Open Positions" value={String(positions.length)} colors={colors} />
           <SummaryItem Icon={Gauge} label="Floating P&L" value={`${summary.openProfit >= 0 ? '+' : ''}${money(summary.openProfit)}`} colors={colors} tone={summary.openProfit >= 0 ? colors.success : colors.danger} />
