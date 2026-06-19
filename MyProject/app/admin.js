@@ -254,6 +254,24 @@ export default function AdminScreen() {
     setNotificationsOpen((open) => !open);
   };
 
+  const markUserRegistrationSeen = useCallback((selectedUser) => {
+    const unreadRegistrations = notifications.filter((notification) => (
+      !notification.isRead && notification.title === 'New User Registered'
+    ));
+    const identifiers = [selectedUser?.email, selectedUser?.name]
+      .map((value) => String(value || '').trim().toLowerCase())
+      .filter(Boolean);
+    let matches = unreadRegistrations.filter((notification) => {
+      const messageText = String(notification.message || '').toLowerCase();
+      return identifiers.some((identifier) => messageText.includes(identifier));
+    });
+
+    // Older registration notifications may not contain an email. If only one
+    // unread registration remains, opening a user profile acknowledges it.
+    if (!matches.length && unreadRegistrations.length === 1) matches = unreadRegistrations;
+    matches.forEach((notification) => markRead(notification.id));
+  }, [markRead, notifications]);
+
   const saveSettings = ({ leverage, adminNotes }) => action(
     settingsUser.id,
     () => Promise.all([
@@ -649,6 +667,7 @@ export default function AdminScreen() {
             users={data.users}
             loading={loading}
             busyId={busyId}
+            onViewUser={markUserRegistrationSeen}
             onCreate={createManagedUser}
             onUpdate={updateManagedUser}
             onRemove={removeManagedUser}

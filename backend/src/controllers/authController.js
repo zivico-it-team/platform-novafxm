@@ -62,7 +62,7 @@ exports.register = async (req, res, next) => {
     try {
       await createAdminNotifications({
         title: 'New User Registered',
-        message: `${user.name || user.email} created a ${selectedAccountType} account.`,
+        message: `${user.name || 'New client'} (${user.email}) created a ${selectedAccountType} account.`,
         type: 'admin',
       });
     } catch (notificationError) {

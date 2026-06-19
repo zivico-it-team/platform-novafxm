@@ -365,7 +365,7 @@ function ProfileModal({ user, onClose, onEdit }) {
   );
 }
 
-export default function UserManagement({ users, loading, busyId, onCreate, onUpdate, onRemove }) {
+export default function UserManagement({ users, loading, busyId, onCreate, onUpdate, onRemove, onViewUser }) {
   const { colors } = useAppTheme();
   const [query, setQuery] = useState('');
   const [profileUser, setProfileUser] = useState(null);
@@ -392,6 +392,10 @@ export default function UserManagement({ users, loading, busyId, onCreate, onUpd
   const editUser = (user) => {
     setProfileUser(null);
     setFormState({ mode: 'edit', user });
+  };
+  const viewUser = (user) => {
+    setProfileUser(user);
+    onViewUser?.(user);
   };
 
   return (
@@ -427,7 +431,7 @@ export default function UserManagement({ users, loading, busyId, onCreate, onUpd
                   <Text style={{ width: 120 }} className="text-sm font-bold text-primary">${money(user.wallet?.balance)}</Text>
                   <Text style={{ width: 130, color: colors.muted }} className="text-sm">{dateTime(user.createdAt)}</Text>
                   <View style={{ width: 140 }} className="flex-row gap-2">
-                    <Pressable disabled={blocked} onPress={() => setProfileUser(user)} className={`rounded-lg border p-2 ${blocked ? 'opacity-40' : ''}`} style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
+                    <Pressable disabled={blocked} onPress={() => viewUser(user)} className={`rounded-lg border p-2 ${blocked ? 'opacity-40' : ''}`} style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
                       <Eye size={16} color={colors.text} />
                     </Pressable>
                     <Pressable disabled={blocked} onPress={() => editUser(user)} className={`rounded-lg border p-2 ${blocked ? 'opacity-40' : ''}`} style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
