@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef } from 'react';
 import { router } from 'expo-router';
 import {
   Award,
+  ChevronRight,
+  MessageSquarePlus,
   LogOut,
   Settings2,
   ShieldCheck,
@@ -21,52 +23,43 @@ function initialsFor(user) {
     .join('') || 'NU';
 }
 
-function MenuTile({ icon: Icon, title, subtitle, badge, onPress, colors }) {
+function MenuTile({ icon: Icon, title, subtitle, badge, onPress, palette }) {
   return (
     <Pressable
       onPress={(event) => {
         event.stopPropagation?.();
         onPress();
       }}
-      className="min-h-[120px] flex-1 justify-between rounded-xl border p-4"
-      style={{ backgroundColor: colors.surface, borderColor: colors.border }}
+      className="min-h-[136px] flex-1 justify-between rounded-xl p-4"
+      style={{ backgroundColor: palette.tile }}
     >
       <View className="flex-row items-center justify-between">
-        <View className="h-9 w-9 items-center justify-center rounded-xl" style={{ backgroundColor: `${colors.primary}22` }}>
-          <Icon size={18} color={colors.primary} />
-        </View>
+        <Icon size={20} color={palette.text} />
         {badge ? (
-          <Text className="rounded-full px-2 py-1 text-[10px] font-extrabold" style={{ color: colors.success, backgroundColor: `${colors.success}1f` }}>
+          <Text className="rounded-md px-2 py-1 text-[11px] font-extrabold" style={{ color: palette.danger, backgroundColor: `${palette.danger}22` }}>
             {badge}
           </Text>
         ) : null}
       </View>
       <View>
-        <Text className="text-base font-extrabold" style={{ color: colors.text }}>{title}</Text>
-        <Text className="mt-1 text-xs" style={{ color: colors.muted }}>{subtitle}</Text>
+        <Text className="text-base font-extrabold" style={{ color: palette.text }}>{title}</Text>
+        <Text className="mt-2 text-sm" style={{ color: palette.muted }}>{subtitle}</Text>
       </View>
     </Pressable>
   );
 }
 
-function MenuAction({ icon: Icon, title, subtitle, onPress, danger = false, colors }) {
-  const tone = danger ? colors.danger : colors.text;
+function MenuAction({ icon: Icon, title, onPress, danger = false, palette }) {
   return (
     <Pressable
       onPress={(event) => {
         event.stopPropagation?.();
         onPress();
       }}
-      className="flex-row items-center rounded-xl px-3 py-3"
-      style={{ backgroundColor: danger ? `${colors.danger}12` : 'transparent' }}
+      className="mb-5 flex-row items-center"
     >
-      <View className="h-10 w-10 items-center justify-center rounded-xl" style={{ backgroundColor: danger ? `${colors.danger}1f` : colors.surface }}>
-        <Icon size={19} color={danger ? colors.danger : colors.primary} />
-      </View>
-      <View className="ml-3 flex-1">
-        <Text className="font-extrabold" style={{ color: tone }}>{title}</Text>
-        {subtitle ? <Text className="mt-0.5 text-xs" style={{ color: colors.muted }}>{subtitle}</Text> : null}
-      </View>
+      <Icon size={18} color={danger ? palette.danger : palette.text} />
+      <Text className="ml-4 text-base font-extrabold" style={{ color: danger ? palette.danger : palette.text }}>{title}</Text>
     </Pressable>
   );
 }
@@ -75,13 +68,28 @@ export default function ProfileMenu({ onClose, onHoverIn, onHoverOut, onOpenPane
   const { user, logout } = useAuth();
   const { colors } = useAppTheme();
   const { width, height } = useWindowDimensions();
-  const slideAnim = useRef(new Animated.Value(-28)).current;
+  const slideAnim = useRef(new Animated.Value(48)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const initials = useMemo(() => initialsFor(user), [user]);
   const verified = user?.verificationStatus === 'approved';
-  const panelWidth = Math.min(460, Math.max(330, width * 0.94));
-  const panelTop = width < 760 ? 58 : 74;
-  const panelHeight = height - panelTop;
+  const panelGutter = width < 900 ? 10 : 14;
+  const panelTop = width < 900 ? 116 : 88;
+  const panelWidth = Math.min(460, Math.max(330, width - (panelGutter * 2)));
+  const panelHeight = height - panelTop - panelGutter;
+  const displayName = user?.name || 'Nova FXM Client';
+  const firstName = displayName.split(/\s+/)[0] || 'Client';
+  const palette = {
+    panel: colors.background,
+    tile: colors.surface,
+    card: colors.panel,
+    border: colors.border,
+    text: colors.text,
+    muted: colors.muted,
+    accent: colors.primary,
+    softAccent: colors.primarySoft,
+    progress: colors.border,
+    danger: colors.danger,
+  };
 
   useEffect(() => {
     Animated.parallel([
@@ -113,87 +121,108 @@ export default function ProfileMenu({ onClose, onHoverIn, onHoverOut, onOpenPane
     <Animated.View
       onPointerEnter={onHoverIn}
       onPointerLeave={onHoverOut}
-      className="overflow-hidden rounded-l-xl border-l p-5 shadow-2xl"
+      className="overflow-hidden rounded-xl border px-7 py-6 shadow-2xl"
       style={{
         position: 'absolute',
-        right: 0,
+        right: panelGutter,
         top: panelTop,
         zIndex: 50,
         width: panelWidth,
         height: panelHeight,
-        backgroundColor: colors.panel,
-        borderColor: colors.border,
+        backgroundColor: palette.panel,
+        borderColor: palette.border,
         shadowColor: colors.primary,
-        shadowOpacity: 0.14,
-        shadowRadius: 24,
+        shadowOpacity: 0.2,
+        shadowRadius: 28,
         opacity: fadeAnim,
         transform: [{ translateX: slideAnim }],
       }}
     >
       <ScrollView showsVerticalScrollIndicator={false}>
-        <View className="mb-5 flex-row items-start justify-between">
-          <View>
-            <Text className="text-2xl font-extrabold" style={{ color: colors.text }}>My Profile</Text>
-            <Text className="mt-1 text-sm" style={{ color: colors.muted }}>Account details and tools</Text>
-          </View>
-          <Pressable onPress={onClose} className="h-10 w-10 items-center justify-center rounded-full" style={{ backgroundColor: colors.surface }}>
-            <X size={21} color={colors.text} />
+        <View className="mb-8 flex-row items-center justify-between">
+          <Text className="text-2xl font-extrabold" style={{ color: palette.text }}>My Profile</Text>
+          <Pressable onPress={onClose} className="h-10 w-10 items-center justify-center">
+            <X size={27} color={palette.text} />
           </Pressable>
         </View>
 
-        <View className="mb-5 flex-row items-center rounded-xl border p-4" style={{ borderColor: colors.border, backgroundColor: `${colors.primary}10` }}>
-          <View className="h-16 w-16 items-center justify-center rounded-full" style={{ backgroundColor: colors.primary }}>
-            <Text className="text-xl font-black text-black">{initials}</Text>
+        <View className="mb-8 flex-row items-center">
+          <View className="h-[60px] w-[60px] items-center justify-center rounded-full" style={{ backgroundColor: palette.accent }}>
+            <Text className="text-lg font-extrabold text-black">{initials}</Text>
           </View>
           <View className="ml-4 flex-1">
-            <Text className="text-xl font-extrabold" style={{ color: colors.text }}>{user?.name || 'NovaFXM Client'}</Text>
-            <Text className="mt-1 text-sm" style={{ color: colors.muted }}>{user?.email || 'client@novafxm.com'}</Text>
-            <View className="mt-3 self-start rounded-full px-3 py-1" style={{ backgroundColor: verified ? `${colors.success}1f` : `${colors.primary}20` }}>
-              <Text className="text-xs font-extrabold" style={{ color: verified ? colors.success : colors.primary }}>
-                {verified ? 'Verified account' : 'Verification required'}
-              </Text>
-            </View>
+            <Text className="text-xl font-semibold" style={{ color: palette.text }}>
+              Hey, <Text className="font-extrabold">{firstName.toUpperCase()}</Text>
+            </Text>
+            <Text className="mt-2 text-base" style={{ color: palette.muted }}>{user?.email || 'client@novafxm.com'}</Text>
           </View>
         </View>
 
-        <View className="mb-5 flex-row gap-3">
+        <View className="mb-10 rounded-xl border p-4" style={{ borderColor: palette.border, backgroundColor: palette.card }}>
+          <View className="flex-row justify-between">
+            <View>
+              <Text className="text-xs" style={{ color: palette.muted }}>Level</Text>
+              <Text className="mt-1 text-base font-extrabold" style={{ color: palette.text }}>Bronze</Text>
+            </View>
+            <View className="items-end">
+              <Text className="text-xs" style={{ color: palette.muted }}>Trading Volume</Text>
+              <Text className="mt-1 text-base font-extrabold" style={{ color: palette.text }}>$0 <Text style={{ color: palette.muted }}>/ $1,000,000</Text></Text>
+            </View>
+          </View>
+          <View className="mt-6 flex-row items-center">
+            <Award size={21} color={colors.primary} />
+            <View className="mx-3 h-2 flex-1 overflow-hidden rounded-full" style={{ backgroundColor: palette.progress }}>
+              <View className="h-full rounded-full" style={{ width: '2%', backgroundColor: palette.accent }} />
+            </View>
+            <Award size={21} color={colors.muted} />
+          </View>
+        </View>
+
+        <View className="mb-10 flex-row gap-4">
           <MenuTile
             icon={ShieldCheck}
             title="Verification"
-            subtitle="Upload ID and address proof"
-            badge={verified ? 'DONE' : 'TODO'}
+            subtitle={verified ? 'Verified' : 'Unverified'}
+            badge={verified ? null : 'Unverified'}
             onPress={() => openPanel('verification')}
-            colors={colors}
+            palette={palette}
           />
           <MenuTile
             icon={Award}
-            title="Referral Programme"
-            subtitle="Invite clients and view rewards"
+            title="Referral Program"
+            subtitle="Invite & earn rewards"
             onPress={() => openPanel('referral')}
-            colors={colors}
+            palette={palette}
           />
         </View>
 
-        <View className="mb-4 flex-row gap-3">
-          <MenuTile
+        <View className="mb-8">
+          <MenuAction
             icon={Settings2}
-            title="My Settings"
-            subtitle="Security, mode and withdrawal details"
+            title="Settings"
             onPress={() => openPanel('settings')}
-            colors={colors}
+            palette={palette}
           />
-        </View>
-
-        <View className="rounded-xl border p-2" style={{ borderColor: colors.border }}>
           <MenuAction
             icon={LogOut}
             title="Sign Out"
-            subtitle="End this session safely"
             onPress={signOut}
             danger
-            colors={colors}
+            palette={palette}
           />
         </View>
+
+        <Pressable
+          onPress={() => openPanel('settings')}
+          className="mb-6 flex-row items-center justify-between rounded-xl px-4 py-4"
+          style={{ backgroundColor: palette.softAccent }}
+        >
+          <View className="flex-row flex-1 items-center">
+            <MessageSquarePlus size={18} color={colors.text} />
+            <Text className="ml-3 flex-1 text-base font-semibold" style={{ color: colors.text }}>Suggest new features or share your opinion</Text>
+          </View>
+          <ChevronRight size={18} color={colors.text} />
+        </Pressable>
       </ScrollView>
     </Animated.View>
   );

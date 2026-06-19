@@ -157,7 +157,7 @@ export function NewOrderTicket({ visible = true, onClose, initialSide = 'BUY', e
           className={`${embedded ? 'h-full w-full rounded-xl p-2' : 'max-h-[96%] w-full max-w-[500px] rounded-2xl p-4'} border`}
           style={{ backgroundColor: modalBackground, borderColor: colors.border }}
         >
-          <ScrollView showsVerticalScrollIndicator={false}>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={embedded ? { flexGrow: 1 } : undefined}>
             <View className={`${embedded ? 'mb-3' : 'mb-5'} flex-row items-center justify-between`}>
               <View>
                 <Text className={embedded ? 'text-base font-extrabold' : 'text-xl font-extrabold'} style={{ color: colors.text }}>New Order</Text>

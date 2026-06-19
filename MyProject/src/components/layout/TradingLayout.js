@@ -57,7 +57,7 @@ function OrderRail({ summary, user, showSummary = true, showAvailableMargin = tr
 
 
 export default function TradingLayout() {
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const { colors } = useAppTheme();
   const { user } = useAuth();
   const { summary } = useDemoTrading();
@@ -68,6 +68,11 @@ export default function TradingLayout() {
   const desktop = width >= 1100;
   const tablet = width >= 760;
   const mobile = width < 760;
+  const chartAreaHeight = desktop
+    ? Math.max(560, Math.min(680, height - 150))
+    : tablet
+      ? Math.max(540, Math.min(640, height - 170))
+      : undefined;
   const openNewOrder = (side = 'BUY') => {
     setInitialOrderSide(side);
     if (mobile) {
@@ -87,7 +92,10 @@ export default function TradingLayout() {
         style={{ flex: 1 }}
         contentContainerStyle={{ flexGrow: 1, padding: chartFullscreen ? 0 : (mobile ? 6 : 12), paddingBottom: chartFullscreen ? 0 : (mobile ? 16 : 24) }}
       >
-        <View className={chartFullscreen ? 'flex-1' : (desktop ? 'h-[680px] flex-row gap-3 overflow-hidden' : mobile ? 'gap-1.5' : 'gap-3 overflow-hidden')} style={{ overflow: chartFullscreen ? 'visible' : 'hidden' }}>
+        <View
+          className={chartFullscreen ? 'flex-1' : (desktop ? 'flex-row gap-3 overflow-hidden' : mobile ? 'gap-1.5' : 'gap-3 overflow-hidden')}
+          style={{ height: chartFullscreen ? undefined : chartAreaHeight, overflow: chartFullscreen ? 'visible' : 'hidden' }}
+        >
           {desktop ? (
             <>
               <TradingChart isFullscreen={chartFullscreen} onFullscreenChange={setChartFullscreen} />
