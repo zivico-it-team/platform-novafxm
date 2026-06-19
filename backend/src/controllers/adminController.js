@@ -620,12 +620,30 @@ exports.reviewDeposit = (status) => async (req, res, next) => {
       let after;
       if (status === 'approved') {
         const { wallet } = await storedSummary(deposit.userId, transaction);
-        const liveAccount = await TradingAccount.findOne({
+        let liveAccount = await TradingAccount.findOne({
           where: { userId: deposit.userId, type: 'Live' },
           order: [['isPrimary', 'DESC'], ['createdAt', 'ASC']],
           transaction,
           lock: transaction.LOCK.UPDATE,
         });
+        if (!liveAccount) {
+          liveAccount = await TradingAccount.create({
+            userId: deposit.userId,
+            type: 'Live',
+            name: 'Live account 1',
+            balance: 0,
+            status: 'active',
+            isPrimary: true,
+          }, { transaction });
+          await TradingAccount.update({ isPrimary: false }, {
+            where: { userId: deposit.userId, id: { [Op.ne]: liveAccount.id } },
+            transaction,
+          });
+          await User.update({ accountType: 'Live' }, {
+            where: { id: deposit.userId },
+            transaction,
+          });
+        }
         before = money(wallet.balance);
         after = money(before + Number(deposit.amount));
         await wallet.update({ balance: after }, { transaction });

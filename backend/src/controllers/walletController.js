@@ -1,6 +1,6 @@
 const sequelize = require('../config/db');
 const { Op } = require('sequelize');
-const { Wallet, Deposit, Withdrawal, Transaction, Trade, BankAccount, TradingAccount } = require('../models');
+const { User, Wallet, Deposit, Withdrawal, Transaction, Trade, BankAccount, TradingAccount } = require('../models');
 const tradingView = require('../services/tradingViewService');
 const { createAdminNotifications } = require('../services/notificationService');
 
@@ -38,6 +38,8 @@ exports.getWallet = async (req, res, next) => {
     const prices = await tradingView.getPrices();
     const openProfit = money(trades.reduce((sum, trade) => {
       const market = prices.find((item) => item.symbol === trade.symbol);
+
+
       return sum + profitFor(trade, market?.price || trade.openPrice);
     }, 0));
     const marginWhere = { userId: req.user.id, status: { [Op.in]: ['pending', 'open'] } };
@@ -76,6 +78,36 @@ exports.deposit = async (req, res, next) => {
     let deposit;
     await sequelize.transaction(async (transaction) => {
       const wallet = await Wallet.findOne({ where: { userId: req.user.id }, transaction });
+
+      // Ensure the user has a Live trading account
+      let liveAccount = await TradingAccount.findOne({
+        where: { userId: req.user.id, type: 'Live' },
+        transaction,
+      });
+
+      if (!liveAccount) {
+        liveAccount = await TradingAccount.create({
+          userId: req.user.id,
+          type: 'Live',
+          name: 'Live account 1',
+          balance: 0,
+          status: 'active',
+          isPrimary: true,
+        }, { transaction });
+
+        // Set all other accounts to not primary
+        await TradingAccount.update({ isPrimary: false }, {
+          where: { userId: req.user.id, id: { [Op.ne]: liveAccount.id } },
+          transaction,
+        });
+
+        // Update the user's account type to Live
+        await User.update({ accountType: 'Live' }, {
+          where: { id: req.user.id },
+          transaction,
+        });
+      }
+
       deposit = await Deposit.create({ userId: req.user.id, amount, paymentMethod, receiptImage, note }, { transaction });
       await Transaction.create({
         userId: req.user.id,
