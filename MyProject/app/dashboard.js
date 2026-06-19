@@ -6,9 +6,13 @@ import {
   Bell,
   CheckCircle2,
   Clock3,
+  Copy,
+  Gift,
   Plus,
   ShieldCheck,
+  TrendingUp,
   Wallet,
+  Zap,
 } from 'lucide-react-native';
 import CustomButton from '../src/components/common/CustomButton';
 import DepositForm from '../src/components/wallet/DepositForm';
@@ -26,9 +30,9 @@ import { dateTime, money } from '../src/utils/formatters';
 const DEMO_ACCOUNT_LIMIT = 2;
 const LIVE_ACCOUNT_LIMIT = 3;
 
-function Card({ title, subtitle, children, colors }) {
+function Card({ title, subtitle, children, colors, className = '' }) {
   return (
-    <View className="rounded-2xl border p-5" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+    <View className={`rounded-2xl border p-5 ${className}`} style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
       <View className="mb-5">
         <Text className="text-xl font-extrabold" style={{ color: colors.text }}>{title}</Text>
         {subtitle ? <Text className="mt-1 text-sm" style={{ color: colors.muted }}>{subtitle}</Text> : null}
@@ -38,12 +42,120 @@ function Card({ title, subtitle, children, colors }) {
   );
 }
 
-function Stat({ label, value, colors }) {
+function OverviewMetric({ label, value, helper, icon: Icon, tone, colors }) {
   return (
-    <View className="min-w-[150px] flex-1 rounded-xl border p-4" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
-      <Text className="text-xs font-semibold uppercase" style={{ color: colors.muted }}>{label}</Text>
-      <Text className="mt-2 text-xl font-extrabold" style={{ color: colors.text }}>{value}</Text>
+    <View className="min-w-[210px] flex-1 rounded-2xl border p-4" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+      <View className="flex-row items-start justify-between gap-3">
+        <View className="min-w-0 flex-1">
+          <Text className="text-xs font-black uppercase" style={{ color: colors.muted }}>{label}</Text>
+          <Text className="mt-2 text-2xl font-black" numberOfLines={1} adjustsFontSizeToFit style={{ color: colors.text }}>{value}</Text>
+          {helper ? <Text className="mt-2 text-xs" style={{ color: colors.muted }}>{helper}</Text> : null}
+        </View>
+        <View className="h-11 w-11 items-center justify-center rounded-2xl" style={{ backgroundColor: `${tone}22` }}>
+          <Icon size={21} color={tone} />
+        </View>
+      </View>
     </View>
+  );
+}
+
+function OverviewHero({ user, wallet, liveAccountCount, demoAccountCount, colors }) {
+  const displayName = String(user?.name || user?.email || 'Trader').split(' ')[0];
+  const verificationApproved = user?.verificationStatus === 'approved';
+  return (
+    <View className="mb-5 overflow-hidden rounded-2xl border" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+      <View className="p-5 md:p-6" style={{ backgroundColor: colors.mode === 'dark' ? '#111820' : '#fffaf0' }}>
+        <View className="flex-row flex-wrap items-center justify-between gap-4">
+          <View className="min-w-[240px] flex-1">
+            <View className="mb-3 self-start rounded-full px-3 py-1" style={{ backgroundColor: `${colors.primary}26` }}>
+              <Text className="text-xs font-black uppercase" style={{ color: colors.primary }}>Client overview</Text>
+            </View>
+            <Text className="text-3xl font-black md:text-4xl" style={{ color: colors.text }}>Welcome back, {displayName}</Text>
+            <Text className="mt-2 max-w-[620px] text-sm leading-5" style={{ color: colors.muted }}>
+              Track funds, accounts, rewards, and live activity from a cleaner workspace built for quick decisions.
+            </Text>
+          </View>
+          <View className="min-w-[220px] rounded-2xl border p-4" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+            <Text className="text-xs font-black uppercase" style={{ color: colors.muted }}>Portfolio balance</Text>
+            <Text className="mt-2 text-3xl font-black" numberOfLines={1} adjustsFontSizeToFit style={{ color: colors.text }}>
+              {Number(wallet.balance || 0).toFixed(2)} {wallet.currency || 'USD'}
+            </Text>
+            <View className="mt-4 flex-row flex-wrap gap-2">
+              <View className="rounded-full px-3 py-1" style={{ backgroundColor: verificationApproved ? `${colors.success}1f` : `${colors.primary}24` }}>
+                <Text className="text-xs font-bold" style={{ color: verificationApproved ? colors.success : colors.primary }}>
+                  {verificationApproved ? 'Verified' : 'Verification pending'}
+                </Text>
+              </View>
+              <View className="rounded-full px-3 py-1" style={{ backgroundColor: colors.surface }}>
+                <Text className="text-xs font-bold" style={{ color: colors.muted }}>{liveAccountCount} live / {demoAccountCount} demo</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function InfoRow({ label, value, colors, last = false }) {
+  return (
+    <View className={`flex-row flex-wrap items-center justify-between gap-2 py-3 ${last ? '' : 'border-b'}`} style={{ borderColor: colors.border }}>
+      <Text className="text-sm font-semibold" style={{ color: colors.muted }}>{label}</Text>
+      <Text className="text-sm font-black" style={{ color: colors.text }}>{value || '-'}</Text>
+    </View>
+  );
+}
+
+function AccountProfileCard({ user, colors }) {
+  const tradingStatus = user?.tradingStatus || 'active';
+  return (
+    <Card title="Account Details" subtitle="Your profile and trading access at a glance." colors={colors} className="flex-1">
+      <View className="mb-4 flex-row items-center">
+        <View className="mr-3 h-14 w-14 items-center justify-center overflow-hidden rounded-2xl border" style={{ backgroundColor: `${colors.primary}22`, borderColor: colors.border }}>
+          {user?.profileImage ? (
+            <Image source={{ uri: user.profileImage }} className="h-full w-full" resizeMode="cover" />
+          ) : (
+            <Text className="text-lg font-black" style={{ color: colors.primary }}>{initialsFor(user)}</Text>
+          )}
+        </View>
+        <View className="min-w-0 flex-1">
+          <Text className="text-lg font-black" numberOfLines={1} style={{ color: colors.text }}>{user?.name || 'Client account'}</Text>
+          <Text className="mt-1 text-xs" numberOfLines={1} style={{ color: colors.muted }}>{user?.email || 'No email available'}</Text>
+        </View>
+      </View>
+      <InfoRow label="Phone" value={user?.phone} colors={colors} />
+      <InfoRow label="Trading status" value={tradingStatus} colors={colors} />
+      <InfoRow label="Verification" value={user?.verificationStatus || 'pending'} colors={colors} last />
+    </Card>
+  );
+}
+
+function ReferralOverviewCard({ referralText, commission, copied, onCopy, colors }) {
+  return (
+    <Card title="Broker Referral" subtitle="Share your invite and follow commission progress." colors={colors} className="flex-1">
+      <View className="mb-4 rounded-2xl border p-4" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
+        <Text className="text-xs font-black uppercase" style={{ color: colors.muted }}>Commission earned</Text>
+        <Text className="mt-2 text-2xl font-black" style={{ color: colors.text }}>{Number(commission || 0).toFixed(2)} USD</Text>
+      </View>
+      <View className="flex-row items-center rounded-xl border p-2" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
+        <TextInput
+          editable={false}
+          value={referralText}
+          className="min-w-0 flex-1 px-2 py-2"
+          style={{ color: colors.text }}
+        />
+        <Pressable
+          onPress={onCopy}
+          className="h-10 w-10 items-center justify-center rounded-lg"
+          style={{ backgroundColor: colors.primary }}
+        >
+          <Copy size={18} color="#0B0B0B" />
+        </Pressable>
+      </View>
+      <Text className="mt-3 text-xs font-semibold" style={{ color: copied ? colors.success : colors.muted }}>
+        {copied ? 'Referral URL copied.' : 'New users from this link are connected to your broker profile.'}
+      </Text>
+    </Card>
   );
 }
 
@@ -474,36 +586,41 @@ export default function DashboardScreen() {
         </View>
 
         {activeSection === 'overview' ? (
-          <View className="mb-5 flex-row flex-wrap gap-3">
-            <Stat label="Balance" value={`${Number(wallet.balance || 0).toFixed(2)} ${wallet.currency || 'USD'}`} colors={colors} />
-            <Stat label="Equity" value={`${Number(wallet.equity || wallet.balance || 0).toFixed(2)} ${wallet.currency || 'USD'}`} colors={colors} />
-            <Stat label="Free Funds" value={`${Number(wallet.freeFunds || 0).toFixed(2)} ${wallet.currency || 'USD'}`} colors={colors} />
-            <Stat label="Referral Commission" value={`${Number(referral.commission || 0).toFixed(2)} USD`} colors={colors} />
-          </View>
+          <>
+            <OverviewHero
+              user={dashboard?.user || user}
+              wallet={wallet}
+              liveAccountCount={liveAccountCount}
+              demoAccountCount={demoAccountCount}
+              colors={colors}
+            />
+            <View className="mb-5 flex-row flex-wrap gap-3">
+              <OverviewMetric label="Balance" value={`${Number(wallet.balance || 0).toFixed(2)} ${wallet.currency || 'USD'}`} helper="Total wallet value" icon={Wallet} tone={colors.primary} colors={colors} />
+              <OverviewMetric label="Equity" value={`${Number(wallet.equity || wallet.balance || 0).toFixed(2)} ${wallet.currency || 'USD'}`} helper="Balance plus open P/L" icon={TrendingUp} tone={colors.success} colors={colors} />
+              <OverviewMetric label="Free funds" value={`${Number(wallet.freeFunds || 0).toFixed(2)} ${wallet.currency || 'USD'}`} helper="Available for trading" icon={Zap} tone="#38bdf8" colors={colors} />
+              <OverviewMetric label="Referral" value={`${Number(referral.commission || 0).toFixed(2)} USD`} helper={`${referrals.length} invited clients`} icon={Gift} tone="#a78bfa" colors={colors} />
+            </View>
+          </>
         ) : null}
 
       {activeSection === 'overview' ? (
-        <View className="gap-4 lg:flex-row">
-          <View className="flex-1 gap-4">
-            <Card title="Account Details" colors={colors}>
-              <Text style={{ color: colors.text }}>Name: {dashboard?.user?.name || user?.name || '-'}</Text>
-              <Text className="mt-2" style={{ color: colors.text }}>Email: {dashboard?.user?.email || user?.email || '-'}</Text>
-              <Text className="mt-2" style={{ color: colors.text }}>Phone: {dashboard?.user?.phone || '-'}</Text>
-              <Text className="mt-2" style={{ color: colors.text }}>Trading Status: {dashboard?.user?.tradingStatus || 'active'}</Text>
-            </Card>
-            <Card title="Broker Referral" colors={colors}>
-              <Text style={{ color: colors.muted }}>Share this URL. New users who register from it are linked to you.</Text>
-              <TextInput
-                editable={false}
-                value={referralText}
-                className="mt-4 rounded-xl border p-3"
-                style={{ backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }}
-              />
-              <CustomButton title={copied ? 'Copied' : 'Copy Referral URL'} onPress={copyReferral} className="mt-4" />
-            </Card>
+        <View className="gap-4">
+          <View className="gap-4 lg:flex-row">
+            <View className="flex-1">
+            <AccountProfileCard user={dashboard?.user || user} colors={colors} />
+            </View>
+            <View className="flex-1">
+            <ReferralOverviewCard
+              referralText={referralText}
+              commission={referral.commission}
+              copied={copied}
+              onCopy={copyReferral}
+              colors={colors}
+            />
+            </View>
           </View>
-          <View className="flex-1">
-            <Card title="Live Account Activity" colors={colors}>
+          <View>
+            <Card title="Live Account Activity" subtitle="Recent trades and wallet movements in one scrollable feed." colors={colors}>
               <LiveActivityPanel
                 activeView={activityView}
                 onChangeView={setActivityView}

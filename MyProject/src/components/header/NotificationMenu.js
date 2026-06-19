@@ -1,4 +1,4 @@
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { AlertTriangle, CheckCircle2, Megaphone, Newspaper, ShieldCheck, WalletCards, X, Zap } from 'lucide-react-native';
 import { useAppTheme } from '../../context/ThemeContext';
 import { dateTime } from '../../utils/formatters';
@@ -63,9 +63,17 @@ export default function NotificationMenu({ notifications = [], unreadCount = 0, 
           <Text className="text-xs font-semibold" style={{ color: colors.muted }}>No notifications yet.</Text>
         </View>
       ) : null}
-      {notifications.map((notification) => (
-        <NotificationItem key={notification.id} colors={colors} notification={notification} onPress={(item) => onMarkRead?.(item.id)} />
-      ))}
+      {notifications.length ? (
+        <ScrollView
+          nestedScrollEnabled
+          showsVerticalScrollIndicator
+          style={{ maxHeight: 420 }}
+        >
+          {notifications.map((notification) => (
+            <NotificationItem key={notification.id} colors={colors} notification={notification} onPress={(item) => onMarkRead?.(item.id)} />
+          ))}
+        </ScrollView>
+      ) : null}
     </View>
   );
 }

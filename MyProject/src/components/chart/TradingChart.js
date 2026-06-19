@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { WebView } from 'react-native-webview';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   Activity,
   BarChart3,
@@ -21,6 +22,7 @@ import {
   TrendingUp,
 } from 'lucide-react-native';
 import ChartGraphSettingsPanel from './ChartGraphSettingsPanel';
+import NewOrderModal from '../order/NewOrderModal';
 import { useDemoTrading } from '../../hooks/useDemoTrading';
 import { marketService } from '../../services/marketService';
 import { percent, quote } from '../../utils/formatters';
@@ -32,6 +34,7 @@ const TIMEFRAMES = [
   '1D', '1W', '1M',
 ];
 const VIEW_RANGES = ['Full', 'Recent'];
+const FAVORITES_STORAGE_KEY = 'novafxm-market-favorites';
 const TIMEFRAME_SECONDS = {
   '1m': 60,
   '3m': 180,
@@ -249,8 +252,20 @@ function IconButton({ active, children, onPress, ui, size = 32 }) {
   return (
     <Pressable
       onPress={onPress}
-      className="items-center justify-center rounded-md border"
-      style={{ width: size, height: size, backgroundColor, borderColor }}
+      className="items-center justify-center border"
+      style={{
+        width: size,
+        height: size,
+        backgroundColor,
+        borderColor,
+        borderRadius: 7,
+        cursor: 'pointer',
+        shadowColor: active ? ui.controlActive : 'transparent',
+        shadowOpacity: active ? 0.24 : 0,
+        shadowRadius: 5,
+        shadowOffset: { width: 0, height: 2 },
+        elevation: active ? 2 : 0,
+      }}
     >
       {children}
     </Pressable>
@@ -840,15 +855,17 @@ export default function TradingChart({ onFullscreenChange }) {
   const { height, width } = useWindowDimensions();
   const compactToolbar = width < 640;
   const mobile = width < 760;
-  const iconButtonSize = compactToolbar ? 26 : 28;
+  const iconButtonSize = compactToolbar ? 30 : 32;
   const toolbarMenuTop = mobile ? 126 : compactToolbar ? 58 : 68;
-  const timeframeHeight = compactToolbar ? 22 : 22;
-  const timeframeMinWidth = compactToolbar ? 27 : 30;
+  const timeframeHeight = compactToolbar ? 28 : 30;
+  const timeframeMinWidth = compactToolbar ? 30 : 34;
   const chartMinHeight = mobile ? Math.min(Math.max(Math.round(height * 0.62), 500), 620) : compactToolbar ? 430 : 520;
   const indicatorPanelHeight = mobile ? Math.min(Math.max(Math.round(height * 0.54), 300), 430) : 330;
   const [timeframe, setTimeframe] = useState('15m');
   const [chartType, setChartType] = useState('candles');
   const [chartFullscreen, setChartFullscreen] = useState(false);
+  const [orderModalOpen, setOrderModalOpen] = useState(false);
+  const [orderSide, setOrderSide] = useState('BUY');
   const [chartMenuOpen, setChartMenuOpen] = useState(false);
   const [symbolMenuOpen, setSymbolMenuOpen] = useState(true);
   const [toolbarHeight, setToolbarHeight] = useState(0);
@@ -861,6 +878,7 @@ export default function TradingChart({ onFullscreenChange }) {
   const [hoveredSymbol, setHoveredSymbol] = useState(null);
   const [symbolSearch, setSymbolSearch] = useState('');
   const [symbolTab, setSymbolTab] = useState('Popular');
+  const [favoriteSymbols, setFavoriteSymbols] = useState([]);
   const [symbolTabMenuOpen, setSymbolTabMenuOpen] = useState(false);
   const [indicatorOpen, setIndicatorOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -918,6 +936,18 @@ export default function TradingChart({ onFullscreenChange }) {
     positionLabels: false,
     customBidAsk: false,
   });
+
+  useEffect(() => {
+    let active = true;
+    AsyncStorage.getItem(FAVORITES_STORAGE_KEY)
+      .then((stored) => {
+        if (!active || !stored) return;
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) setFavoriteSymbols(parsed.filter((symbol) => typeof symbol === 'string'));
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     onFullscreenChange?.(chartFullscreen);
@@ -1065,21 +1095,22 @@ export default function TradingChart({ onFullscreenChange }) {
     ['Ask', quote(currentSymbol.ask, currentSymbol.decimals), ui.success],
     ['Spread', quote(currentSymbol.spread, currentSymbol.decimals), ui.muted],
   ];
-  const symbolTabs = ['Popular', 'Crypto', 'Forex', 'Indices', 'Metals', 'Energies'];
+  const symbolTabs = ['Popular', 'Favorites', 'Crypto', 'Forex', 'Indices', 'Metals', 'Energies'];
   const filteredSymbols = useMemo(() => {
     const query = symbolSearch.trim().toLowerCase();
     return prices.filter((item) => {
       const group = String(item.group || '').toLowerCase();
       const matchesSearch = !query || item.symbol.toLowerCase().includes(query) || group.includes(query);
-      if (query) return matchesSearch;
-      const matchesTab = symbolTab === 'Popular'
+      const matchesTab = symbolTab === 'Favorites'
+        ? favoriteSymbols.includes(item.symbol)
+        : symbolTab === 'Popular'
         ? item.popular
         : symbolTab === 'Crypto'
           ? group.includes('crypto')
           : group.includes(symbolTab.toLowerCase());
       return matchesSearch && matchesTab;
     });
-  }, [prices, symbolSearch, symbolTab]);
+  }, [favoriteSymbols, prices, symbolSearch, symbolTab]);
   const activeChartType = CHART_TYPES.find(([key]) => key === chartType) || CHART_TYPES[0];
   const ActiveChartIcon = activeChartType[2];
   const activeIndicatorAddLabel = ({
@@ -1104,6 +1135,15 @@ export default function TradingChart({ onFullscreenChange }) {
     .filter(([key]) => tools[key])
     .map(([key]) => ({ key, label: INDICATOR_SHORT_LABELS[key] || key.toUpperCase() }));
   const toggleTool = (key) => setTools((current) => ({ ...current, [key]: !current[key] }));
+  const toggleFavoriteSymbol = (symbol) => {
+    setFavoriteSymbols((current) => {
+      const next = current.includes(symbol)
+        ? current.filter((item) => item !== symbol)
+        : [...current, symbol];
+      AsyncStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(next)).catch(() => {});
+      return next;
+    });
+  };
   const changeToolNumber = (key, delta, min = 1, max = 300, precision = 0) => {
     setTools((current) => {
       const clamped = Math.min(max, Math.max(min, Number(current[key] || 0) + delta));
@@ -1163,6 +1203,10 @@ export default function TradingChart({ onFullscreenChange }) {
     setIndicatorOpen(false);
     setSettingsOpen(false);
     setDrawingOpen(false);
+  };
+  const openFullscreenOrder = (side) => {
+    setOrderSide(side);
+    setOrderModalOpen(true);
   };
   const selectSymbolTab = (entry) => {
     setSymbolTab(entry);
@@ -1279,7 +1323,7 @@ export default function TradingChart({ onFullscreenChange }) {
   return (
     <View className="relative flex-1 overflow-hidden border" style={chartRootStyle}>
       <View
-        className="relative border-b px-2 py-1"
+        className="relative border-b px-2 py-1.5"
         onLayout={({ nativeEvent }) => setToolbarHeight(nativeEvent.layout.height)}
         style={{ backgroundColor: ui.toolbar, borderColor: ui.border, zIndex: 1000, elevation: 1000 }}
       >
@@ -1365,7 +1409,7 @@ export default function TradingChart({ onFullscreenChange }) {
         ) : (
           <>
             <View className="flex-row flex-wrap items-center" style={{ columnGap: compactToolbar ? 6 : 8, rowGap: 2 }}>
-              <Pressable onPress={toggleSymbolMenu} className="flex-row items-center rounded-md px-1.5" style={{ height: compactToolbar ? 24 : 26, backgroundColor: symbolMenuOpen ? ui.soft : 'transparent', cursor: 'pointer', gap: compactToolbar ? 5 : 6 }}>
+              <Pressable onPress={toggleSymbolMenu} className="flex-row items-center rounded-md px-1.5" style={{ height: compactToolbar ? 26 : 30, backgroundColor: symbolMenuOpen ? ui.soft : 'transparent', cursor: 'pointer', gap: compactToolbar ? 5 : 6 }}>
                 <Star size={compactToolbar ? 12 : 14} color={symbolMenuOpen ? ui.accent : ui.muted} />
                 <View className="items-center justify-center rounded-full" style={{ width: compactToolbar ? 18 : 21, height: compactToolbar ? 18 : 21, backgroundColor: ui.accent }}>
                   <Text className="font-black" style={{ color: ui.activeText, fontSize: compactToolbar ? 9 : 10 }}>{currentSymbol.symbol?.[0] || '$'}</Text>
@@ -1377,41 +1421,69 @@ export default function TradingChart({ onFullscreenChange }) {
                 <Text className="font-bold" style={{ color: priceTone, fontSize: compactToolbar ? 10 : 11 }}>{percent(currentSymbol.change)}</Text>
                 <Text className="text-[10px]" style={{ color: ui.muted }}>Spread: {quote(currentSymbol.spread, currentSymbol.decimals)}</Text>
               </Pressable>
-              <View className="flex-row flex-wrap items-center" style={{ columnGap: 1, rowGap: 1, minHeight: compactToolbar ? 22 : 28 }}>
+              <View
+                className="flex-row flex-wrap items-center border"
+                style={{
+                  columnGap: compactToolbar ? 2 : 3,
+                  rowGap: 2,
+                  minHeight: compactToolbar ? 32 : 36,
+                  flex: 1,
+                  padding: 2,
+                  borderRadius: 9,
+                  borderColor: ui.border,
+                  backgroundColor: ui.background,
+                }}
+              >
                 {TIMEFRAMES.map((entry) => (
                   <Pressable
                     key={entry}
                     onPress={() => selectTimeframe(entry)}
-                    className="items-center justify-center rounded"
-                    style={{ height: timeframeHeight, minWidth: timeframeMinWidth, paddingHorizontal: compactToolbar ? 5 : 6, backgroundColor: entry === timeframe ? ui.controlActive : 'transparent' }}
+                    className="items-center justify-center border"
+                    style={{
+                      height: timeframeHeight,
+                      minWidth: timeframeMinWidth,
+                      paddingHorizontal: compactToolbar ? 6 : 8,
+                      borderRadius: 6,
+                      borderColor: entry === timeframe ? ui.controlActive : 'transparent',
+                      backgroundColor: entry === timeframe ? ui.controlActive : 'transparent',
+                      cursor: 'pointer',
+                    }}
                   >
-                    <Text className="font-bold" style={{ color: entry === timeframe ? ui.activeText : ui.muted, fontSize: compactToolbar ? 10 : 11 }}>{entry}</Text>
+                    <Text className="font-extrabold" style={{ color: entry === timeframe ? ui.activeText : ui.muted, fontSize: compactToolbar ? 11 : 12 }}>{entry}</Text>
                   </Pressable>
                 ))}
-                <View className="mx-1.5 h-5 w-px" style={{ backgroundColor: ui.border }} />
                 {VIEW_RANGES.map((entry) => (
                   <Pressable
                     key={entry}
                     onPress={() => setViewRange(entry)}
-                    className="items-center justify-center rounded"
-                    style={{ height: timeframeHeight, minWidth: compactToolbar ? 48 : 50, paddingHorizontal: compactToolbar ? 6 : 7, backgroundColor: entry === viewRange ? ui.controlActive : 'transparent' }}
+                    className="items-center justify-center border"
+                    style={{
+                      height: timeframeHeight,
+                      minWidth: compactToolbar ? 52 : 56,
+                      paddingHorizontal: compactToolbar ? 8 : 10,
+                      borderRadius: 6,
+                      borderColor: entry === viewRange ? ui.controlActive : 'transparent',
+                      backgroundColor: entry === viewRange ? ui.controlActive : 'transparent',
+                      cursor: 'pointer',
+                    }}
                   >
-                    <Text className="font-bold" style={{ color: entry === viewRange ? ui.activeText : ui.muted, fontSize: compactToolbar ? 10 : 11 }}>{entry}</Text>
+                    <Text className="font-extrabold" style={{ color: entry === viewRange ? ui.activeText : ui.muted, fontSize: compactToolbar ? 11 : 12 }}>{entry}</Text>
                   </Pressable>
                 ))}
-                <View className="mx-1.5 h-5 w-px" style={{ backgroundColor: ui.border }} />
-                <IconButton active={chartMenuOpen} ui={ui} size={iconButtonSize} onPress={toggleChartMenu}>
-                  <ActiveChartIcon size={compactToolbar ? 14 : 17} color={chartMenuOpen ? ui.activeText : ui.text} />
-                </IconButton>
-                <IconButton active={indicatorOpen} ui={ui} size={iconButtonSize} onPress={toggleIndicatorMenu}>
-                  <IndicatorGlyph active={indicatorOpen} ui={ui} size={compactToolbar ? 10 : 12} />
-                </IconButton>
-                <IconButton active={settingsOpen} ui={ui} size={iconButtonSize} onPress={toggleSettingsMenu}>
-                  <Settings size={compactToolbar ? 14 : 16} color={settingsOpen ? ui.activeText : ui.text} />
-                </IconButton>
-                <IconButton active={drawingOpen || Boolean(activeDrawingTool)} ui={ui} size={iconButtonSize} onPress={toggleDrawingMenu}>
-                  <LineChart size={compactToolbar ? 14 : 16} color={drawingOpen || activeDrawingTool ? ui.activeText : ui.text} />
-                </IconButton>
+                <View className="flex-row items-center" style={{ marginLeft: 'auto', columnGap: compactToolbar ? 2 : 3 }}>
+                  <IconButton active={chartMenuOpen} ui={ui} size={iconButtonSize} onPress={toggleChartMenu}>
+                    <ActiveChartIcon size={compactToolbar ? 14 : 17} color={chartMenuOpen ? ui.activeText : ui.text} />
+                  </IconButton>
+                  <IconButton active={indicatorOpen} ui={ui} size={iconButtonSize} onPress={toggleIndicatorMenu}>
+                    <IndicatorGlyph active={indicatorOpen} ui={ui} size={compactToolbar ? 10 : 12} />
+                  </IconButton>
+                  <IconButton active={settingsOpen} ui={ui} size={iconButtonSize} onPress={toggleSettingsMenu}>
+                    <Settings size={compactToolbar ? 14 : 16} color={settingsOpen ? ui.activeText : ui.text} />
+                  </IconButton>
+                  <IconButton active={drawingOpen || Boolean(activeDrawingTool)} ui={ui} size={iconButtonSize} onPress={toggleDrawingMenu}>
+                    <LineChart size={compactToolbar ? 14 : 16} color={drawingOpen || activeDrawingTool ? ui.activeText : ui.text} />
+                  </IconButton>
+                </View>
               </View>
             </View>
           </>
@@ -1484,6 +1556,7 @@ export default function TradingChart({ onFullscreenChange }) {
                 const itemTone = itemPositive ? ui.success : ui.danger;
                 const active = item.symbol === currentSymbol.symbol;
                 const hovered = hoveredSymbol === item.symbol;
+                const favorite = favoriteSymbols.includes(item.symbol);
                 return (
                   <Pressable
                     key={item.symbol}
@@ -1494,7 +1567,17 @@ export default function TradingChart({ onFullscreenChange }) {
                     style={{ backgroundColor: active || hovered ? ui.soft : 'transparent', cursor: 'pointer' }}
                   >
                     <View className="min-w-0 flex-1 flex-row items-center">
-                      <Star size={14} color={active || hovered ? ui.accent : ui.muted} />
+                      <Pressable
+                        onPress={(event) => {
+                          event.stopPropagation();
+                          toggleFavoriteSymbol(item.symbol);
+                        }}
+                        accessibilityLabel={favorite ? `Remove ${item.symbol} from favorites` : `Add ${item.symbol} to favorites`}
+                        className="h-7 w-7 items-center justify-center rounded"
+                        style={{ cursor: 'pointer' }}
+                      >
+                        <Star size={15} color={favorite ? '#f6c343' : ui.muted} fill={favorite ? '#f6c343' : 'transparent'} />
+                      </Pressable>
                       <View className="mx-2 h-4 w-4 items-center justify-center rounded-full" style={{ backgroundColor: itemTone }}>
                         <Text className="text-[8px] font-black text-white">{item.symbol?.[0] || '$'}</Text>
                       </View>
@@ -1513,6 +1596,14 @@ export default function TradingChart({ onFullscreenChange }) {
                   </Pressable>
                 );
               })}
+              {!filteredSymbols.length ? (
+                <View className="items-center px-4 py-10">
+                  <Star size={22} color={ui.muted} />
+                  <Text className="mt-2 text-center text-xs font-semibold" style={{ color: ui.muted }}>
+                    {symbolTab === 'Favorites' ? 'Star a symbol to add it to Favorites.' : 'No symbols found.'}
+                  </Text>
+                </View>
+              ) : null}
             </ScrollView>
           </View>
         ) : null}
@@ -2049,6 +2140,7 @@ export default function TradingChart({ onFullscreenChange }) {
           <Pressable
             onPress={toggleChartFullscreen}
             className="absolute items-center justify-center rounded-md border"
+            accessibilityLabel={chartFullscreen ? 'Reduce chart size' : 'Increase chart size'}
             style={{ top: 10, right: 72, width: iconButtonSize, height: iconButtonSize, backgroundColor: chartFullscreen ? ui.controlActive : ui.control, borderColor: chartFullscreen ? ui.controlActive : ui.border, zIndex: 50, elevation: 50, cursor: 'pointer' }}
           >
             {chartFullscreen ? (
@@ -2057,10 +2149,33 @@ export default function TradingChart({ onFullscreenChange }) {
               <Maximize2 size={compactToolbar ? 14 : 16} color={ui.text} />
             )}
           </Pressable>
+          {chartFullscreen ? (
+            <View
+              className="absolute flex-row overflow-hidden rounded-md"
+              style={{ top: 10, right: 72 + iconButtonSize + 6, height: iconButtonSize, zIndex: 50, elevation: 50 }}
+            >
+              <Pressable
+                onPress={() => openFullscreenOrder('SELL')}
+                accessibilityLabel={`Sell ${currentSymbol.symbol}`}
+                className="items-center justify-center"
+                style={{ width: compactToolbar ? 54 : 64, backgroundColor: ui.danger, cursor: 'pointer' }}
+              >
+                <Text className="text-[10px] font-extrabold text-white">Sell</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => openFullscreenOrder('BUY')}
+                accessibilityLabel={`Buy ${currentSymbol.symbol}`}
+                className="items-center justify-center"
+                style={{ width: compactToolbar ? 54 : 64, backgroundColor: ui.success, cursor: 'pointer' }}
+              >
+                <Text className="text-[10px] font-extrabold text-white">Buy</Text>
+              </Pressable>
+            </View>
+          ) : null}
           {activeIndicatorBadges.length ? (
             <View
               className="absolute flex-row items-center gap-1.5"
-              style={{ top: 10, right: 72 + iconButtonSize + 8, maxWidth: '62%', zIndex: 55, elevation: 55 }}
+              style={{ top: 10, right: 72 + iconButtonSize + 8 + (chartFullscreen ? (compactToolbar ? 108 : 128) + 6 : 0), maxWidth: chartFullscreen ? '42%' : '62%', zIndex: 55, elevation: 55 }}
             >
               {activeIndicatorBadges.map((item) => (
                 <View
@@ -2092,6 +2207,11 @@ export default function TradingChart({ onFullscreenChange }) {
           ) : null}
         </View>
       </View>
+      <NewOrderModal
+        visible={orderModalOpen}
+        initialSide={orderSide}
+        onClose={() => setOrderModalOpen(false)}
+      />
     </View>
   );
 }
