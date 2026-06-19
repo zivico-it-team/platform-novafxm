@@ -2,9 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Modal, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import { ChevronDown, Plus, Sun, Moon, UserRound, Wallet } from 'lucide-react-native';
+import Svg, { Polyline } from 'react-native-svg';
 import { useAuth } from '../../hooks/useAuth';
 import { useDemoTrading } from '../../hooks/useDemoTrading';
-import { money } from '../../utils/formatters';
+import { money, percent, quote } from '../../utils/formatters';
 import { useAppTheme } from '../../context/ThemeContext';
 import { dashboardService } from '../../services/dashboardService';
 import NovaLogo from '../brand/NovaLogo';
@@ -15,9 +16,9 @@ import ProfileMenu from './ProfileMenu';
 
 const visibleMetricCount = 5;
 
-export default function TopAccountBar({ onOpenNewOrder }) {
+export default function TopAccountBar({ chartFullscreen = false, onOpenNewOrder }) {
   const { width } = useWindowDimensions();
-  const { summary, selectedTradingAccount, setSelectedTradingAccount } = useDemoTrading();
+  const { currentSymbol, summary, selectedTradingAccount, setSelectedTradingAccount } = useDemoTrading();
   const params = useLocalSearchParams();
   const { user } = useAuth();
   const { darkMode, colors, toggleTheme } = useAppTheme();
@@ -28,7 +29,7 @@ export default function TopAccountBar({ onOpenNewOrder }) {
   const [sidePanel, setSidePanel] = useState(null);
   const [accounts, setAccounts] = useState([]);
   const [hoveredAction, setHoveredAction] = useState(null);
-  const mobile = width < 760;
+  const mobile = width < 900;
   const iconButtonHoverBg = darkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(11, 11, 11, 0.04)';
 
   const fallbackAccount = useMemo(() => ({
@@ -64,6 +65,23 @@ export default function TopAccountBar({ onOpenNewOrder }) {
     ['Pending Deposits', `${money(summary.pendingDeposits)} USD`],
     ['Free Funds', `${money(summary.freeFunds)} USD`],
   ];
+  const desktopMetrics = [
+    ['Equity', money(summary.equity)],
+    ['Balance', money(summary.balance)],
+    ['Margin', money(summary.margin)],
+    ['Margin Level', summary.margin ? `${money(summary.marginLevel)}%` : '-'],
+    ['P&L', money(summary.openProfit)],
+  ];
+  const symbolPrice = Number(currentSymbol?.price || currentSymbol?.bid || 0);
+  const symbolChange = Number(currentSymbol?.change || 0);
+  const desktopHeaderBg = darkMode ? '#02070d' : colors.background;
+  const desktopDivider = darkMode ? '#172536' : colors.border;
+  const desktopText = colors.text;
+  const desktopMuted = darkMode ? '#66758a' : colors.muted;
+  const tradeButtonBg = darkMode ? '#3a2f14' : colors.primarySoft;
+  const sparklinePoints = symbolChange >= 0
+    ? '2,34 15,31 26,32 37,24 48,27 58,10 67,18 78,20 90,7 100,12 112,4'
+    : '2,7 15,12 26,10 37,18 48,16 58,29 67,22 78,25 90,33 100,28 112,35';
 
   const maxMetricStep = Math.max(metrics.length - visibleMetricCount, 0);
 
@@ -97,12 +115,12 @@ export default function TopAccountBar({ onOpenNewOrder }) {
     setSidePanel(panel);
   };
 
-  const openNewOrder = () => {
+  const openNewOrder = (side = 'BUY') => {
     if (!user) {
       router.push('/login');
       return;
     }
-    onOpenNewOrder?.();
+    onOpenNewOrder?.(side);
   };
 
   const hoverProps = (action) => ({ onHoverIn: () => setHoveredAction(action), onHoverOut: () => setHoveredAction(null) });
@@ -144,7 +162,7 @@ export default function TopAccountBar({ onOpenNewOrder }) {
   }, [maxMetricStep, metricsWidth]);
 
   return (
-    <View className={`${mobile ? 'relative z-40 gap-1.5 px-2 py-1.5' : 'relative z-40 border-b px-2 py-1.5'} lg:flex-row lg:items-center lg:gap-3 lg:px-3 lg:py-3`} style={{ backgroundColor: colors.background, borderColor: colors.border }}>
+    <View className={`${mobile ? 'relative z-40 gap-1.5 px-2 py-1.5' : 'relative z-40 px-5 py-2'} lg:flex-row lg:items-center lg:gap-3`} style={{ backgroundColor: mobile ? colors.background : desktopHeaderBg, borderColor: colors.border }}>
       {mobile ? (
         <View className="flex-row items-center gap-2">
           {user ? (
@@ -160,7 +178,7 @@ export default function TopAccountBar({ onOpenNewOrder }) {
             <AuthButtons />
           )}
           {user ? (
-            <Pressable onPress={openNewOrder} className="h-[40px] flex-row items-center justify-center rounded-md px-3" style={{ backgroundColor: colors.primary }}>
+            <Pressable onPress={() => openNewOrder('BUY')} className="h-[40px] flex-row items-center justify-center rounded-md px-3" style={{ backgroundColor: colors.primary }}>
               <Plus color="#0B0B0B" size={16} />
               <Text className="ml-1.5 text-xs font-bold text-black">New Order</Text>
             </Pressable>
@@ -181,47 +199,74 @@ export default function TopAccountBar({ onOpenNewOrder }) {
         </View>
       ) : (
         <View className="mb-3 flex-row items-center justify-between lg:mb-0">
-          <NovaLogo dark={darkMode} width={180} height={44} />
+          <NovaLogo dark={darkMode} width={170} height={44} />
         </View>
       )}
-      {!mobile && user ? (
-        <Pressable onPress={openNewOrder} className="mb-3 flex-row items-center justify-center rounded-xl px-5 py-4 lg:mb-0" style={{ backgroundColor: colors.primary }}>
-          <Plus color="#0B0B0B" size={18} />
-          <Text className="ml-2 font-bold text-black">New Order</Text>
+      {!mobile && (
+        <>
+          <View className="h-[64px] w-px" style={{ backgroundColor: desktopDivider }} />
+          <View className="h-[64px] w-[280px] flex-row items-center justify-between px-6">
+            <View>
+              <Text className="text-base font-black" numberOfLines={1} style={{ color: desktopText }}>{currentSymbol?.symbol || 'BTC/USD'}</Text>
+              <View className="mt-2 flex-row items-center">
+                <Text className="text-base font-black" style={{ color: desktopText }}>{quote(symbolPrice, Number(currentSymbol?.decimals ?? 2))}</Text>
+                <Text className="ml-5 text-base font-black" style={{ color: symbolChange < 0 ? colors.danger : colors.success }}>{percent(symbolChange)}</Text>
+              </View>
+            </View>
+            <Svg width={92} height={42} viewBox="0 0 114 42">
+              <Polyline points={sparklinePoints} fill="none" stroke={symbolChange < 0 ? colors.danger : colors.success} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+            </Svg>
+          </View>
+          <View className="h-[64px] w-px" style={{ backgroundColor: desktopDivider }} />
+        </>
+      )}
+      {mobile ? (
+        <ScrollView ref={metricsScrollRef} horizontal showsHorizontalScrollIndicator={false} className="h-[40px] flex-1 rounded-md" contentContainerStyle={{ width: `${(metrics.length / visibleMetricCount) * 100}%` }} onLayout={({ nativeEvent }) => setMetricsWidth(nativeEvent.layout.width)} style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
+          {metrics.map(([label, value], index) => (
+            <View key={label} className="h-full flex-1 justify-center px-2" style={{ borderColor: 'rgba(132, 142, 156, .22)', borderRightWidth: index === metrics.length - 1 ? 0 : 1 }}>
+              <Text className="text-[9px]" numberOfLines={1} style={{ color: colors.muted }}>{label}</Text>
+              <Text className="text-[11px] font-semibold" numberOfLines={1} style={{ color: label === 'Net Profit' && summary.openProfit < 0 ? colors.danger : colors.text }}>{value}</Text>
+            </View>
+          ))}
+        </ScrollView>
+      ) : (
+        <View className="h-[64px] flex-1 flex-row items-center justify-around px-3">
+          {desktopMetrics.map(([label, value]) => (
+            <View key={label} className="min-w-[82px] px-1">
+              <Text className="text-xs font-semibold" numberOfLines={1} style={{ color: desktopMuted }}>{label}</Text>
+              <Text className="mt-2 text-sm font-black" numberOfLines={1} style={{ color: label === 'P&L' && summary.openProfit < 0 ? colors.danger : desktopText }}>
+                {label === 'P&L' && summary.openProfit > 0 ? `+${value}` : value}
+              </Text>
+            </View>
+          ))}
+        </View>
+      )}
+      {!mobile && user && !chartFullscreen ? (
+        <Pressable onPress={() => openNewOrder('BUY')} className="h-[52px] w-[144px] flex-row items-center justify-center rounded-md" style={{ backgroundColor: tradeButtonBg }}>
+          <Plus color={colors.primary} size={20} />
+          <Text className="ml-2 text-sm font-black" style={{ color: colors.primary }}>New Trade</Text>
         </Pressable>
       ) : null}
-      <ScrollView ref={metricsScrollRef} horizontal showsHorizontalScrollIndicator={false} className={`${mobile ? 'h-[40px] rounded-md' : 'h-[58px] rounded-lg border'} flex-1`} contentContainerStyle={{ width: `${(metrics.length / visibleMetricCount) * 100}%` }} onLayout={({ nativeEvent }) => setMetricsWidth(nativeEvent.layout.width)} style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
-        {metrics.map(([label, value], index) => (
-          <View key={label} className={`${mobile ? 'px-2' : 'px-4'} h-full flex-1 justify-center`} style={{ borderColor: mobile ? 'rgba(132, 142, 156, .22)' : colors.border, borderRightWidth: index === metrics.length - 1 ? 0 : 1 }}>
-            <Text className={mobile ? 'text-[9px]' : 'text-xs'} numberOfLines={1} style={{ color: colors.muted }}>{label}</Text>
-            <Text className={`${mobile ? 'text-[11px]' : 'mt-1'} font-semibold`} numberOfLines={1} style={{ color: label === 'Net Profit' && summary.openProfit < 0 ? colors.danger : colors.text }}>{value}</Text>
-          </View>
-        ))}
-      </ScrollView>
       {!mobile && user ? (
-        <Pressable onPress={() => setMenu(menu === 'account' ? null : 'account')} className="mt-3 flex-row items-center rounded-full px-4 py-2 lg:mt-0 lg:w-[210px]" style={{ backgroundColor: colors.panel }}>
+        <Pressable onPress={() => setMenu(menu === 'account' ? null : 'account')} className="h-[52px] flex-row items-center rounded-md border px-3" style={{ backgroundColor: colors.panel, borderColor: colors.border }}>
           <View className="rounded-full px-2 py-1" style={{ backgroundColor: `${colors.primary}22` }}>
             <Text className="text-xs font-black" style={{ color: colors.primary }}>{selectedAccount?.type || 'Demo'}</Text>
           </View>
-          <View className="ml-3 min-w-0 flex-1">
-            <Text className="font-black" numberOfLines={1} style={{ color: colors.text }}>{money(selectedAccountBalance)} USD</Text>
-          </View>
-          <ChevronDown className="mr-2" size={15} color={colors.muted} />
-          <View className="ml-auto h-2.5 w-2.5 rounded-full" style={{ backgroundColor: colors.success }} />
+          <ChevronDown className="ml-2" size={15} color={colors.muted} />
         </Pressable>
       ) : null}
       {!mobile && !user ? <AuthButtons /> : null}
-      <Pressable {...hoverProps('theme')} onPress={toggleTheme} className="mt-3 hidden h-[58px] w-[58px] items-center justify-center rounded-xl border lg:flex" style={iconButtonStyle('theme', { backgroundColor: colors.panel, borderColor: colors.border })}>
-        <View style={iconHoverStyle('theme')}>{darkMode ? <Sun size={21} color={iconColor('theme')} /> : <Moon size={21} color={iconColor('theme')} />}</View>
+      <Pressable {...hoverProps('theme')} onPress={toggleTheme} className="hidden h-[52px] w-[52px] items-center justify-center rounded-xl border lg:flex" style={iconButtonStyle('theme', { backgroundColor: colors.panel, borderColor: colors.border })}>
+        <View style={iconHoverStyle('theme')}>{darkMode ? <Sun size={20} color={iconColor('theme')} /> : <Moon size={20} color={iconColor('theme')} />}</View>
       </Pressable>
       {user ? (
-        <Pressable {...hoverProps('wallet')} onPress={openWalletMenu} className="mt-3 hidden h-[58px] w-[58px] items-center justify-center rounded-xl border lg:flex" style={iconButtonStyle('wallet', { backgroundColor: colors.panel, borderColor: colors.border })}>
-          <View style={iconHoverStyle('wallet')}><Wallet size={21} color={iconColor('wallet')} /></View>
+        <Pressable {...hoverProps('wallet')} onPress={openWalletMenu} className="hidden h-[52px] w-[52px] items-center justify-center rounded-xl border lg:flex" style={iconButtonStyle('wallet', { backgroundColor: colors.panel, borderColor: colors.border })}>
+          <View style={iconHoverStyle('wallet')}><Wallet size={20} color={iconColor('wallet')} /></View>
         </Pressable>
       ) : null}
       {user ? (
-        <Pressable {...hoverProps('profile')} onPress={() => setMenu(menu === 'profile' ? null : 'profile')} className="mt-3 hidden h-[58px] w-[58px] items-center justify-center rounded-xl border lg:flex" style={iconButtonStyle('profile', { backgroundColor: colors.panel, borderColor: colors.border })}>
-          <View style={iconHoverStyle('profile')}><UserRound size={21} color={iconColor('profile')} /></View>
+        <Pressable {...hoverProps('profile')} onPress={() => setMenu(menu === 'profile' ? null : 'profile')} className="hidden h-[52px] w-[52px] items-center justify-center rounded-xl border lg:flex" style={iconButtonStyle('profile', { backgroundColor: colors.panel, borderColor: colors.border })}>
+          <View style={iconHoverStyle('profile')}><UserRound size={20} color={iconColor('profile')} /></View>
         </Pressable>
       ) : null}
       <Modal visible={Boolean(menu)} transparent animationType="fade" onRequestClose={() => setMenu(null)}>

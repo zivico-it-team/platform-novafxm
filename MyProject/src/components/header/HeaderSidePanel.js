@@ -21,7 +21,7 @@ import {
   Wallet,
   X,
 } from 'lucide-react-native';
-import { Image, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Animated, Image, Platform, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import CustomButton from '../common/CustomButton';
 import DepositForm from '../wallet/DepositForm';
 import WithdrawForm from '../wallet/WithdrawForm';
@@ -60,7 +60,7 @@ function PanelHeader({ title, subtitle, icon: Icon, onClose, colors }) {
           <Icon size={22} color={colors.primary} />
         </View>
         <View className="ml-3">
-          <Text className="text-2xl font-black" style={{ color: colors.text }}>{title}</Text>
+          <Text className="text-2xl font-extrabold" style={{ color: colors.text }}>{title}</Text>
           {subtitle ? <Text className="mt-1 text-sm" style={{ color: colors.muted }}>{subtitle}</Text> : null}
         </View>
       </View>
@@ -836,8 +836,13 @@ export default function HeaderSidePanel({ type, selectedAccount, summary, onClos
   const { user, updateProfile, submitVerification, refreshUser } = useAuth();
   const { colors, darkMode, toggleTheme } = useAppTheme();
   const { deposit, withdraw, loading: walletLoading } = useWallet();
+  const { width, height } = useWindowDimensions();
   const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(false);
+  const slideAnim = useRef(new Animated.Value(-34)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const panelWidth = Math.min(1180, Math.max(340, width * 0.96));
+  const panelHeight = Math.min(height * 0.9, height - 32);
 
   useEffect(() => {
     let active = true;
@@ -853,6 +858,21 @@ export default function HeaderSidePanel({ type, selectedAccount, summary, onClos
       });
     return () => { active = false; };
   }, [type, user]);
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 280,
+        useNativeDriver: true,
+      }),
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 220,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [fadeAnim, slideAnim]);
 
   const wallet = dashboard?.wallet || {};
   const transactions = dashboard?.transactions || [];
@@ -880,17 +900,23 @@ export default function HeaderSidePanel({ type, selectedAccount, summary, onClos
   ), [balance, colors, selectedAccount?.name]);
 
   return (
-    <View className="absolute inset-0 z-[90] items-center justify-center bg-black/60 p-5">
-      <Pressable className="absolute inset-0" onPress={onClose} />
-      <View
-        className="max-h-[90vh] w-[1180px] max-w-[96vw] overflow-hidden rounded-lg border shadow-2xl"
+    <View
+      className="items-center justify-center p-5"
+      style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, zIndex: 90, backgroundColor: 'rgba(0,0,0,0.6)' }}
+    >
+      <Pressable style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }} onPress={onClose} />
+      <Animated.View
+        className="overflow-hidden rounded-lg border shadow-2xl"
         style={{
+          width: panelWidth,
+          maxHeight: panelHeight,
           backgroundColor: colors.background,
           borderColor: colors.border,
           shadowColor: colors.primary,
-          shadowOpacity: 0.18,
+          shadowOpacity: 0.14,
           shadowRadius: 30,
-          transform: [{ translateX: 0 }],
+          opacity: fadeAnim,
+          transform: [{ translateX: slideAnim }],
         }}
       >
         <PanelHeader title={title} subtitle={subtitle} icon={Icon || BadgeCheck} onClose={onClose} colors={colors} />
@@ -931,7 +957,7 @@ export default function HeaderSidePanel({ type, selectedAccount, summary, onClos
           {type === 'verification' ? <VerificationPanel user={user} colors={colors} submitVerification={submitVerification} refreshUser={refreshUser} /> : null}
           {type === 'referral' ? <ReferralPanel dashboard={dashboard} colors={colors} /> : null}
         </ScrollView>
-      </View>
+      </Animated.View>
     </View>
   );
 }

@@ -820,7 +820,7 @@ document.addEventListener('message', receiveLiveUpdate);
 }
 
 export default function TradingChart({ isFullscreen, onFullscreenChange }) {
-  const { currentSymbol, prices, setSelectedSymbol } = useDemoTrading();
+  const { currentSymbol, openPosition, prices, setSelectedSymbol } = useDemoTrading();
   const { colors } = useAppTheme();
   const { height, width } = useWindowDimensions();
   const compactToolbar = width < 640;
@@ -910,6 +910,8 @@ export default function TradingChart({ isFullscreen, onFullscreenChange }) {
   const [viewRange, setViewRange] = useState('Full');
   const [reloadKey, setReloadKey] = useState(0);
   const [priceDirection, setPriceDirection] = useState(0);
+  const [quickTradeLoading, setQuickTradeLoading] = useState(null);
+  const [quickTradeMessage, setQuickTradeMessage] = useState('');
   const iframeRef = useRef(null);
   const webViewRef = useRef(null);
   const liveCandleRef = useRef(null);
@@ -917,6 +919,28 @@ export default function TradingChart({ isFullscreen, onFullscreenChange }) {
   const lastGapReloadAtRef = useRef(0);
   const lastGapReloadKeyRef = useRef('');
   const favoriteStorageLoadedRef = useRef(false);
+
+  useEffect(() => {
+    if (chartFullscreen) {
+      setSymbolMenuOpen(false);
+      setSymbolTabMenuOpen(false);
+    }
+  }, [chartFullscreen]);
+
+  const placeQuickTrade = useCallback(async (side) => {
+    if (quickTradeLoading) return;
+    setQuickTradeLoading(side);
+    setQuickTradeMessage('');
+    try {
+      await openPosition(side, 0.01);
+      setQuickTradeMessage(`${side} 0.01 placed`);
+      setTimeout(() => setQuickTradeMessage(''), 2200);
+    } catch (error) {
+      setQuickTradeMessage(error.response?.data?.message || error.message || 'Order failed');
+    } finally {
+      setQuickTradeLoading(null);
+    }
+  }, [openPosition, quickTradeLoading]);
 
   useEffect(() => {
     previousPriceRef.current = null;
@@ -1465,6 +1489,33 @@ export default function TradingChart({ isFullscreen, onFullscreenChange }) {
               style={{ backgroundColor: colors.chartBackground, zIndex: 0, elevation: 0 }}
             />
           )}
+          {chartFullscreen ? (
+            <View className="absolute" style={{ top: 10, right: compactToolbar ? 52 : 112, zIndex: 70, elevation: 70 }}>
+              <View className="flex-row overflow-hidden rounded-md shadow-xl">
+                <Pressable
+                  disabled={Boolean(quickTradeLoading)}
+                  onPress={() => placeQuickTrade('SELL')}
+                  className="h-[52px] w-[104px] items-center justify-center"
+                  style={{ backgroundColor: ui.danger, opacity: quickTradeLoading && quickTradeLoading !== 'SELL' ? 0.72 : 1, cursor: 'pointer' }}
+                >
+                  <Text className="text-base font-black text-white">{quickTradeLoading === 'SELL' ? '...' : 'Sell'}</Text>
+                </Pressable>
+                <Pressable
+                  disabled={Boolean(quickTradeLoading)}
+                  onPress={() => placeQuickTrade('BUY')}
+                  className="h-[52px] w-[104px] items-center justify-center"
+                  style={{ backgroundColor: ui.success, opacity: quickTradeLoading && quickTradeLoading !== 'BUY' ? 0.72 : 1, cursor: 'pointer' }}
+                >
+                  <Text className="text-base font-black text-white">{quickTradeLoading === 'BUY' ? '...' : 'Buy'}</Text>
+                </Pressable>
+              </View>
+              {quickTradeMessage ? (
+                <View className="mt-2 self-end rounded-md border px-3 py-1.5" style={{ backgroundColor: ui.panel, borderColor: ui.border }}>
+                  <Text className="text-xs font-bold" numberOfLines={1} style={{ color: quickTradeMessage.includes('failed') || quickTradeMessage.includes('Please') || quickTradeMessage.includes('Insufficient') ? ui.danger : ui.text }}>{quickTradeMessage}</Text>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
           <Pressable
             onPress={toggleChartFullscreen}
             className="absolute items-center justify-center rounded-md border"

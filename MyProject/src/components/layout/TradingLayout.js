@@ -12,14 +12,14 @@ import { useDemoTrading } from '../../hooks/useDemoTrading';
 
 function OrderRail({ summary, user, showSummary = true, showAvailableMargin = true, orderTicketOpen = false, onCloseOrderTicket }) {
   const ticketAnim = useRef(new Animated.Value(orderTicketOpen ? 1 : 0)).current;
-  const widthAnim = useRef(new Animated.Value(orderTicketOpen ? 460 : 270)).current;
+  const widthAnim = useRef(new Animated.Value(orderTicketOpen ? 320 : 300)).current;
   const [showTicket, setShowTicket] = useState(orderTicketOpen);
 
   useEffect(() => {
     if (orderTicketOpen) setShowTicket(true);
     Animated.parallel([
       Animated.timing(widthAnim, {
-        toValue: orderTicketOpen ? 460 : 270,
+        toValue: orderTicketOpen ? 320 : 300,
         duration: 260,
         useNativeDriver: false,
       }),
@@ -34,12 +34,13 @@ function OrderRail({ summary, user, showSummary = true, showAvailableMargin = tr
   }, [orderTicketOpen, ticketAnim, widthAnim]);
 
   return (
-    <Animated.View className="h-full gap-3 overflow-hidden" style={{ width: widthAnim }}>
+    <Animated.View className="h-full gap-3 overflow-hidden" style={{ width: widthAnim, maxWidth: '100%', overflow: 'hidden' }}>
       {showTicket ? (
         <Animated.View
           className="h-full"
           style={{
-            width: 460,
+            width: 320,
+            overflow: 'hidden',
             opacity: ticketAnim,
             transform: [{ translateX: ticketAnim.interpolate({ inputRange: [0, 1], outputRange: [34, 0] }) }],
           }}
@@ -61,12 +62,14 @@ export default function TradingLayout() {
   const { user } = useAuth();
   const { summary } = useDemoTrading();
   const [orderTicketOpen, setOrderTicketOpen] = useState(false);
+  const [initialOrderSide, setInitialOrderSide] = useState('BUY');
   const [mobileOrderModal, setMobileOrderModal] = useState(false);
   const [chartFullscreen, setChartFullscreen] = useState(false);
   const desktop = width >= 1100;
   const tablet = width >= 760;
   const mobile = width < 760;
-  const openNewOrder = () => {
+  const openNewOrder = (side = 'BUY') => {
+    setInitialOrderSide(side);
     if (mobile) {
       setMobileOrderModal(true);
       return;
@@ -77,14 +80,14 @@ export default function TradingLayout() {
 
   return (
     <View className="flex-1" style={{ backgroundColor: colors.background }}>
-      <TopAccountBar onOpenNewOrder={openNewOrder} />
+      <TopAccountBar chartFullscreen={chartFullscreen} onOpenNewOrder={openNewOrder} />
       <ScrollView
         scrollEnabled={!chartFullscreen}
         keyboardShouldPersistTaps="handled"
         style={{ flex: 1 }}
         contentContainerStyle={{ flexGrow: 1, padding: chartFullscreen ? 0 : (mobile ? 6 : 12), paddingBottom: chartFullscreen ? 0 : (mobile ? 16 : 24) }}
       >
-        <View className={chartFullscreen ? 'flex-1' : (desktop ? 'h-[600px] flex-row gap-3' : mobile ? 'gap-1.5' : 'gap-3')}>
+        <View className={chartFullscreen ? 'flex-1' : (desktop ? 'h-[680px] flex-row gap-3 overflow-hidden' : mobile ? 'gap-1.5' : 'gap-3 overflow-hidden')} style={{ overflow: chartFullscreen ? 'visible' : 'hidden' }}>
           {desktop ? (
             <>
               <TradingChart isFullscreen={chartFullscreen} onFullscreenChange={setChartFullscreen} />
@@ -107,7 +110,14 @@ export default function TradingLayout() {
         {!chartFullscreen && <OpenPositions />}
       </ScrollView>
       {mobile && !chartFullscreen ? <OrderPanel /> : null}
-      <NewOrderModal visible={mobileOrderModal && !chartFullscreen} onClose={() => setMobileOrderModal(false)} />
+      <NewOrderModal
+        visible={mobileOrderModal && !chartFullscreen}
+        initialSide={initialOrderSide}
+        onClose={() => {
+          setMobileOrderModal(false);
+          closeNewOrder();
+        }}
+      />
     </View>
   );
 }
